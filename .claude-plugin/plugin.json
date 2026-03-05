@@ -1,6 +1,6 @@
 {
   "name": "agentic-sdlc",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Agentic SDLC quality gates — 4-gate pipeline with LLM-as-judge scoring, git worktree isolation, and beads issue tracking.",
   "author": {
     "name": "Dustin Cheng",
