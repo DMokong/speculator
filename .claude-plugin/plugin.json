@@ -1,0 +1,5 @@
+{
+  "name": "agentic-sdlc",
+  "version": "0.1.0",
+  "description": "Agentic SDLC quality gates — enforces spec quality, code quality, review, and evidence collection via a 4-gate pipeline with LLM-as-judge scoring."
+}

@@ -1,0 +1,17 @@
+{
+  "description": "SDLC gate enforcement hooks — blocks commits and pushes when quality gates have not been passed.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "SDLC PRE-COMMIT GATE CHECK\n\nBefore this commit proceeds, verify that the SDLC quality gates are satisfied.\n\n1. Read `.claude/sdlc.local.md` to find the `spec_dir` configuration.\n2. Look for any spec directories in `{spec_dir}/` that have status `draft` or `approved` in their YAML frontmatter.\n3. For each active spec (status != 'closed'):\n   a. Check if `{spec_dir}/{spec_name}/evidence/gate-1-scorecard.yml` exists\n   b. If it exists, read it and verify `result: pass`\n4. If there are active specs without a passing Gate 1 scorecard:\n   - Output a warning: 'SDLC Gate Warning: Spec \"{spec_name}\" has not passed Gate 1 (spec quality). Run /sdlc score to evaluate the spec before committing.'\n   - Do NOT block the commit — this is a warning in v1, not a hard block.\n5. If all active specs have passing Gate 1 evidence, or there are no active specs, allow the commit silently.\n\nIMPORTANT: This is a lightweight check. Do NOT run the scorer agent. Only check for existing evidence files.",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
