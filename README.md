@@ -42,14 +42,14 @@ Gate 1: Spec Quality --> Gate 2: Code Quality --> Gate 3: Review --> Gate 4: Evi
    (LLM-as-judge)         (tests + coverage)      (code review)       (all gates pass -> merge)
 ```
 
-Each gate produces a YAML evidence artifact in `docs/specs/{feature}/evidence/`.
+Each gate produces a YAML evidence artifact in `docs/specs/{feature}/evidence/`. All 4 gates have dedicated rubrics in `rubrics/` that define scoring criteria, checklists, and pass/fail thresholds.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
 | `/sdlc start` | Create spec from template + git worktree + beads epic |
-| `/sdlc score` | Gate 1: LLM-as-judge spec quality scoring (3 dimensions) |
+| `/sdlc score` | Gate 1: LLM-as-judge spec quality scoring (5 dimensions) |
 | `/sdlc implement` | Create implementation plan + beads stories + execute tasks |
 | `/sdlc gate` | Check or run any specific gate |
 | `/sdlc review` | Gate 3: Automated code review |
@@ -85,9 +85,12 @@ gates:
 # Scoring dimension weights (must sum to 1.0)
 scoring:
   weights:
-    completeness: 0.34     # does the spec cover all requirements?
-    clarity: 0.33          # is the spec unambiguous?
-    testability: 0.33      # can acceptance criteria be verified?
+    completeness: 0.25     # does the spec cover all requirements?
+    clarity: 0.25          # is the spec unambiguous?
+    testability: 0.25      # can acceptance criteria be verified?
+    feasibility: 0.15      # is the spec technically achievable?
+    scope: 0.10            # is the spec appropriately scoped?
+  dimension_minimum: 5     # any dimension below this fails the gate
 ```
 
 ## Plugin Structure
@@ -104,9 +107,11 @@ agentic-sdlc/
 ├── agents/
 │   └── spec-scorer/AGENT.md  # LLM-as-judge subagent for spec evaluation
 ├── rubrics/
-│   ├── spec-quality.md       # 3-dimension rubric (completeness, clarity, testability)
-│   ├── acceptance-criteria.md # Per-AC structure and measurability rubric
-│   └── code-quality.md       # Gate 2 evidence-based rubric
+│   ├── spec-quality.md       # 5-dimension rubric (completeness, clarity, testability, feasibility, scope)
+│   ├── acceptance-criteria.md # Gate 2 sub-rubric for AC traceability
+│   ├── code-quality.md       # Gate 2 evidence-based rubric (7 checks)
+│   ├── review.md             # Gate 3 code review rubric (6 checklist items)
+│   └── evidence-package.md   # Gate 4 evidence completeness rubric
 ├── templates/
 │   ├── spec-template.md      # Blank spec with YAML frontmatter
 │   └── scorecard-template.yml # Gate 1 evidence artifact template
