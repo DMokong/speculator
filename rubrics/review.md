@@ -98,9 +98,9 @@ The gate passes only when **both conditions** are met:
 1. **All 6 checks pass** (correctness, error_handling, readability, security, performance, spec_alignment)
 2. **`blocking_issues` is empty** — no unresolved blocking issues remain
 
-If either condition fails: `outcome: request-changes`
+If either condition fails: `result: fail`
 
-If both conditions pass: `outcome: approve`
+If both conditions pass: `result: pass`
 
 When requesting changes, clearly identify which checks failed and list blocking issues so the author knows exactly what to fix.
 
@@ -111,11 +111,11 @@ When requesting changes, clearly identify which checks failed and list blocking 
 Write evidence to `{spec_dir}/{spec_name}/evidence/gate-3-review.yml`:
 
 ```yaml
-evidence_type: review
+gate: review
 reviewer: "<name or agent>"
 review_method: "manual" | "agent-assisted" | "pr-review"
 timestamp: 2026-03-07T12:00:00Z
-outcome: "approve" | "request-changes"
+result: pass | fail
 checks:
   correctness: pass | fail
   error_handling: pass | fail
@@ -137,7 +137,7 @@ blocking_issues:
   - `agent-assisted` — An AI agent performed the review (e.g., via `/sdlc review`)
   - `pr-review` — Review was done as part of a GitHub PR review workflow
 - **timestamp**: ISO 8601 timestamp of when the review was completed.
-- **outcome**: `approve` if all checks pass and no blocking issues; `request-changes` otherwise.
+- **result**: `pass` if all checks pass and no blocking issues; `fail` otherwise.
 - **checks**: Pass/fail for each of the 6 review dimensions.
 - **observations**: Noteworthy findings — things the reviewer noticed that are worth recording, whether positive or negative. Not all observations are blocking.
 - **blocking_issues**: Issues that must be resolved before the gate can pass. These are distinct from observations: an observation might note "error messages could be more descriptive" (non-blocking), while a blocking issue would be "catch block on line 42 silently swallows database connection failures" (must fix).
