@@ -36,6 +36,7 @@ Based on the user's command, invoke the appropriate sub-skill:
 | `/sdlc implement` | Guide to implementation phase (see below) |
 | `/sdlc review` | Run Gate 3 — invoke `gate-check` skill with gate=review |
 | `/sdlc close` | Run Gate 4 — invoke `gate-check` skill with gate=evidence-package |
+| `/sdlc run [args]` | Run the full pipeline autonomously — invoke `sdlc-run` skill |
 | `/sdlc doctor` | Run system diagnostics — invoke `sdlc-doctor` skill |
 
 ## `/sdlc implement`
@@ -136,6 +137,8 @@ The SDLC workflow uses git worktrees for feature isolation:
 **Conflict-safe files** (unique per feature): `docs/specs/{name}/`, evidence, implementation code
 **Shared files** (avoid modifying in worktrees): `.beads/`, `.claude/sdlc.local.md`, `CLAUDE.md`
 
-## Autonomous Mode (Future)
+## Autonomous Mode (`/sdlc run`)
 
-`/sdlc run` will eventually chain all sub-skills in sequence for fully autonomous execution. For v1, each step is manually invoked.
+`/sdlc run` chains all sub-skills in sequence for autonomous execution with trust-based oversight. See the `sdlc-run` skill for full documentation.
+
+Self-improvement is built into every run — specs scoring below 8.0 go through a refinement loop before the pipeline proceeds. This is by design: engaging with feedback is a practice, not a penalty. Only specs scoring 8.0+ on first pass skip self-improvement.
