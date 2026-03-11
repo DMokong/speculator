@@ -35,6 +35,12 @@ claude plugin install agentic-sdlc@dmokong-plugins --scope project
 /sdlc close     # Gate 4: evidence package + merge to main
 ```
 
+**Or run it all at once:**
+
+```bash
+/sdlc run     # autonomous: score → plan → implement → review → merge
+```
+
 ## Gate Pipeline
 
 ```
@@ -49,13 +55,66 @@ Each gate produces a YAML evidence artifact in `docs/specs/{feature}/evidence/`.
 | Command | Description |
 |---------|-------------|
 | `/sdlc start` | Create spec from template + git worktree + beads epic |
-| `/sdlc score` | Gate 1: LLM-as-judge spec quality scoring (5 dimensions) |
+| `/sdlc score` | Gate 1: LLM-as-judge spec quality scoring (6 dimensions) |
 | `/sdlc implement` | Create implementation plan + beads stories + execute tasks |
 | `/sdlc gate` | Check or run any specific gate |
 | `/sdlc review` | Gate 3: Automated code review |
 | `/sdlc close` | Gate 4: Evidence package + merge worktree to main |
+| `/sdlc run [args]` | Run the full pipeline autonomously (trust-based oversight) |
 | `/sdlc status` | Cross-worktree pipeline view (all features at a glance) |
 | `/sdlc doctor` | Diagnostics + auto-fix (prereqs, config, hooks) |
+
+## `/sdlc run` — Autonomous Pipeline
+
+`/sdlc run` chains the full pipeline in a single invocation, using a trust-based autonomy model:
+
+```
+/sdlc run                    # auto-detect spec, resume from last checkpoint
+/sdlc run "add email snooze" # generate spec skeleton, then run pipeline
+/sdlc run SPEC-042           # target a specific spec by ID
+```
+
+### Trust Ladder
+
+Spec quality determines how much human oversight is needed:
+
+| Overall Score | Mode | Behavior |
+|---------------|------|----------|
+| >= 8.0 | Full Auto | No human checkpoints — runs end to end |
+| 7.8 – 7.9 | Full Auto (after self-improvement) | Refinement loop first, then autonomous |
+| 7.0 – 7.7 | Guided Autopilot | Pauses at plan review + pre-merge |
+| < 7.0 | Stopped | Human rework needed |
+
+**Hard gates** force Guided mode regardless of score: `intent_verifiability < 8`, `risk_level` high/critical, or `risk_mismatch` flag.
+
+### Self-Improvement Philosophy
+
+Self-improvement is a core principle of the agentic-sdlc pipeline, not an afterthought.
+
+The self-improvement trigger (default **8.0**) is intentionally set **higher** than the Full Auto threshold (default **7.8**). This gap is by design:
+
+- **>= 8.0 on first pass** — Spec was excellent. Skip self-improvement, proceed to Full Auto.
+- **< 8.0** — Self-improvement loop triggers. The agent reads scorer feedback, revises weak sections, and re-scores (up to 3 attempts).
+  - **Reaches >= 7.8** — Good enough for Full Auto after refinement.
+  - **Exhausted, >= 7.0** — Falls back to Guided Autopilot (human reviews plan and final output).
+  - **Exhausted, < 7.0** — Pipeline stops. Human rework needed.
+
+**Why?** A spec scoring 7.9 is technically good enough for autonomous execution. But the act of engaging with feedback — reading flags, addressing weaknesses, re-expressing intent more clearly — makes the spec *better*. This practice compounds over time: each refinement teaches the spec author (human or agent) what "good" looks like.
+
+The self-improvement loop has boundaries: it may add detail, examples, and clarifications, but it must **never** alter requirements or acceptance criteria without human approval. It improves the expression of intent, not the intent itself.
+
+### Risk Levels
+
+Specs declare a `risk_level` in YAML frontmatter:
+
+| Level | Description | Pipeline Effect |
+|-------|-------------|-----------------|
+| `low` | No external side effects, reversible | No override |
+| `medium` | Touches integrations, but reversible (default) | No override |
+| `high` | Affects external systems, hard to reverse | Forces Guided |
+| `critical` | Could cause harm, data loss, financial damage | Forces Guided |
+
+The scorer validates the declaration against spec content — if risk keywords are found but `risk_level` is "low", a `risk_mismatch` blocking flag is emitted.
 
 ## Configuration
 
@@ -85,12 +144,27 @@ gates:
 # Scoring dimension weights (must sum to 1.0)
 scoring:
   weights:
-    completeness: 0.25     # does the spec cover all requirements?
-    clarity: 0.25          # is the spec unambiguous?
-    testability: 0.25      # can acceptance criteria be verified?
-    feasibility: 0.15      # is the spec technically achievable?
-    scope: 0.10            # is the spec appropriately scoped?
+    completeness: 0.20
+    clarity: 0.20
+    testability: 0.20
+    intent_verifiability: 0.15
+    feasibility: 0.15
+    scope: 0.10
   dimension_minimum: 5     # any dimension below this fails the gate
+
+# /sdlc run autonomy thresholds
+run:
+  self_improvement_trigger: 8.0  # score below this triggers refinement loop
+  full_auto_threshold: 7.8       # minimum score for autonomous execution
+  guided_threshold: 7.0           # minimum score for guided mode (below = stop)
+  max_spec_retries: 3             # max self-improvement attempts
+  max_code_retries: 3             # max test-fix attempts in Gate 2
+  intent_verifiability_min: 8     # hard gate for intent dimension
+  risk_signals:                   # keywords that trigger risk validation
+    - delete
+    - production
+    - deploy
+    - payment
 ```
 
 ## Plugin Structure
@@ -102,12 +176,14 @@ agentic-sdlc/
 │   ├── spec-create/SKILL.md  # /sdlc start -- spec + worktree + beads epic
 │   ├── spec-score/SKILL.md   # /sdlc score -- Gate 1 via spec-scorer agent
 │   ├── gate-check/SKILL.md   # /sdlc gate -- check/run any gate
+│   ├── sdlc-run/SKILL.md     # /sdlc run -- autonomous pipeline orchestrator
 │   ├── sdlc-status/SKILL.md  # /sdlc status -- cross-worktree pipeline view
 │   └── sdlc-doctor/SKILL.md  # /sdlc doctor -- diagnostics + auto-fix
 ├── agents/
-│   └── spec-scorer/AGENT.md  # LLM-as-judge subagent for spec evaluation
+│   ├── spec-scorer/AGENT.md  # LLM-as-judge subagent for spec evaluation
+│   └── code-reviewer/AGENT.md  # Gate 3 code review subagent (6-point checklist)
 ├── rubrics/
-│   ├── spec-quality.md       # 5-dimension rubric (completeness, clarity, testability, feasibility, scope)
+│   ├── spec-quality.md       # 6-dimension rubric (completeness, clarity, testability, intent_verifiability, feasibility, scope)
 │   ├── acceptance-criteria.md # Gate 2 sub-rubric for AC traceability
 │   ├── code-quality.md       # Gate 2 evidence-based rubric (7 checks)
 │   ├── review.md             # Gate 3 code review rubric (6 checklist items)
