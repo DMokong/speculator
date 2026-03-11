@@ -5,6 +5,7 @@ author:
 date:
 epic:
 worktree:
+risk_level: medium
 ---
 
 ## Problem Statement
