@@ -1,9 +1,10 @@
 ---
 name: spec-create
 description: >-
-  Use when the user says "/sdlc start", "create a spec", "new spec", "start a new
-  feature spec", or wants to begin a new piece of work with a formal specification.
-  Creates a spec from the template in the project's configured spec directory.
+  Use when the user says "/sdlc start", "/spec start", "/spec create", "create a
+  spec", "new spec", "start a new feature spec", or wants to begin a new piece of
+  work with a formal specification. Creates a spec from the template in the
+  project's configured spec directory.
 ---
 
 # Create a New Spec

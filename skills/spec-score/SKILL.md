@@ -1,9 +1,10 @@
 ---
 name: spec-score
 description: >-
-  Use when the user says "/sdlc score", "score my spec", "evaluate the spec",
-  "check spec quality", or wants to run Gate 1 (spec quality) on a specification.
-  Invokes the spec-scorer agent to evaluate the spec and produce a scorecard.
+  Use when the user says "/sdlc score", "/spec score", "score my spec", "evaluate
+  the spec", "check spec quality", or wants to run Gate 1 (spec quality) on a
+  specification. Invokes the spec-scorer agent to evaluate the spec and produce a
+  scorecard.
 ---
 
 # Score a Spec (Gate 1: Spec Quality)

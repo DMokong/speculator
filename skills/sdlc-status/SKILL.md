@@ -1,9 +1,9 @@
 ---
 name: sdlc-status
 description: >-
-  Use when the user says "/sdlc status", "show pipeline status", "where am I in
-  the sdlc", "what gates have passed", or wants to see the current state of
-  their spec's quality pipeline.
+  Use when the user says "/sdlc status", "/spec status", "show pipeline status",
+  "where am I in the sdlc", "what gates have passed", or wants to see the current
+  state of their spec's quality pipeline.
 ---
 
 # SDLC Pipeline Status

@@ -1,9 +1,10 @@
 ---
 name: sdlc-doctor
 description: >-
-  Use when the user says "/sdlc doctor", "sdlc check", "sdlc health", "check sdlc setup",
-  or when invoked automatically by /sdlc start to verify the environment is ready.
-  Runs diagnostics on plugin config, git state, and worktree wiring.
+  Use when the user says "/sdlc doctor", "/spec doctor", "sdlc check", "spec check",
+  "sdlc health", "check sdlc setup", or when invoked automatically by /sdlc start
+  to verify the environment is ready. Runs diagnostics on plugin config, git state,
+  and worktree wiring.
 ---
 
 # SDLC Doctor — System Diagnostics

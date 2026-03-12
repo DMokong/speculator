@@ -1,9 +1,10 @@
 ---
 name: sdlc
 description: >-
-  Use when the user says "/sdlc" with any subcommand (start, score, gate, status,
-  implement, review, close), or just "/sdlc" with no args to see status. This is
-  the master orchestrator for the Speculator quality pipeline.
+  Use when the user says "/sdlc" or "/spec" with any subcommand (start, score,
+  gate, status, implement, review, close, run, doctor), or just "/sdlc" or "/spec"
+  with no args to see status. This is the master orchestrator for the Speculator
+  quality pipeline. Both "/sdlc" and "/spec" prefixes are equivalent.
 ---
 
 # Speculator — Master Orchestrator
@@ -24,20 +25,20 @@ Before routing any subcommand, check if this session is on main but should be in
 
 ## Routing
 
-Based on the user's command, invoke the appropriate sub-skill:
+Based on the user's command, invoke the appropriate sub-skill. Both `/sdlc` and `/spec` prefixes are equivalent — treat them identically:
 
 | Command | Action |
 |---------|--------|
-| `/sdlc` (no args) | Show pipeline status — invoke `sdlc-status` skill |
-| `/sdlc start` | Create a new spec — invoke `spec-create` skill (runs doctor first) |
-| `/sdlc score` | Score a spec (Gate 1) — invoke `spec-score` skill |
-| `/sdlc gate [name]` | Check/run a gate — invoke `gate-check` skill |
-| `/sdlc status` | Show pipeline status — invoke `sdlc-status` skill |
-| `/sdlc implement` | Guide to implementation phase (see below) |
-| `/sdlc review` | Run Gate 3 — invoke `gate-check` skill with gate=review |
-| `/sdlc close` | Run Gate 4 — invoke `gate-check` skill with gate=evidence-package |
-| `/sdlc run [args]` | Run the full pipeline autonomously — invoke `sdlc-run` skill |
-| `/sdlc doctor` | Run system diagnostics — invoke `sdlc-doctor` skill |
+| `/sdlc` or `/spec` (no args) | Show pipeline status — invoke `sdlc-status` skill |
+| `/sdlc start` or `/spec start` | Create a new spec — invoke `spec-create` skill (runs doctor first) |
+| `/sdlc score` or `/spec score` | Score a spec (Gate 1) — invoke `spec-score` skill |
+| `/sdlc gate` or `/spec gate` | Check/run a gate — invoke `gate-check` skill |
+| `/sdlc status` or `/spec status` | Show pipeline status — invoke `sdlc-status` skill |
+| `/sdlc implement` or `/spec implement` | Guide to implementation phase (see below) |
+| `/sdlc review` or `/spec review` | Run Gate 3 — invoke `gate-check` skill with gate=review |
+| `/sdlc close` or `/spec close` | Run Gate 4 — invoke `gate-check` skill with gate=evidence-package |
+| `/sdlc run` or `/spec run` | Run the full pipeline autonomously — invoke `sdlc-run` skill |
+| `/sdlc doctor` or `/spec doctor` | Run system diagnostics — invoke `sdlc-doctor` skill |
 
 ## `/sdlc implement`
 

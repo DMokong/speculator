@@ -3,8 +3,9 @@ name: sdlc-run
 description: >-
   Autonomous end-to-end pipeline orchestrator. Chains scoring, planning,
   implementation, review, and merge with trust-based autonomy modes.
-  Use when the user says "/sdlc run", "run the pipeline", "execute the
-  full sdlc", or wants to run the entire quality pipeline autonomously.
+  Use when the user says "/sdlc run", "/spec run", "run the pipeline",
+  "execute the full sdlc", or wants to run the entire quality pipeline
+  autonomously.
 ---
 
 # `/sdlc run` — Autonomous Pipeline Orchestrator
