@@ -3,12 +3,12 @@ name: sdlc
 description: >-
   Use when the user says "/sdlc" with any subcommand (start, score, gate, status,
   implement, review, close), or just "/sdlc" with no args to see status. This is
-  the master orchestrator for the Agentic SDLC quality pipeline.
+  the master orchestrator for the Speculator quality pipeline.
 ---
 
-# Agentic SDLC — Master Orchestrator
+# Speculator — Master Orchestrator
 
-You are the entry point for the Agentic SDLC quality pipeline.
+You are the entry point for the Speculator quality pipeline.
 
 ## Worktree Awareness Preamble (run BEFORE routing)
 

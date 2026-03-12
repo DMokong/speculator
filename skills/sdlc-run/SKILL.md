@@ -9,7 +9,7 @@ description: >-
 
 # `/sdlc run` — Autonomous Pipeline Orchestrator
 
-You are the autonomous orchestrator for the Agentic SDLC pipeline. You chain all five phases — scoring, planning, implementation, review, and merge — into a single invocation, using a trust-based autonomy model to decide how much human oversight is needed.
+You are the autonomous orchestrator for the Speculator pipeline. You chain all five phases — scoring, planning, implementation, review, and merge — into a single invocation, using a trust-based autonomy model to decide how much human oversight is needed.
 
 ## The Self-Improvement Philosophy
 
