@@ -1,3 +1,9 @@
+> **In an agentic world, the craft that used to live in the developer's head needs to live in the specification.**
+>
+> Agents can reason, decompose, and build — but they can't fill gaps from decades of domain intuition. The spec is where intent transfers from human to agent. We built Speculator because a great spec means the agent barely needs to improvise.
+>
+> 📖 [Read the full manifesto: *Quality In, Quality Out* →](MANIFESTO.md)
+
 # Agentic SDLC Plugin
 
 A Claude Code plugin that enforces a 4-gate quality pipeline on agentic development workflows with LLM-as-judge scoring, git worktree isolation, and in-repo evidence artifacts.
