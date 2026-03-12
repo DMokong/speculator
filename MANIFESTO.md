@@ -8,7 +8,7 @@
 
 We've gotten pretty good at measuring output.
 
-Test coverage, code quality scores, performance benchmarks, security scans — the industry has built an impressive stack of tools that tell you whether your code is any good. [SWE-bench](https://www.swe-bench.com) measures how well AI writes code. FeatureBench measures how well it ships features. Linters catch style violations. Type checkers catch logic errors. CI pipelines gate on all of it.
+Test coverage, code quality scores, performance benchmarks, security scans — the industry has built an impressive stack of tools that tell you whether your code is any good. [SWE-bench](https://www.swe-bench.com) measures how well AI writes code. [FeatureBench](https://github.com/anthropics/featurebench) measures how well it ships features. Linters catch style violations. Type checkers catch logic errors. CI pipelines gate on all of it.
 
 That measurement is important. It works. I'm not here to tell you it's wrong.
 
@@ -50,7 +50,7 @@ If this were just a theoretical concern, I'd write a blog post and move on. But 
 
 In March 2026, we surveyed the landscape: 7 Claude Code SDLC plugins, 5 framework and methodology publications, the SWE-bench family of benchmarks, and requirements engineering standards going back decades. We were looking for one thing: does anyone quantitatively evaluate feature-level specification quality across multiple dimensions?
 
-The answer is no.
+We couldn't find one.
 
 [SWE-bench](https://www.swe-bench.com) measures code completion — given a bug or feature request, how well does an AI resolve it? That's output measurement. [ISO 29148](https://www.iso.org/standard/72089.html) provides guidelines for requirements documentation — useful, but it's a standard for individual requirements, not a scoring rubric for complete feature specifications. Bill Wake's [INVEST framework](https://xp123.com/articles/invest-in-good-stories-and-smart-tasks/) (2003) evaluates user story quality with six criteria — but user stories aren't specifications, and INVEST is a checklist, not a quantitative score.
 
@@ -66,7 +66,7 @@ Meanwhile, the *concept* of quality gates on specifications is being validated f
 
 The industry recognizes that AI development needs quality infrastructure. But the measurement is missing at the most critical point: before a single line of code is written.
 
-The industry has a spec quality problem and no spec quality metric.
+From what we've seen, the industry has a spec quality problem and no spec quality metric.
 
 ## IV. How We Measure Spec Quality
 
@@ -99,7 +99,7 @@ Which brings me to the result that convinced me this works.
 
 During the first end-to-end pipeline run of Speculator's autonomous mode (SPEC-011), the spec-scorer agent assessed the spec at 7.7. Not bad — above the implementation threshold. But the self-improvement loop engaged anyway: structured feedback identified threshold inconsistencies, missing acceptance criteria detail, and user journey gaps. After revision — without changing the core requirements, without altering what the feature *does* — the spec scored 8.4.
 
-The initial score was from the interactive scoring round; the final 8.4 is preserved as a [YAML evidence artifact](https://github.com/DMokong/speculator). The requirements didn't change. The spec just got *better* by being measured. Gaps were closed. Ambiguities were resolved. Edge cases were surfaced. All before a single line of implementation code was written.
+The initial score was from the interactive scoring round; the final 8.4 is preserved as a [YAML evidence artifact](https://github.com/DMokong/speculator/blob/main/docs/specs/sdlc-run-design/evidence/gate-1-scorecard.yml). The requirements didn't change. The spec just got *better* by being measured. Gaps were closed. Ambiguities were resolved. Edge cases were surfaced. All before a single line of implementation code was written.
 
 That's the thesis in action. Quality in, quality out.
 
