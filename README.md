@@ -3,6 +3,8 @@
 > Agents can reason, decompose, and build — but they can't fill gaps from decades of domain intuition. The spec is where intent transfers from human to agent. We built Speculator because a great spec means the agent barely needs to improvise.
 >
 > 📖 [Read the full manifesto: *Quality In, Quality Out* →](MANIFESTO.md)
+>
+> 📝 Read the series: [The Tax Nobody's Measuring](https://dmokong.substack.com/p/the-tax-nobodys-measuring) · [The Specification Tax](https://dmokong.substack.com/p/the-specification-tax)
 
 # Speculator
 
