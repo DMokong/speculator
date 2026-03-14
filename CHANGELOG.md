@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.1.0 — Spec Drift Detection (SPEC-013)
+
+### Added
+- **Spec compaction**: `SYSTEM-SPEC.md` as a living document that represents current system behavior
+- **Impact rating**: New `impact_rating` and `amends` fields in spec frontmatter
+- **Impact validation**: Spec-scorer validates impact declarations against SYSTEM-SPEC.md
+- **Auto-compaction**: `/sdlc close` automatically folds shipped specs into SYSTEM-SPEC.md
+- **Bootstrap**: `/spec compact --all` processes existing closed specs into initial SYSTEM-SPEC.md
+- **spec-compactor agent**: New agent that maintains SYSTEM-SPEC.md integrity
+- **impact-awareness rubric**: Decision matrix for impact mismatch detection
+
+### Changed
+- `/sdlc close` now produces two commits (merge + compaction)
+- `/sdlc start` feeds SYSTEM-SPEC.md as context for impact-aware spec creation
+- Spec template includes `impact_rating` and `amends` fields
+- Status lifecycle extended: `draft → approved → closed → compacted`
+
 ## [1.3.0] — 2026-03-12
 
 ### Added
