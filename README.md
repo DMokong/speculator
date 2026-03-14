@@ -227,8 +227,9 @@ Each gate produces a YAML evidence artifact in `docs/specs/{feature}/evidence/`.
 | `/spec implement` | Create implementation plan + beads stories + execute tasks |
 | `/spec gate` | Check or run any specific gate |
 | `/spec review` | Gate 3: Automated code review |
-| `/spec close` | Gate 4: Evidence package + merge worktree to main |
+| `/spec close` | Gate 4: Evidence package + merge worktree to main + compact into SYSTEM-SPEC.md |
 | `/spec run [args]` | Run the full pipeline autonomously (trust-based oversight) |
+| `/spec compact` | Compact closed specs into SYSTEM-SPEC.md (`--all` for bootstrap) |
 | `/spec status` | Cross-worktree pipeline view (all features at a glance) |
 | `/spec doctor` | Diagnostics + auto-fix (prereqs, config, hooks) |
 
@@ -283,6 +284,48 @@ Specs declare a `risk_level` in YAML frontmatter:
 | `critical` | Could cause harm, data loss, financial damage | Forces Guided |
 
 The scorer validates the declaration against spec content — if risk keywords are found but `risk_level` is "low", a `risk_mismatch` blocking flag is emitted.
+
+## Spec Drift Detection
+
+As a project grows, specs accumulate. New features may modify behavior originally specified by older specs. Speculator tracks this through **spec compaction** and **impact analysis**.
+
+### SYSTEM-SPEC.md — The Living System Specification
+
+When a spec passes all gates and merges via `/spec close`, its contributions are automatically folded into a single **compacted system specification** (`SYSTEM-SPEC.md`). This living document represents what the system currently does and why, structured by domain:
+
+```markdown
+## Auth
+- Sessions use short-lived tokens (24h expiry) [from: SPEC-004, amended by SPEC-023]
+- OAuth2 with PKCE for all external providers [from: SPEC-004]
+
+## Data Pipeline
+- Ingestion normalizes to UTF-8 before storage [from: SPEC-008]
+```
+
+Each behavior entry has a `[from: ...]` provenance trail tracing it back to its originating spec(s).
+
+### Impact Rating
+
+New specs declare an **impact rating** (like `risk_level`) and an `amends` field:
+
+```yaml
+impact_rating: moderate     # none | low | moderate | high
+amends:
+  - section: "Auth"
+    behavior: "Sessions use short-lived tokens (24h expiry)"
+    change: "Extended to 7-day refresh tokens for mobile clients"
+    reason: "Mobile UX"
+```
+
+The spec-scorer validates impact declarations against `SYSTEM-SPEC.md`. If a spec touches existing behavior but declares `impact_rating: none`, an `impact_mismatch` blocking flag is emitted. Impact validation is separate from the 6-dimension scoring — it produces flags, not scores, and does not affect the trust ladder.
+
+### Bootstrap
+
+For existing projects adopting drift detection:
+
+```bash
+/spec compact --all    # process all closed specs into initial SYSTEM-SPEC.md
+```
 
 ## Configuration
 
@@ -346,18 +389,21 @@ speculator/
 │   ├── gate-check/SKILL.md   # /spec gate -- check/run any gate
 │   ├── sdlc-run/SKILL.md     # /spec run -- autonomous pipeline orchestrator
 │   ├── sdlc-status/SKILL.md  # /spec status -- cross-worktree pipeline view
-│   └── sdlc-doctor/SKILL.md  # /spec doctor -- diagnostics + auto-fix
+│   ├── sdlc-doctor/SKILL.md  # /spec doctor -- diagnostics + auto-fix
+│   └── spec-compact/SKILL.md # /spec compact -- bootstrap or single-spec compaction
 ├── agents/
-│   ├── spec-scorer/AGENT.md  # LLM-as-judge subagent for spec evaluation
-│   └── code-reviewer/AGENT.md  # Gate 3 code review subagent (6-point checklist)
+│   ├── spec-scorer/AGENT.md    # LLM-as-judge subagent for spec evaluation + impact validation
+│   ├── code-reviewer/AGENT.md  # Gate 3 code review subagent (6-point checklist)
+│   └── spec-compactor/AGENT.md # Folds closed specs into SYSTEM-SPEC.md
 ├── rubrics/
-│   ├── spec-quality.md       # 6-dimension rubric (completeness, clarity, testability, intent_verifiability, feasibility, scope)
+│   ├── spec-quality.md        # 6-dimension rubric (completeness, clarity, testability, intent_verifiability, feasibility, scope)
+│   ├── impact-awareness.md    # Impact validation rubric with mismatch decision matrix
 │   ├── acceptance-criteria.md # Gate 2 sub-rubric for AC traceability
 │   ├── code-quality.md       # Gate 2 evidence-based rubric (7 checks)
 │   ├── review.md             # Gate 3 code review rubric (6 checklist items)
 │   └── evidence-package.md   # Gate 4 evidence completeness rubric
 ├── templates/
-│   ├── spec-template.md      # Blank spec with YAML frontmatter
+│   ├── spec-template.md       # Blank spec with YAML frontmatter (includes impact_rating + amends)
 │   └── scorecard-template.yml # Gate 1 evidence artifact template
 ├── hooks/
 │   └── hooks.json            # PreToolUse: pre-commit gate warning
