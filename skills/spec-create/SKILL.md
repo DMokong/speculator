@@ -28,11 +28,23 @@ You are helping the user create a new specification document for a piece of work
 
 2. **Read project config**: Read `.claude/sdlc.local.md` to get the `spec_dir` path (default: `docs/specs`).
 
-3. **Ask for spec details**: Ask the user (one question at a time):
+3. **Feed system spec as context (if exists)**:
+   - Check if `{spec_dir}/SYSTEM-SPEC.md` exists (where `spec_dir` is from project config)
+   - If it exists, read it and include it as context when the user or AI is drafting the spec:
+     ```
+     The following is the current system specification. Your new spec's
+     `impact_rating` and `amends` fields should reflect any overlap with
+     these existing behaviors:
+
+     [contents of SYSTEM-SPEC.md]
+     ```
+   - If it doesn't exist, set `impact_rating: none` and `amends: []` in the generated spec (these are the template defaults)
+
+4. **Ask for spec details**: Ask the user (one question at a time):
    - What is this spec for? (brief title — will become the directory name, kebab-cased)
    - Who is the author? (for the YAML frontmatter)
 
-4. **Create a worktree for this feature**:
+5. **Create a worktree for this feature**:
    - **Before creating the worktree**, record the main project's memory path:
      ```bash
      # Detect the main project's memory directory dynamically
@@ -45,7 +57,7 @@ You are helping the user create a new specification document for a piece of work
    - This creates an isolated workspace so multiple features can be in progress simultaneously
    - If the user declines the worktree or it fails, continue on the current branch — worktrees are recommended but not required
 
-5. **Wire up memory in the worktree** (do this immediately after entering the worktree):
+6. **Wire up memory in the worktree** (do this immediately after entering the worktree):
    - Claude Code keys project memory on the absolute working directory path
    - A worktree at a different path gets a *separate, empty* memory directory — losing all context
    - Fix this by symlinking the worktree's memory to the main project's memory (if it exists):
@@ -70,14 +82,14 @@ You are helping the user create a new specification document for a piece of work
      fi
      ```
 
-6. **Generate spec ID**: Use the pattern `SPEC-NNN` where NNN is the next available number. Check existing specs in `{spec_dir}/` to determine the next ID.
+7. **Generate spec ID**: Use the pattern `SPEC-NNN` where NNN is the next available number. Check existing specs in `{spec_dir}/` to determine the next ID.
 
-7. **Create the spec**:
+8. **Create the spec**:
    - Create directory: `{spec_dir}/{kebab-case-title}/`
    - Copy the template from `${CLAUDE_PLUGIN_ROOT}/templates/spec-template.md` to `{spec_dir}/{kebab-case-title}/spec.md`
    - Fill in the YAML frontmatter: id, status (draft), author, date (today)
 
-8. **Acquire a lock** on this spec so other sessions know it's being worked on:
+9. **Acquire a lock** on this spec so other sessions know it's being worked on:
    ```bash
    cat > {spec_dir}/{kebab-case-title}/.active << EOF
    session_id: $(echo $CLAUDE_SESSION_ID 2>/dev/null || echo "unknown")
@@ -87,7 +99,7 @@ You are helping the user create a new specification document for a piece of work
    ```
    See `${CLAUDE_PLUGIN_ROOT}/lib/spec-resolution.md` for full lock/resolution rules.
 
-9. **Create a beads epic** for this feature to track the full lifecycle:
+10. **Create a beads epic** for this feature to track the full lifecycle:
    ```bash
    beads create --title "{spec-title}" --description "Epic: {spec-title}\n\nSpec: {spec_dir}/{kebab-case-title}/spec.md\nWorktree: {worktree-name}" --priority P2
    ```
@@ -95,7 +107,7 @@ You are helping the user create a new specification document for a piece of work
    - This epic tracks the feature from spec through implementation to merge
    - User stories (implementation tasks) will be created later by `/sdlc implement`
 
-10. **Guide the user**: Tell them to fill in the spec sections. Offer to help draft any section. Remind them that when the spec is ready, they should run `/sdlc score` to get it evaluated.
+11. **Guide the user**: Tell them to fill in the spec sections. Offer to help draft any section. Remind them that when the spec is ready, they should run `/sdlc score` to get it evaluated. Review the `impact_rating` and `amends` fields — if `SYSTEM-SPEC.md` exists, these were auto-populated based on detected impact. Verify they accurately reflect what this spec changes.
 
 ## Worktree Isolation
 
