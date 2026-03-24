@@ -54,10 +54,28 @@ readability: pass | fail
 
 Are there obvious vulnerabilities introduced by this change?
 
+**Mandatory secrets scan (auto-fail):** Before evaluating this dimension, the reviewer MUST actively scan the diff/implementation files for hardcoded secrets. Do not rely on reading the code — search for patterns. Any hardcoded secret is an automatic `fail` with a blocking issue.
+
+Scan for:
+- **Known credential patterns**: AWS keys (`AKIA...`), GitHub PATs (`ghp_...`), Slack tokens (`xox[bpas]-...`), OpenAI/Stripe keys (`sk-...`), Anthropic keys (`sk-ant-...`), Google keys (`AIza...`), private keys (`-----BEGIN...PRIVATE KEY-----`)
+- **Secret-holding variable assignments**: Variables named `api_key`, `secret`, `password`, `token`, `credential`, `auth_token`, `client_secret` etc. assigned literal string values
+- **Connection strings with credentials**: `postgres://user:pass@host`, `mongodb://user:pass@host`, etc.
+- **Inline authorization headers**: `Bearer <long-token>`, `Authorization: <value>` with literal tokens
+- **Base64-encoded secrets**: Long base64 strings assigned to secret-named variables
+
 Things to look for:
 - **Injection and unsanitized input**: User-supplied data used in SQL queries, shell commands, file paths, or HTML without escaping or parameterization. Check for template string interpolation with untrusted input.
 - **Authentication and authorization gaps**: New endpoints or operations that skip auth checks. Elevation-of-privilege paths where a regular user can access admin functionality. CORS or token validation that is too permissive.
 - **Secret exposure**: API keys, tokens, passwords, or credentials hardcoded in source, logged to stdout, or included in error messages. Check that secrets come from environment variables or secret managers, not from code or committed config files.
+
+**Pass vs. Fail examples:**
+- **Pass**: `const apiKey = process.env.API_KEY` — secret from environment
+- **Pass**: `const apiKey = await secretManager.get('api-key')` — secret from secret manager
+- **Pass**: `const apiKey = "your-api-key-here"` — placeholder in documentation/example, not a real secret
+- **Fail**: `const apiKey = "sk-ant-abc123def456..."` — real secret hardcoded
+- **Fail**: `const dbUrl = "postgres://admin:hunter2@prod-db:5432/app"` — credentials in connection string
+- **Fail**: `console.log("Auth token:", token)` — secret logged to stdout
+- **Fail**: API key in a committed `.env` file, config file, or JSON fixture
 
 ```
 security: pass | fail

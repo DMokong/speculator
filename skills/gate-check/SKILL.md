@@ -75,7 +75,8 @@ Checks marked `false` by default are **optional** — they only run when explici
 When running Gate 3:
 
 1. **Read the review rubric** at `${CLAUDE_PLUGIN_ROOT}/rubrics/review.md` and evaluate the implementation against each checklist item.
-2. For each checklist area, assess the code and record findings.
+2. **Run the mandatory secrets scan** described in the rubric's Security section — actively grep for hardcoded secrets before evaluating the security dimension.
+3. For each checklist area, assess the code and record findings.
 3. Write evidence to `{spec_dir}/{spec_name}/evidence/gate-3-review.yml` with the following structure:
 
 ```yaml

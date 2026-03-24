@@ -28,11 +28,60 @@ You will be told:
 1. Read the spec file to understand requirements, acceptance criteria, and design decisions
 2. Read the implementation plan for the intended approach and scope of changes
 3. Use Glob and Grep to find all files created or modified by the implementation
-4. Review each relevant file against the 6-point checklist
-5. For each checklist item, assign a verdict: `pass`, `warn`, or `fail`
-6. Collect blocking issues (anything that must be fixed before merge) and advisory notes
-7. Determine the overall result: `fail` if any checklist item is `fail`, otherwise `pass`
-8. Write the review evidence YAML to the specified output path
+4. **Run the mandatory secrets scan** (see below) — this MUST happen before evaluating the security dimension
+5. Review each relevant file against the 6-point checklist
+6. For each checklist item, assign a verdict: `pass`, `warn`, or `fail`
+7. Collect blocking issues (anything that must be fixed before merge) and advisory notes
+8. Determine the overall result: `fail` if any checklist item is `fail`, otherwise `pass`
+9. Write the review evidence YAML to the specified output path
+
+## Mandatory Secrets Scan
+
+**You MUST execute these scans before evaluating the security checklist item.** Do not rely on reading code alone — actively search for secrets using Grep across all implementation files.
+
+Run each of these searches against the project's source files (exclude `node_modules`, `.git`, lock files, and test fixtures that explicitly test secret detection):
+
+### 1. High-entropy secret assignments
+Search for variables commonly used to hold secrets:
+```
+Grep: (api_key|apikey|api_secret|secret_key|access_key|private_key|auth_token|password|passwd|credential|client_secret|app_secret)\s*[:=]
+```
+
+### 2. Known API key formats
+Search for recognizable credential patterns:
+```
+Grep: (AKIA[0-9A-Z]{16})                          # AWS access key
+Grep: (ghp_[a-zA-Z0-9]{36})                       # GitHub PAT
+Grep: (gho_[a-zA-Z0-9]{36})                       # GitHub OAuth
+Grep: (xox[bpas]-[a-zA-Z0-9-]+)                   # Slack tokens
+Grep: (sk-[a-zA-Z0-9]{20,})                       # OpenAI/Stripe secret keys
+Grep: (sk-ant-[a-zA-Z0-9-]{20,})                  # Anthropic API keys
+Grep: (AIza[0-9A-Za-z\-_]{35})                    # Google API keys
+Grep: (-----BEGIN\s*(RSA |EC |OPENSSH )?PRIVATE KEY-----)  # Private keys
+```
+
+### 3. Connection strings with embedded credentials
+```
+Grep: (postgres|mysql|mongodb|redis|amqp|mssql)://[^/\s]+:[^/\s]+@
+```
+
+### 4. Inline bearer tokens and authorization headers
+```
+Grep: (Bearer\s+[a-zA-Z0-9\-_.~+/]{20,})
+Grep: (Authorization['"]\s*:\s*['"][A-Za-z]+\s+[a-zA-Z0-9\-_.~+/]{20,})
+```
+
+### 5. Base64-encoded secrets in assignments
+```
+Grep: (secret|key|token|password|credential).*['"=]\s*[A-Za-z0-9+/]{40,}={0,2}
+```
+
+### Evaluating scan results
+
+- **Any match is a finding** — investigate each match by reading the surrounding code
+- **True positive**: A real secret value in source code → `security: fail` + add to `blocking_issues` with the file path, line number, and type of secret
+- **False positive**: A placeholder (`"your-api-key-here"`), environment variable reference (`process.env.API_KEY`), test fixture, or variable name without an actual secret value → note as investigated in advisory, not blocking
+- **When in doubt, flag it** — err on the side of reporting. A false positive is inconvenient; a missed secret is a security incident
 
 ## 6-Point Checklist
 
@@ -61,10 +110,22 @@ Is the code understandable and maintainable?
 
 ### 4. Security
 Are there exploitable vulnerabilities or unsafe practices?
+
+**Secrets (auto-fail — use mandatory scan results):**
+- Did the mandatory secrets scan (above) find any true positives? If yes → `fail` immediately
+- Are secrets, tokens, API keys, or credentials hardcoded anywhere in source code?
+- Are secrets logged, included in error messages, or exposed in HTTP responses?
+- Do all secrets come from environment variables, secret managers, or encrypted config — never from source code or committed config files?
+- Any hardcoded secret is an **automatic fail with a blocking issue**, regardless of how the rest of the code looks
+
+**Injection and input safety:**
 - Are there injection risks (SQL, shell, path traversal)?
-- Are secrets, tokens, and credentials handled safely (not logged, not hardcoded)?
 - Are inputs validated and sanitized before use?
 - Are file operations restricted to expected paths?
+
+**Auth and access control:**
+- Do new endpoints/operations enforce appropriate auth checks?
+- Are there elevation-of-privilege paths?
 
 ### 5. Performance
 Are there obvious inefficiencies or resource leaks?

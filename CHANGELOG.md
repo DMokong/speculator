@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.5.0 — Security Uplift: Mandatory Secrets Scan
+
+### Added
+- **Mandatory secrets scan** in code-reviewer agent — 5 categories of grep patterns (high-entropy assignments, known API key formats, connection strings, bearer tokens, base64-encoded secrets) that MUST execute before evaluating the security dimension
+- **Auto-fail rule**: Any hardcoded secret is an automatic `fail` with a blocking issue, no discretion
+- **"When in doubt, flag it"** principle — false positives are inconvenient; missed secrets are incidents
+- **Pass/fail examples** in the review rubric — concrete examples of what good vs bad looks like
+- **Test suite**: `tests/test-secrets-scan.sh` with fixtures validating all 5 scan categories (25 tests: 17 true positive + 8 false positive checks)
+
+### Changed
+- **Security dimension** in code-reviewer agent expanded from 4 bullet points to structured sub-sections (Secrets, Injection, Auth)
+- **Gate-check skill** Gate 3 section now includes explicit mandatory secrets scan step
+- **Review rubric** Security section expanded with mandatory scan callout, pattern catalog, and calibration examples
+
+### Fixed
+- Code review gate could previously pass with hardcoded credentials if the reviewer didn't happen to notice them during code reading — now an active scan is required
+
 ## 2.4.0 — PR Strategy: Compaction Before PR
 
 ### Changed
