@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { SavedLocation, SavedStop } from '../types';
 import { getLocation, setLocation as persistLocation, getStop, setStop as persistStop } from '../utils/localStorage';
 
@@ -34,9 +34,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStopState(stop);
   }
 
-  function triggerRefresh() {
+  const triggerRefresh = useCallback(() => {
     setRefreshKey(k => k + 1);
-  }
+  }, []);
 
   return (
     <AppContext.Provider value={{

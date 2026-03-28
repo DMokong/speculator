@@ -40,9 +40,9 @@ export function StopSearch() {
     setLoading(true);
     setError(false);
 
-    debounceRef.current = setTimeout(() => {
-      const controller = new AbortController();
+    const controller = new AbortController();
 
+    debounceRef.current = setTimeout(() => {
       const params = new URLSearchParams({
         outputFormat: 'rapidJSON',
         type_sf: 'stop',
@@ -83,12 +83,11 @@ export function StopSearch() {
           setError(true);
           setLoading(false);
         });
-
-      return () => controller.abort();
     }, 400);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      controller.abort();
     };
   }, [query, missingApiKey, apiKey]);
 
