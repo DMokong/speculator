@@ -70,7 +70,13 @@ SPEC_FILE="$OUTPUT_DIR/spec.md"
 METRICS_FILE="$OUTPUT_DIR/metrics.json"
 
 # Build claude command
-CLAUDE_CMD=(claude -p "$FULL_PROMPT" --model "$MODEL" --dangerously-skip-permissions)
+# Use CLAUDE_BIN if set, otherwise find claude in standard locations (avoid node_modules/.bin shadowing)
+CLAUDE_BIN="${CLAUDE_BIN:-$(command -v claude 2>/dev/null || echo "$HOME/.local/bin/claude")}"
+if [[ "$CLAUDE_BIN" == *"node_modules"* ]]; then
+  CLAUDE_BIN="$HOME/.local/bin/claude"
+fi
+
+CLAUDE_CMD=("$CLAUDE_BIN" -p "$FULL_PROMPT" --model "$MODEL" --dangerously-skip-permissions)
 
 if [[ -n "$SUPERPOWERS" ]]; then
   CLAUDE_CMD+=(--plugin-dir "$SUPERPOWERS")
