@@ -1,13 +1,29 @@
 """Spec scoring module — integrates with Speculator's spec-scorer and implements
 the iteration loop for improving specs before benchmarking."""
 
+import os
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
 from typing import Optional
 
 import yaml
+
+
+def _resolve_claude_bin() -> str:
+    """Find the system claude binary, avoiding node_modules/.bin shadowing."""
+    claude_bin = os.environ.get("CLAUDE_BIN")
+    if claude_bin:
+        return claude_bin
+    found = shutil.which("claude")
+    if found and "node_modules" not in found:
+        return found
+    fallback = Path.home() / ".local" / "bin" / "claude"
+    if fallback.exists():
+        return str(fallback)
+    return "claude"  # Last resort
 
 from .config import Target
 
@@ -164,7 +180,7 @@ def score_spec(spec_path: Path, output_dir: Path, version: int = 0) -> dict:
     prompt = _build_scoring_prompt(spec_content)
 
     result = subprocess.run(
-        ["claude", "-p", prompt, "--dangerously-skip-permissions"],
+        [_resolve_claude_bin(), "-p", prompt, "--dangerously-skip-permissions"],
         capture_output=True,
         text=True,
         timeout=300,

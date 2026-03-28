@@ -8,6 +8,8 @@ import subprocess
 import time
 import urllib.request
 import urllib.error
+
+from .scoring import _resolve_claude_bin
 from pathlib import Path
 from typing import Optional
 
@@ -352,7 +354,7 @@ def run_judge(
 
     result = subprocess.run(
         [
-            "claude",
+            _resolve_claude_bin(),
             "-p",
             prompt,
             "--dangerously-skip-permissions",
