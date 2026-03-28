@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spec-Bench Report</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    /* ---- Reset & base ---- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    /* ---- Layout ---- */
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    /* ---- Header ---- */
+    header {
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid #2d3748;
+      padding-bottom: 1.5rem;
+    }
+    header h1 { font-size: 2rem; font-weight: 700; color: #f7fafc; }
+    header .subtitle { color: #718096; font-size: 0.95rem; margin-top: 0.3rem; }
+
+    /* ---- Section ---- */
+    section { margin-bottom: 2.5rem; }
+    section h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #a0aec0;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 1rem;
+      border-left: 3px solid #5a67d8;
+      padding-left: 0.75rem;
+    }
+
+    /* ---- Insight cards ---- */
+    .insights {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 0.75rem;
+    }
+    .insight-card {
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-size: 0.875rem;
+      line-height: 1.55;
+      color: #cbd5e0;
+    }
+    .insight-card::before {
+      content: "→ ";
+      color: #5a67d8;
+      font-weight: 700;
+    }
+
+    /* ---- Stats row ---- */
+    .stats-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      flex: 1;
+      min-width: 150px;
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat-card .value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #f7fafc;
+    }
+    .stat-card .label {
+      font-size: 0.75rem;
+      color: #718096;
+      margin-top: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ---- Table ---- */
+    .table-wrapper { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    thead tr { background: #1a202c; }
+    thead th {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      color: #718096;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid #2d3748; }
+    tbody tr:hover { background: #1a202c; }
+    tbody td { padding: 0.7rem 1rem; color: #e2e8f0; }
+
+    .rank-badge {
+      display: inline-block;
+      width: 1.6rem; height: 1.6rem;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 1.6rem;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+    .rank-1 { background: #f6d860; color: #1a202c; }
+    .rank-2 { background: #a0aec0; color: #1a202c; }
+    .rank-3 { background: #c05621; color: #f7fafc; }
+    .rank-other { background: #2d3748; color: #a0aec0; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-improved { background: #1c4532; color: #68d391; }
+    .badge-original { background: #1a202c; color: #718096; border: 1px solid #2d3748; }
+    .badge-completed { background: #1c4532; color: #68d391; }
+    .badge-failed { background: #63171b; color: #fc8181; }
+
+    /* ---- Charts ---- */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 768px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+    .chart-card {
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+    .chart-card h3 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #a0aec0;
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .chart-card canvas { max-height: 280px; }
+
+    /* ---- Correlations ---- */
+    .corr-list { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+    .corr-item {
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      min-width: 220px;
+    }
+    .corr-item .corr-key { font-size: 0.75rem; color: #718096; margin-bottom: 0.25rem; }
+    .corr-item .corr-val {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    .corr-positive { color: #68d391; }
+    .corr-negative { color: #fc8181; }
+    .corr-neutral { color: #a0aec0; }
+
+    /* ---- Axis analysis ---- */
+    .axis-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+    }
+    .axis-card {
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .axis-card h3 { font-size: 0.85rem; font-weight: 600; color: #a0aec0; margin-bottom: 0.75rem; }
+    .axis-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      margin-bottom: 0.4rem;
+      color: #cbd5e0;
+    }
+    .axis-delta {
+      font-weight: 700;
+    }
+    .axis-delta.positive { color: #68d391; }
+    .axis-delta.negative { color: #fc8181; }
+
+    /* ---- Variance section ---- */
+    .variance-combo {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .variance-card {
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 0.85rem 1.1rem;
+      min-width: 200px;
+      font-size: 0.85rem;
+    }
+    .variance-card .combo-name { color: #a0aec0; margin-bottom: 0.5rem; font-size: 0.8rem; }
+    .variance-card .variance-stats { display: flex; gap: 1.5rem; }
+    .variance-stat .vs-label { font-size: 0.7rem; color: #718096; }
+    .variance-stat .vs-val { font-weight: 700; color: #f7fafc; }
+
+    /* ---- Footer ---- */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #2d3748;
+      font-size: 0.75rem;
+      color: #4a5568;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <h1>Spec-Bench Report</h1>
+    <p class="subtitle">Speculator benchmark — implementation quality analysis</p>
+  </header>
+
+  <!-- Summary stats row -->
+  <section>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="value">{{ rankings | length }}</div>
+        <div class="label">Total Runs</div>
+      </div>
+      {% if rankings %}
+      <div class="stat-card">
+        <div class="value">{{ "%.1f" % rankings[0].outcome_score }}</div>
+        <div class="label">Best Outcome</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">{{ "%.2f" % (rankings | map(attribute='outcome_score') | list | sum / rankings | length) }}</div>
+        <div class="label">Mean Outcome</div>
+      </div>
+      {% endif %}
+      <div class="stat-card">
+        <div class="value">
+          {% set r = correlations.get('speculator_score_vs_outcome', 0.0) %}
+          {{ "%.2f" % r }}
+        </div>
+        <div class="label">Spec→Outcome r</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Insights -->
+  {% if insights %}
+  <section>
+    <h2>Key Insights</h2>
+    <div class="insights">
+      {% for insight in insights %}
+      <div class="insight-card">{{ insight }}</div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Leaderboard -->
+  <section>
+    <h2>Leaderboard</h2>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Target</th>
+            <th>Spec</th>
+            <th>Speculator Score</th>
+            <th>Outcome Score</th>
+            <th>Functional Pass</th>
+            <th>Iterations</th>
+            <th>Tokens</th>
+            <th>Time (s)</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rankings %}
+          <tr>
+            <td>
+              <span class="rank-badge {% if row.rank == 1 %}rank-1{% elif row.rank == 2 %}rank-2{% elif row.rank == 3 %}rank-3{% else %}rank-other{% endif %}">
+                {{ row.rank }}
+              </span>
+            </td>
+            <td>{{ row.target }}</td>
+            <td>
+              <span class="badge {% if row.spec_version == 'improved' %}badge-improved{% else %}badge-original{% endif %}">
+                {{ row.spec_version }}
+              </span>
+            </td>
+            <td>{{ "%.1f" % row.speculator_score }}</td>
+            <td><strong>{{ "%.1f" % row.outcome_score }}</strong></td>
+            <td>{{ row.functional_pass_rate }}</td>
+            <td>{{ row.iterations_to_pass }}</td>
+            <td>{{ "{:,}".format(row.total_tokens) }}</td>
+            <td>{{ "%.0f" % row.total_time_seconds }}</td>
+            <td>
+              <span class="badge {% if row.status == 'completed' %}badge-completed{% else %}badge-failed{% endif %}">
+                {{ row.status }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Charts -->
+  <section>
+    <h2>Charts</h2>
+    <div class="charts-grid">
+      <!-- Scatter: speculator score vs outcome -->
+      <div class="chart-card">
+        <h3>Speculator Score vs Outcome Score</h3>
+        <canvas id="scatterChart"></canvas>
+      </div>
+      <!-- Bar: axis effects -->
+      <div class="chart-card">
+        <h3>Axis Effect Sizes (delta outcome score)</h3>
+        <canvas id="barChart"></canvas>
+      </div>
+      <!-- Functional test heatmap (horizontal bar) -->
+      <div class="chart-card">
+        <h3>Functional Test Pass Rate (%)</h3>
+        <canvas id="heatmapChart"></canvas>
+      </div>
+      <!-- Radar: per-target scores -->
+      {% if rankings | length > 0 %}
+      <div class="chart-card">
+        <h3>Outcome Score Distribution</h3>
+        <canvas id="radarChart"></canvas>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Correlations -->
+  <section>
+    <h2>Correlations</h2>
+    <div class="corr-list">
+      {% for key, val in correlations.items() %}
+      <div class="corr-item">
+        <div class="corr-key">{{ key | replace('_', ' ') | title }}</div>
+        <div class="corr-val {% if val > 0.1 %}corr-positive{% elif val < -0.1 %}corr-negative{% else %}corr-neutral{% endif %}">
+          {{ "%.4f" % val }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Axis Analysis -->
+  {% if axis_analysis %}
+  <section>
+    <h2>Axis Analysis</h2>
+    <div class="axis-grid">
+
+      {% if axis_analysis.process_effect %}
+      <div class="axis-card">
+        <h3>Process Effect</h3>
+        <div class="axis-row">
+          <span>Superpowers mean</span>
+          <span>{{ "%.2f" % axis_analysis.process_effect.mean_superpowers }}</span>
+        </div>
+        <div class="axis-row">
+          <span>Vanilla mean</span>
+          <span>{{ "%.2f" % axis_analysis.process_effect.mean_vanilla }}</span>
+        </div>
+        <div class="axis-row">
+          <span>Delta (SP − Vanilla)</span>
+          <span class="axis-delta {% if axis_analysis.process_effect.superpowers_vs_vanilla > 0 %}positive{% else %}negative{% endif %}">
+            {{ "%+.2f" % axis_analysis.process_effect.superpowers_vs_vanilla }}
+          </span>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if axis_analysis.model_effect %}
+      <div class="axis-card">
+        <h3>Model Effect</h3>
+        {% for pair in axis_analysis.model_effect.pairs %}
+        <div class="axis-row">
+          <span>{{ pair.models[1] }} vs {{ pair.models[0] }}</span>
+          <span class="axis-delta {% if pair.delta > 0 %}positive{% else %}negative{% endif %}">
+            {{ "%+.2f" % pair.delta }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if axis_analysis.harness_effect %}
+      <div class="axis-card">
+        <h3>Harness Effect</h3>
+        {% for pair in axis_analysis.harness_effect.pairs %}
+        <div class="axis-row">
+          <span>{{ pair.harnesses[1] }} vs {{ pair.harnesses[0] }}</span>
+          <span class="axis-delta {% if pair.delta > 0 %}positive{% else %}negative{% endif %}">
+            {{ "%+.2f" % pair.delta }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Variance Analysis (only when runs_per_combination > 1) -->
+  {% if variance_analysis %}
+  <section>
+    <h2>Variance Analysis</h2>
+    <p style="font-size:0.85rem; color:#718096; margin-bottom:1rem;">
+      Clarity vs variance correlation: <strong>{{ "%.4f" % variance_analysis.clarity_vs_variance_correlation }}</strong>
+    </p>
+    <div class="variance-combo">
+      {% for combo in variance_analysis.combinations %}
+      <div class="variance-card">
+        <div class="combo-name">{{ combo.combination }}</div>
+        <div class="variance-stats">
+          <div class="variance-stat">
+            <div class="vs-label">Mean</div>
+            <div class="vs-val">{{ "%.2f" % combo.mean }}</div>
+          </div>
+          <div class="variance-stat">
+            <div class="vs-label">Std Dev</div>
+            <div class="vs-val">{{ "%.2f" % combo.std_dev }}</div>
+          </div>
+          <div class="variance-stat">
+            <div class="vs-label">Clarity</div>
+            <div class="vs-val">{{ "%.1f" % combo.clarity_score }}</div>
+          </div>
+          <div class="variance-stat">
+            <div class="vs-label">Runs</div>
+            <div class="vs-val">{{ combo.runs }}</div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <footer>Generated by Spec-Bench &middot; Speculator benchmark harness</footer>
+</div>
+
+<script>
+/* ---- Chart data from template ---- */
+const scatterData = {{ scatter_data_json }};
+const barLabels   = {{ bar_labels_json }};
+const barValues   = {{ bar_values_json }};
+const heatmapLabels = {{ heatmap_labels_json }};
+const heatmapValues = {{ heatmap_values_json }};
+
+const COLORS = {
+  primary:   "#5a67d8",
+  secondary: "#68d391",
+  warning:   "#f6d860",
+  danger:    "#fc8181",
+  muted:     "#4a5568",
+  grid:      "#2d3748",
+  text:      "#a0aec0",
+};
+
+Chart.defaults.color = COLORS.text;
+Chart.defaults.borderColor = COLORS.grid;
+
+/* ---- Scatter chart ---- */
+const scatterCtx = document.getElementById("scatterChart").getContext("2d");
+new Chart(scatterCtx, {
+  type: "scatter",
+  data: {
+    datasets: [{
+      label: "Runs",
+      data: scatterData.map(d => ({ x: d.x, y: d.y, label: d.label })),
+      backgroundColor: COLORS.primary + "cc",
+      pointRadius: 7,
+      pointHoverRadius: 9,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const raw = ctx.raw;
+            return `${raw.label}: spec=${raw.x}, outcome=${raw.y}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: { title: { display: true, text: "Speculator Score", color: COLORS.text }, min: 0, max: 10 },
+      y: { title: { display: true, text: "Outcome Score", color: COLORS.text }, min: 0, max: 10 },
+    }
+  }
+});
+
+/* ---- Axis bar chart ---- */
+if (barLabels.length > 0) {
+  const barCtx = document.getElementById("barChart").getContext("2d");
+  new Chart(barCtx, {
+    type: "bar",
+    data: {
+      labels: barLabels,
+      datasets: [{
+        label: "Outcome delta",
+        data: barValues,
+        backgroundColor: barValues.map(v => v >= 0 ? COLORS.secondary + "cc" : COLORS.danger + "cc"),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { maxRotation: 40 } },
+        y: { title: { display: true, text: "Δ Outcome Score", color: COLORS.text } }
+      }
+    }
+  });
+}
+
+/* ---- Functional pass rate horizontal bar ---- */
+if (heatmapLabels.length > 0) {
+  const hmCtx = document.getElementById("heatmapChart").getContext("2d");
+  new Chart(hmCtx, {
+    type: "bar",
+    data: {
+      labels: heatmapLabels,
+      datasets: [{
+        label: "Pass %",
+        data: heatmapValues,
+        backgroundColor: heatmapValues.map(v => {
+          if (v >= 80) return COLORS.secondary + "cc";
+          if (v >= 50) return COLORS.warning + "cc";
+          return COLORS.danger + "cc";
+        }),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { min: 0, max: 100, title: { display: true, text: "Pass Rate (%)", color: COLORS.text } },
+        y: { ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+/* ---- Outcome distribution chart ---- */
+const radarCtx = document.getElementById("radarChart");
+if (radarCtx && scatterData.length > 0) {
+  const targets = scatterData.map(d => d.label);
+  const outcomes = scatterData.map(d => d.y);
+  new Chart(radarCtx.getContext("2d"), {
+    type: "bar",
+    data: {
+      labels: targets,
+      datasets: [{
+        label: "Outcome Score",
+        data: outcomes,
+        backgroundColor: COLORS.primary + "88",
+        borderColor: COLORS.primary,
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { maxRotation: 45, font: { size: 10 } } },
+        y: { min: 0, max: 10, title: { display: true, text: "Outcome Score", color: COLORS.text } }
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
