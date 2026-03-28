@@ -311,7 +311,7 @@ def run_judge(
     impl_dir: Path,
     rubric_path: Path,
     output_dir: Path,
-    judge_model: str = "claude-opus-4-5",
+    judge_model: str = "opus-4-6",
 ) -> dict:
     """Run the LLM-as-judge qualitative review of an implementation.
 

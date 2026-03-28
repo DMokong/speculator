@@ -137,8 +137,18 @@ def run_calibration(
     existing = list(cal_dir.glob("calibration-*.yml"))
     cal_num = len(existing) + 1
 
+    # Extract PRD name from run config (not hardcoded)
+    prd_name = "unknown"
+    config_path = run_dir / "config.yml"
+    if config_path.exists():
+        try:
+            config_data = yaml.safe_load(config_path.read_text())
+            prd_name = config_data.get("benchmark", {}).get("prd", "unknown")
+        except (yaml.YAMLError, ValueError, KeyError):
+            pass
+
     artifact = {
-        "prd": "weather-transport",
+        "prd": prd_name,
         "date": datetime.now().strftime("%Y-%m-%d"),
         "implementations_reviewed": reviews,
         "rubric_version": "1.0",
