@@ -1,17 +1,17 @@
 ---
 id: PRD-001
-name: "Personalised Daily Weather + Transport"
-version: 1.0
-difficulty: medium
-estimated_features: 15
-estimated_impl_time: 90min
+name: "Smart Commuter — Weather-Aware Route Planner"
+version: 2.0
+difficulty: hard
+estimated_features: 28
+estimated_impl_time: 240min
 ---
 
-# PRD: Personalised Daily Weather + Transport
+# PRD: Smart Commuter — Weather-Aware Route Planner
 
 ## Purpose
 
-A single-page web application that gives a user a personalised at-a-glance view of today's weather and local public transport departures for a configurable location in NSW, Australia. The app should be genuinely useful for a daily commuter: open it, see the weather, see your next bus/train/ferry, close it.
+A single-page web app for NSW commuters that plans multi-leg public transport journeys with real-time departure matching, transfer feasibility, weather-aware delay recommendations, service advisory integration, and learned user behavior patterns. Not just "what's the next bus" — this answers "what should I catch right now to make my full journey, given the weather and service alerts?"
 
 ## Tech Stack (Constrained)
 
@@ -22,95 +22,102 @@ A single-page web application that gives a user a personalised at-a-glance view 
 | Language | TypeScript |
 | Styling | Tailwind CSS |
 
-No other frameworks or UI libraries. No backend — all API calls are made directly from the browser.
+No other frameworks or UI libraries. No backend — all API calls from the browser.
 
 ## Data Sources
 
-### Weather: Open-Meteo
-
-- Base URL: `https://api.open-meteo.com/v1/forecast`
-- No API key required
-- Use the **BOM ACCESS-G** model for Australian accuracy: `&models=bom_access_global`
-- Required parameters:
-  - `latitude`, `longitude` — from user's configured location
-  - `current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m`
-  - `daily=weather_code,temperature_2m_max,temperature_2m_min`
-  - `timezone=Australia%2FSydney`
-  - `forecast_days=5`
-- Weather codes follow the WMO standard (0 = clear sky, 1-3 = partly cloudy, 45/48 = fog, 51-67 = rain/drizzle, 71-77 = snow, 80-82 = showers, 95-99 = thunderstorm)
-
-### Transport: TfNSW Open Data Hub
-
-- Base URL: `https://api.transport.nsw.gov.au/v1/tp/`
-- **Requires API key** via `Authorization: apikey YOUR_KEY` header
-- Key endpoints:
-  - `departure_mon` — next departures from a stop. Required params: `outputFormat=rapidJSON`, `coordOutputFormat=EPSG%3A4326`, `mode=direct`, `type_dm=stop`, `name_dm=<stop_id>`, `departureMonitorMacro=true`, `TfNSWDM=true`, `version=10.2.1.42`
-  - `stop_finder` — search for stops by name. Required params: `outputFormat=rapidJSON`, `type_sf=stop`, `name_sf=<query>`, `coordOutputFormat=EPSG%3A4326`, `TfNSWTR=true`, `version=10.2.1.42`
-- Stop IDs are strings (e.g., `"200060"` for Wynyard Station)
-- The `departure_mon` response contains `stopEvents[]`, each with `departureTimePlanned`, `departureTimeEstimated`, `transportation.product.name`, `transportation.number`, `transportation.destination.name`
+- **Weather**: Open-Meteo free API (no key required). Use the BOM ACCESS-G model for Australian accuracy.
+- **Transport**: TfNSW Open Data Hub (requires API key via header). Supports stop search, departure monitoring, and trip planning.
+- **Service Advisories**: TfNSW GTFS-realtime alerts feed for disruptions, track work, and service changes.
 
 ## Requirements
 
-### Weather Display
+### Weather
 
-**R01**: Display the current temperature in Celsius for the user's configured location, sourced from the Open-Meteo API's `current.temperature_2m` field. Show the value prominently with a `°C` unit label.
+**R01**: Show current temperature in °C, "feels like" temperature, and wind speed in km/h for the user's location.
 
-**R02**: Display a 5-day weather forecast showing, for each day: the day label (e.g. "Mon", "Tue"), the high and low temperature in Celsius, and a weather condition icon derived from the WMO weather code. Days should be displayed in a horizontal row.
+**R02**: Show a 5-day forecast with day labels, high/low temps, and weather condition icons.
 
-**R03**: Display the "feels like" temperature (`current.apparent_temperature`) alongside the actual current temperature, labelled clearly as "Feels like X°C".
+### Route Management
 
-**R04**: Display the current wind speed (`current.wind_speed_10m`) in km/h with an appropriate label.
+**R03**: Allow users to save any number of named routes. A route consists of one or more legs. Each leg has an origin stop, a destination stop, and a transport mode (train, metro, tram, ferry). Routes are persisted in the browser across sessions.
 
-### Transport Departures
+**R04**: Provide a route builder UI where the user selects stops and transport modes for each leg. When a user selects a stop, filter available destinations and transfer stops to only those reachable by the selected mode from that stop — disconnected or unreachable stops should not appear as options.
 
-**R05**: Display the next 5 upcoming departures from the user's saved transport stop, sourced from the TfNSW `departure_mon` endpoint. For each departure show: transport mode, route/line identifier, destination name, and scheduled departure time in HH:MM format (AEST/AEDT).
+**R05**: Support multi-leg/transfer routes. For example: Train from Hornsby to Chatswood, transfer to Metro from Chatswood to Martin Place. The user builds this leg by leg.
 
-**R06**: For each departure, show the real-time delay status: if `departureTimeEstimated` differs from `departureTimePlanned` by more than 1 minute, display the delay prominently (e.g., "+3 min late") in amber/red. If on time, show a green "On time" indicator.
+**R06**: Provide a UI to browse and search stops filtered by transport type (train stations, metro stations, tram stops, ferry wharves). Searching or selecting a type should narrow the visible stops accordingly.
 
-**R07**: Display a transport mode icon for each departure that reflects the actual mode: bus, train, ferry, light rail, or coach. Use the `transportation.product.name` field to determine the mode.
+### Real-Time Trip Planning
 
-### Personalisation
+**R07**: Given a saved route and the current time, show all feasible departure options the user could take right now. A feasible option is one where the user can board the first leg's departure and make each subsequent transfer in time.
 
-**R08**: Persist the user's preferred location (suburb name + coordinates) in `localStorage`. The app must load this saved location on startup without prompting the user to configure it again.
+**R08**: For each trip option, show: departure time for each leg, transfer wait time at each interchange, and estimated arrival time at the final destination.
 
-**R09**: Persist the user's preferred transport stop (stop ID + display name) in `localStorage`. The app must load this saved stop on startup without prompting.
+**R09**: For each departure in a trip option, indicate whether it's on time or delayed based on real-time data.
 
-**R10**: Display a time-of-day greeting in the header that changes based on the current local time: "Good morning" (5am–11:59am), "Good afternoon" (12pm–5:59pm), "Good evening" (6pm–9:59pm), "Good night" (10pm–4:59am).
+**R10**: For transfer points, show how much time the user has to make the transfer. Highlight transfers that are tight (under 5 minutes) or at risk.
 
-### Settings
+### Weather-Aware Recommendations
 
-**R11**: Provide a settings panel (accessible via a gear/settings icon) with a location search field. Searching by suburb name or postcode should query a static list of NSW suburbs with coordinates (at minimum: Sydney CBD, Parramatta, Chatswood, Bondi Beach, Newtown, Manly, Penrith, Wollongong, Newcastle, Canberra). Selecting a result saves it via R08 and immediately refreshes weather data.
+**R11**: When current or forecast weather includes heavy rain or thunderstorms with >60% probability, display a recommendation suggesting the user take an earlier departure to account for likely delays.
 
-**R12**: Within the settings panel, provide a transport stop search field. Entering a stop name queries the TfNSW `stop_finder` endpoint and displays matching results. Selecting a result saves it via R09 and immediately refreshes departure data.
+**R12**: Consider the weather conditions at the locations along the route — not just the user's home location. If severe weather is localised to part of the route, flag that segment specifically.
+
+### Service Advisories
+
+**R13**: Fetch and display active service advisories (disruptions, track work, delays) from TfNSW that affect any leg of the user's saved routes.
+
+**R14**: Correlate advisories with the user's route — show which specific legs or stops are impacted, not just a generic alert list.
+
+### Behaviour Learning
+
+**R15**: Track the user's trip-checking patterns over time (what times they typically check, which routes, which days). Use this data to surface proactive recommendations like "You usually leave around 7:45am — here are today's options."
+
+**R16**: Support app notifications (browser Notification API) to alert the user when it's time to leave based on their learned patterns, or when a disruption affects their usual route.
+
+### Personalisation & Persistence
+
+**R17**: Persist all user preferences, saved routes, and behavior data in browser persistent storage (localStorage or IndexedDB) so everything survives across sessions and reloads.
+
+**R18**: Show a time-of-day greeting in the header.
 
 ### UI & Behaviour
 
-**R13**: The layout must be responsive and mobile-first. On screens narrower than 640px (Tailwind `sm` breakpoint), the weather summary and transport departures stack vertically. On wider screens they appear side by side.
+**R19**: Responsive layout — mobile-first, stacked on narrow screens, side-by-side panels on desktop.
 
-**R14**: Automatically refresh both weather and transport data every 5 minutes without requiring a page reload. A manual refresh button must also be present.
-
-**R15**: Display a "Last updated" timestamp below the departure list, showing the exact time the data was last fetched (formatted as HH:MM:SS AEST/AEDT). This timestamp must update each time data is refreshed.
+**R20**: Auto-refresh transport and advisory data periodically. Include a manual refresh button with a "Last updated" timestamp.
 
 ---
 
-<!-- REVIEW ONLY: Do not include in spec generator prompts -->
+<!--
+REVIEW ONLY: Do not include in spec generator prompts.
+
 ## Implied Requirements (Review Reference Only)
 
 These requirements are NOT shown to spec generators. A high-quality spec should discover and address these independently. They are used during LLM-as-judge review to assess spec depth.
 
-- **IR01: Loading states** — Both the weather panel and transport panel should display a loading skeleton or spinner while their respective API calls are in flight. The two panels load independently (one can show data while the other loads).
+- **IR01: Loading states** — Route planning involves multiple chained API calls (departures for each leg, alerts, weather per location). Show loading states per-panel and per-leg, not just a single global spinner.
 
-- **IR02: Weather API error state** — If the Open-Meteo request fails (network error, non-2xx response), the weather panel should display a user-friendly error message (e.g. "Weather unavailable — tap to retry") rather than a blank panel or silent failure.
+- **IR02: Transfer feasibility edge cases** — What happens when a transfer is impossible (last service has departed, service cancelled)? The trip option should be marked as infeasible rather than silently omitted. What about overnight gaps?
 
-- **IR03: Transport API auth failure** — If the TfNSW API returns 401 or 403 (missing or invalid API key), the transport panel should display a specific message indicating the API key needs to be configured, distinguishable from a general network failure.
+- **IR03: API key management UX** — The TfNSW API requires an API key. The app needs a clear way for users to enter/update their key, with specific error messaging when the key is missing, invalid, or rate-limited.
 
-- **IR04: Empty state** — When the app first loads with no saved location or stop configured, it must display a clear onboarding prompt guiding the user to open settings and configure both. The main panels should not show empty or broken UI.
+- **IR04: Rate limiting** — Multiple concurrent requests to TfNSW (departure lookups for each leg, stop finder, alerts) could easily trigger rate limits. Requests should be serialised or throttled.
 
-- **IR05: TfNSW rate limiting** — TfNSW enforces approximately 5 requests/second. The app should not fire concurrent requests to TfNSW in a way that could trigger rate limiting (e.g., debounce stop search input by at least 300ms, serialise refresh calls).
+- **IR05: Timezone handling** — All displayed times must be in AEST/AEDT (Australia/Sydney), not the browser's local timezone. This matters for users traveling or using VPNs.
 
-- **IR06: Data staleness indicator** — If the last successful data refresh was more than 10 minutes ago (e.g., due to a background tab or network loss), display a visible warning banner indicating the data may be stale.
+- **IR06: Route validation** — When building a route, what prevents a user from creating a route with disconnected legs (e.g., leg 1 ends at Chatswood but leg 2 starts at Parramatta)? The origin of each subsequent leg should default to or be constrained by the destination of the previous leg.
 
-- **IR07: Timezone-aware display** — All times displayed in the UI (departure times, last-updated timestamp, forecast days) must be rendered in AEST (UTC+10) or AEDT (UTC+11) as appropriate for the current date, NOT in the user's browser timezone. Use the `Australia/Sydney` timezone for all display formatting.
+- **IR07: Stale behavior data** — Learned patterns from weeks ago may no longer be relevant (changed job, moved house). There should be a decay mechanism or a way for users to reset their patterns.
 
-- **IR08: Accessible colour contrast** — Weather condition indicators and delay status colours (green/amber/red) must meet WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text) to remain readable on both light and dark backgrounds.
-<!-- END REVIEW ONLY -->
+- **IR08: Notification permissions** — Browser notifications require explicit user permission. The app must handle the permission request gracefully, including the case where the user denies or has previously denied permission.
+
+- **IR09: Offline/degraded mode** — If the device is offline, the app should still show saved routes and last-known data rather than a blank screen. Indicate clearly that data is stale.
+
+- **IR10: Accessibility** — Complex UIs (route builder, multi-leg trip display, cascading filters) need keyboard navigation, screen reader support, and WCAG AA colour contrast.
+
+- **IR11: Data staleness indicator** — If transport data hasn't refreshed in over 10 minutes (background tab, network loss), display a visible warning.
+
+- **IR12: Empty/first-run state** — On first launch with no routes saved, guide the user through creating their first route rather than showing an empty dashboard.
+-->

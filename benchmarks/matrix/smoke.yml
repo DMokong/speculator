@@ -11,16 +11,9 @@ benchmark:
   judge:
     model: opus-4-6
 
-  # Smoke test: 2 targets (vanilla vs superpowers), Sonnet only, Claude Code only
-  # Validates the full pipeline end-to-end at minimal cost
-  # Expected: ~2 specs + 4 implementations + 4 reviews = ~6 LLM calls
+  # Smoke test: single target to validate pipeline end-to-end
   targets:
     - id: cc-vanilla-sonnet
       harness: claude-code
       model: sonnet-4-6
       process: vanilla
-
-    - id: cc-sp-sonnet
-      harness: claude-code
-      model: sonnet-4-6
-      process: superpowers

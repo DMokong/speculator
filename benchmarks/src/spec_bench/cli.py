@@ -141,11 +141,26 @@ def run(ctx, prd, matrix, runs):
             # Write the spec as the prompt for the implementer
             impl_prompt_path = impl_dir / "impl-prompt.md"
             impl_prompt_path.write_text(
-                f"Implement this specification exactly. Use Vite + React + TypeScript + Tailwind.\n\n"
+                f"Implement the following specification. All code must be created in the current working directory.\n\n"
+                f"Use the superpowers:writing-plans skill to write an implementation plan first, "
+                f"then use superpowers:executing-plans with superpowers:subagent-driven-development "
+                f"to execute the plan. Do not ask for user input — execute autonomously.\n\n"
+                f"Tech stack: Vite + React + TypeScript + Tailwind CSS. No other frameworks.\n\n"
                 f"{spec_file.read_text()}"
             )
 
-            superpowers_path = bench_dir / ".superpowers" / "superpowers.md"
+            # Find Superpowers plugin — check standard install locations
+            superpowers_candidates = [
+                Path.home() / ".claude" / "plugins" / "cache" / "claude-plugins-official" / "superpowers",
+            ]
+            superpowers_path = None
+            for candidate in superpowers_candidates:
+                if candidate.exists():
+                    # Use the latest version directory
+                    versions = sorted(candidate.iterdir(), reverse=True)
+                    if versions:
+                        superpowers_path = versions[0]
+                        break
             impl_result = run_target(
                 target=impl_target,
                 output_dir=impl_dir / "app",

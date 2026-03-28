@@ -1,64 +1,84 @@
-# Functional test checklist for PRD-001: Personalised Daily Weather + Transport
+# Functional test checklist for PRD-001 v2: Smart Commuter — Weather-Aware Route Planner
 # Layer 1: Playwright-testable assertions mapped to each requirement.
 # These are smoke-level checks — presence and basic correctness, not full integration.
 
 functional_checklist:
   - id: F01
-    requirement: "R01: Display current temperature in Celsius"
-    test: "Page contains a visible element with a numeric value followed by °C (e.g. '22°C' or '22 °C')"
+    requirement: "R01: Current weather display (temp, feels-like, wind)"
+    test: "Page contains a visible element with a numeric value followed by °C, text matching 'Feels like', and a value followed by 'km/h'"
 
   - id: F02
-    requirement: "R02: 5-day forecast with day labels, high/low temps, and weather icons"
-    test: "Page contains at least 5 elements displaying abbreviated day names (Mon/Tue/Wed/Thu/Fri/Sat/Sun) each accompanied by two temperature values (high and low) and an icon element"
+    requirement: "R02: 5-day forecast"
+    test: "Page contains at least 5 elements displaying abbreviated day names (Mon/Tue/Wed/Thu/Fri/Sat/Sun) each accompanied by two temperature values and an icon element"
 
   - id: F03
-    requirement: "R03: Feels-like temperature with label"
-    test: "Page contains text matching 'Feels like' followed by a numeric value and °C unit"
+    requirement: "R03: Save multiple named routes"
+    test: "A 'Save Route' or 'Add Route' button is visible; after creating a route via the builder UI, the route appears in a saved routes list with its user-given name"
 
   - id: F04
-    requirement: "R04: Wind speed in km/h"
-    test: "Page contains text matching a numeric value followed by 'km/h'"
+    requirement: "R04: Route builder with cascading stop filters"
+    test: "Route builder UI contains a stop search input; selecting a transport mode filters the visible stops; selecting an origin stop narrows available destination stops"
 
   - id: F05
-    requirement: "R05: Next 5 departures with mode, route, destination, and time"
-    test: "Page contains at least 5 departure rows, each with a time value in HH:MM format and a destination name string"
+    requirement: "R05: Multi-leg route support"
+    test: "Route builder has an 'Add Leg' or 'Add Transfer' button; after adding two legs, both appear in the route preview with origin→destination for each leg"
 
   - id: F06
-    requirement: "R06: Real-time delay status per departure"
-    test: "Each departure row contains either a green 'On time' indicator or a delay indicator showing '+N min' in amber or red"
+    requirement: "R06: Browse/search stops by transport type"
+    test: "A transport type filter (train/metro/tram/ferry) is visible; selecting 'metro' changes the displayed stop list to only show metro stations"
 
   - id: F07
-    requirement: "R07: Transport mode icon per departure"
-    test: "Each departure row contains an icon element (img, svg, or element with an aria-label) indicating the transport mode"
+    requirement: "R07: Feasible departure options for current time"
+    test: "After selecting a saved route, a list of trip options appears, each with at least one departure time in HH:MM format"
 
   - id: F08
-    requirement: "R08: Persist preferred location in localStorage"
-    test: "After setting a location via settings, localStorage contains a key with location data (suburb name and coordinates); on page reload the weather panel loads without the user re-entering location"
+    requirement: "R08: Trip option details (departure times, transfer wait, arrival)"
+    test: "Each trip option shows per-leg departure times, a transfer wait duration (e.g. '8 min wait'), and a final arrival time"
 
   - id: F09
-    requirement: "R09: Persist preferred transport stop in localStorage"
-    test: "After saving a stop via settings, localStorage contains a key with stop data (stop ID and name); on page reload the departures panel loads without the user re-entering stop"
+    requirement: "R09: On-time/delayed status per departure"
+    test: "Each departure within a trip option contains either a green 'On time' indicator or a delay indicator showing a time difference"
 
   - id: F10
-    requirement: "R10: Time-of-day greeting in header"
-    test: "Page header contains one of: 'Good morning', 'Good afternoon', 'Good evening', or 'Good night'"
+    requirement: "R10: Transfer risk indicator"
+    test: "Transfer points in trip options show a time value; transfers under 5 minutes are visually highlighted (different colour, icon, or label like 'tight')"
 
   - id: F11
-    requirement: "R11: Settings panel with location search"
-    test: "Clicking the settings icon opens a panel containing a text input for location search; typing a suburb name (e.g. 'Bondi') displays at least one selectable result"
+    requirement: "R11: Weather delay recommendation"
+    test: "When weather data includes heavy rain or thunderstorm codes, a recommendation banner or message is visible suggesting earlier departure"
 
   - id: F12
-    requirement: "R12: Transport stop search in settings"
-    test: "Settings panel contains a text input for stop search; typing a stop name triggers a network request to api.transport.nsw.gov.au and displays at least one selectable result"
+    requirement: "R12: Route-segment weather awareness"
+    test: "Weather warnings reference specific route segments or stops rather than only showing a single global weather status"
 
   - id: F13
-    requirement: "R13: Responsive mobile-first layout"
-    test: "At viewport width 375px, weather and transport sections are stacked vertically (weather section appears above transport section); at viewport width 1024px they appear side by side"
+    requirement: "R13: Service advisories display"
+    test: "An advisories section or panel is visible showing at least a heading like 'Service Alerts' or 'Advisories' with content sourced from TfNSW"
 
   - id: F14
-    requirement: "R14: Auto-refresh every 5 minutes + manual refresh button"
-    test: "Page contains a visible refresh button; clicking it triggers new network requests to Open-Meteo and TfNSW APIs; a network intercept confirms requests fire automatically after 300000ms"
+    requirement: "R14: Advisory-to-route correlation"
+    test: "Advisories are tagged or grouped by which saved route or leg they affect, not displayed as an unsorted generic list"
 
   - id: F15
-    requirement: "R15: Last-updated timestamp"
-    test: "Page contains a 'Last updated' label followed by a time value in HH:MM:SS format; after a manual refresh the timestamp value changes"
+    requirement: "R15: Behaviour pattern tracking"
+    test: "After multiple simulated check-ins, localStorage or IndexedDB contains entries recording timestamps and route selections"
+
+  - id: F16
+    requirement: "R16: Browser notifications support"
+    test: "A notification preferences toggle or 'Enable notifications' button is present in settings; the page requests Notification API permission when enabled"
+
+  - id: F17
+    requirement: "R17: Persistent storage"
+    test: "After saving a route and reloading the page, the saved route is still present in the routes list without re-entering it"
+
+  - id: F18
+    requirement: "R18: Time-of-day greeting"
+    test: "Page header contains one of: 'Good morning', 'Good afternoon', 'Good evening', or 'Good night'"
+
+  - id: F19
+    requirement: "R19: Responsive layout"
+    test: "At viewport width 375px, main panels are stacked vertically; at viewport width 1024px they appear side by side"
+
+  - id: F20
+    requirement: "R20: Auto-refresh and last-updated timestamp"
+    test: "Page contains a visible refresh button and a 'Last updated' label followed by a time value; clicking refresh updates the timestamp"

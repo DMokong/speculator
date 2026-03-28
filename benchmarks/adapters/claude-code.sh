@@ -94,6 +94,9 @@ fi
 # Capture wall clock time
 START_TIME=$(date +%s%N)
 
+# Run Claude inside the output directory so all files are created there
+cd "$OUTPUT_DIR"
+
 set +e
 "${CLAUDE_CMD[@]}" 2>&1 | tee "$SESSION_LOG"
 EXIT_CODE=${PIPESTATUS[0]}

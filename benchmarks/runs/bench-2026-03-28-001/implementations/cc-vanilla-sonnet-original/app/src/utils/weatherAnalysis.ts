@@ -2,6 +2,7 @@ import type { WeatherCurrent, WeatherForecastDay } from '../types';
 
 const HEAVY_RAIN_CODES = new Set([61, 63, 65, 66, 67, 80, 81, 82]);
 const THUNDERSTORM_CODES = new Set([95, 96, 99]);
+const PRECIPITATION_THRESHOLD = 60;
 
 function isSevereCode(code: number): boolean {
   return HEAVY_RAIN_CODES.has(code) || THUNDERSTORM_CODES.has(code);
@@ -22,13 +23,13 @@ export function shouldRecommendEarlierDeparture(
   const today = forecast[0];
   if (
     today &&
-    today.precipitationProbability > 60 &&
+    today.precipitationProbability > PRECIPITATION_THRESHOLD &&
     isSevereCode(today.weatherCode)
   ) {
-    const label = THUNDERSTORM_CODES.has(today.weatherCode) ? 'thunderstorm' : 'heavy rain';
+    const label = THUNDERSTORM_CODES.has(today.weatherCode) ? 'Thunderstorm' : 'Heavy rain';
     return {
       recommend: true,
-      reason: `${label.charAt(0).toUpperCase() + label.slice(1)} forecast with ${today.precipitationProbability}% probability — consider an earlier service.`,
+      reason: `${label} forecast with ${today.precipitationProbability}% probability — consider an earlier service.`,
     };
   }
 
