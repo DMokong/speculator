@@ -25,6 +25,20 @@ def _resolve_claude_bin() -> str:
         return str(fallback)
     return "claude"  # Last resort
 
+
+# Map matrix model IDs to Claude CLI model identifiers
+_CLAUDE_MODEL_MAP = {
+    "sonnet-4-6": "sonnet",
+    "opus-4-6": "opus",
+    "sonnet": "sonnet",
+    "opus": "opus",
+}
+
+
+def _map_claude_model(model_id: str) -> str:
+    """Map a matrix model ID to a Claude CLI model identifier."""
+    return _CLAUDE_MODEL_MAP.get(model_id, model_id)
+
 from .config import Target
 
 # Default scoring weights matching the Speculator rubric

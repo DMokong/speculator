@@ -9,7 +9,7 @@ import time
 import urllib.request
 import urllib.error
 
-from .scoring import _resolve_claude_bin
+from .scoring import _resolve_claude_bin, _map_claude_model
 from pathlib import Path
 from typing import Optional
 
@@ -359,7 +359,7 @@ def run_judge(
             prompt,
             "--dangerously-skip-permissions",
             "--model",
-            judge_model,
+            _map_claude_model(judge_model),
         ],
         capture_output=True,
         text=True,
