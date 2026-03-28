@@ -34,6 +34,7 @@ export function StopSearch() {
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (query.length < 2) {
@@ -50,6 +51,9 @@ export function StopSearch() {
         setSearchError(true);
         return;
       }
+
+      const controller = new AbortController();
+      abortRef.current = controller;
 
       setLoading(true);
       setSearchError(false);
@@ -68,12 +72,14 @@ export function StopSearch() {
           Authorization: `apikey ${apiKey}`,
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       })
         .then(res => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           return res.json() as Promise<StopFinderResponse>;
         })
         .then(json => {
+          if (controller.signal.aborted) return;
           const locs = json.locations ?? [];
           const mapped: StopResult[] = locs.slice(0, 10).map(loc => ({
             id: loc.id,
@@ -85,7 +91,8 @@ export function StopSearch() {
           setResults(mapped);
           setLoading(false);
         })
-        .catch(() => {
+        .catch(err => {
+          if (err instanceof DOMException && err.name === 'AbortError') return;
           setSearchError(true);
           setLoading(false);
         });
@@ -93,6 +100,7 @@ export function StopSearch() {
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (abortRef.current) abortRef.current.abort();
     };
   }, [query]);
 

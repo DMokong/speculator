@@ -27,10 +27,11 @@ export function formatDepartureTime(isoString: string): string {
 export function formatDayLabel(isoDate: string): string {
   const date = new Date(isoDate + 'T00:00:00');
   const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
   if (isoDate === todayStr) return 'Today';
   if (isoDate === tomorrowStr) return 'Tmrw';
   return date.toLocaleDateString('en-AU', { weekday: 'short' });

@@ -42,6 +42,7 @@ export function useTransport(): UseTransportResult {
   useEffect(() => {
     const apiKey = import.meta.env.VITE_TFNSW_API_KEY as string | undefined;
     if (!apiKey) {
+      setLoading(false);
       setMissingApiKey(true);
       setError(true);
       return;
