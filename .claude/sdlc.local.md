@@ -15,6 +15,10 @@ gates:
     lint_required: false
     type_check_required: false
     required: true
+  eval-quality:
+    enabled: false
+    threshold: 6.5
+    per_dimension_minimum: 4
   review:
     required: true
   evidence-package:
