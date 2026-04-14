@@ -70,9 +70,10 @@ After resolving the spec, determine where the pipeline left off by checking evid
 | 1 | No `evidence/gate-1-scorecard.yml` | Phase 1: Scoring |
 | 2 | Scorecard exists, no plan in `docs/plans/` matching this spec | Phase 2: Planning |
 | 3 | Plan exists, no `evidence/gate-2-quality.yml` | Phase 3: Implementation + Gate 2 |
-| 4 | Gate 2 exists, no `evidence/gate-3-review.yml` | Phase 4: Review |
+| 3a | Gate 2 exists, `eval-quality.enabled: true`, no `evidence/gate-2b-eval-quality.yml` | Phase 3a: Eval Quality (Gate 2b) |
+| 4 | Gate 2 exists (and 2b if enabled), no `evidence/gate-3-review.yml` | Phase 4: Review |
 | 5 | Gate 3 exists, no `evidence/gate-4-summary.yml` | Phase 5: Close |
-| 6 | All gates exist | Pipeline complete — nothing to do |
+| 6 | All required gates exist | Pipeline complete — nothing to do |
 
 Announce which phase will start:
 ```
@@ -139,6 +140,12 @@ Create implementation plan via `writing-plans` skill, generate beads stories, ha
 ### Phase 3: Implementation + Gate 2
 Execute plan via `subagent-driven-development`, run Gate 2 (code quality), self-heal loop for test failures (max `max_code_retries` attempts).
 → Read `references/phase-implementation.md` for detailed steps.
+
+### Phase 3a: Eval Quality (Gate 2b)
+
+Run only when `gates.eval-quality.enabled: true` in `.claude/sdlc.local.md`.
+
+Follow the steps in `${CLAUDE_PLUGIN_ROOT}/skills/sdlc-run/references/phase-eval-quality.md`.
 
 ### Phase 4: Code Review (Gate 3)
 Dispatch `code-reviewer` agent, one self-fix cycle for blocking issues, escalate if unresolved.
