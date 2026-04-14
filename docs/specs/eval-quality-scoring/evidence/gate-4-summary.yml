@@ -1,0 +1,22 @@
+evidence_type: evidence-package
+timestamp: 2026-04-15T22:40:00Z
+gates:
+  spec-quality:
+    evidence_file: gate-1-scorecard.yml
+    result: pass
+    score: 8.0
+  code-quality:
+    evidence_file: gate-2-quality.yml
+    result: pass
+    notes: "25/25 tests pass, no regressions, all-markdown changeset"
+  review:
+    evidence_file: gate-3-review.yml
+    result: pass
+    notes: "All 7 checks pass including skill_description eval for AGENT.md + SKILL.md"
+blocking_flags_resolved: true
+spec_status: approved
+beads_epic: speculator-icu
+beads_stories_closed: n/a
+pipeline_result: pass
+worktree: feat/eval-quality-scoring
+merge_target: main
