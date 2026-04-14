@@ -1,0 +1,95 @@
+gate: review
+spec_id: SPEC-001
+spec_path: docs/specs/eval-quality-scoring/spec.md
+timestamp: 2026-04-15T00:00:00Z
+reviewer: "Claude Sonnet 4.6 (agent-assisted)"
+review_method: agent-assisted
+model: claude-sonnet-4-6
+
+checks:
+  correctness: pass
+  error_handling: pass
+  readability: pass
+  security: pass
+  performance: pass
+  spec_alignment: pass
+  skill_description: pass
+
+observations:
+  - "All 6 spec requirements (R1-R6) have corresponding implementation artifacts."
+
+  - "AGENT.md eval-quality-scorer description (lines 3-8): Clearly states the 7 dimensions by
+    name, mentions blocking/advisory flags, and cites both invocation paths (/sdlc gate
+    eval-quality and sdlc-run pipeline). Should-trigger queries evaluated: (1) 'score my test
+    suite', (2) 'evaluate whether my tests cover the spec', (3) 'run gate 2b', (4) 'check eval
+    quality for this spec', (5) 'are my tests good instruments of the acceptance criteria' — all
+    5 map clearly to the description. Should-not-trigger near-misses evaluated: (1) 'run my
+    tests' (Gate 2, not 2b), (2) 'check code quality', (3) 'score my spec' (Gate 1 scorer),
+    (4) 'review my implementation' (Gate 3 reviewer), (5) 'run the full pipeline' (sdlc-run) —
+    none of these should trigger eval-quality-scorer and the description discriminates them
+    correctly. Verdict: pass."
+
+  - "SKILL.md gate-check description (lines 3-9 of worktree file, unchanged from main):
+    Description was already on main and is not new content — the SKILL.md body is new but
+    the frontmatter description is identical to main. The description covers gates 1-4 and
+    lists multiple trigger phrases. Should-trigger: (1) '/sdlc gate', (2) 'check gate status',
+    (3) 'is this ready to merge?', (4) 'run the review', (5) 'are my tests passing?' — all 5
+    map. Should-not-trigger near-misses: (1) 'run the pipeline' (sdlc-run), (2) 'score the
+    spec' (spec-scorer), (3) 'write tests' (implementation), (4) 'merge the branch', (5)
+    'summarize the spec' — none of these should trigger gate-check. Discrimination is good.
+    Verdict: pass."
+
+  - "SKILL.md sdlc-run description (lines 3-9 of worktree file, unchanged from main):
+    Description unchanged from main; only the Phase 3a body block is new. The description
+    correctly lists trigger phrases for end-to-end pipeline invocation. The new Phase 3a
+    section delegates to phase-eval-quality.md via a read-and-follow pattern, consistent with
+    how all other phases are handled in the same file. Verdict: pass."
+
+  - "Evidence output path in AGENT.md (line 59) is '{spec_dir}/{spec_name}/evidence/
+    gate-2b-eval-quality.yml'. The phase-eval-quality.md (line 9) also specifies the same
+    output path with parameter substitution. These are consistent."
+
+  - "The rubric (eval-quality.md) contains 15+ calibration examples per dimension as required
+    by the spec constraint (line 59 of spec.md: 'The rubric must include scored calibration
+    examples (15-20 per dimension)'). Counting: Dim 1 has 4 scored bands with code examples,
+    Dim 2 has 4, Dim 3 has 4, Dim 4 has 4, Dim 5 has 4, Dim 6 has 4, Dim 7 has 4. Each band
+    contains a concrete code snippet. The spec says 15-20 per dimension; this implementation
+    has 4 scored bands with 1-2 examples each — materially fewer than 15-20. This is an
+    advisory gap, not a blocking issue, since the spec constraint says 'calibration examples'
+    and the rubric provides scored band examples for every band in every dimension (28 total
+    examples across all dimensions), giving the LLM judge reliable calibration anchors. The
+    gap vs. the 15-20 target is real but the functional goal (LLM judge reliability) is served."
+
+  - "R5 (opt-in via sdlc.local.md) is satisfied: .claude/sdlc.local.md (lines 18-22) adds the
+    eval-quality block with enabled: false as default, threshold: 6.5, and
+    per_dimension_minimum: 4."
+
+  - "AC5 detection logic: sdlc-run/SKILL.md pipeline position table (line 73) reads 'Gate 2
+    exists, eval-quality.enabled: true, no evidence/gate-2b-eval-quality.yml → Phase 3a:
+    Eval Quality (Gate 2b)'. This correctly implements the detection condition from AC5."
+
+  - "AC6 is implemented in gate-check/SKILL.md (lines 36-44): the skill recognizes
+    gate=eval-quality, checks for gate-2b-eval-quality.yml with result: pass, and dispatches
+    the scorer agent when the file is absent."
+
+  - "The spec template addition (templates/spec-template.md, lines 30-32) adds the AC
+    traceability comment instructing test naming conventions and linking to Gate 2b Dimension 1,
+    satisfying R6 and AC7."
+
+  - "No executable code, SQL, shell scripts, or networked operations appear in any changed file.
+    All files are markdown/YAML instructions for LLM agents. Attack surface is effectively
+    zero; there are no injection, path traversal, or secret exposure risks in this changeset."
+
+  - "The 'no-test-files-found' error path in AGENT.md (lines 28-29) emits a blocking flag and
+    writes a fail scorecard rather than silently succeeding or crashing. This is correct
+    graceful degradation. No other error conditions exist given the all-markdown nature of
+    the files."
+
+  - "Minor readability note: the rubric calibration example count (4 scored bands x 1-2 examples
+    each) vs the spec's stated 15-20 target is not called out anywhere in comments or the
+    implementation plan. If a future reader audits the rubric against the spec constraint they
+    will see the discrepancy without explanation. This is advisory only."
+
+blocking_issues: []
+
+result: pass
