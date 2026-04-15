@@ -1,6 +1,8 @@
 ---
 id: SPEC-001
-status: approved
+status: compacted
+compacted_into: SYSTEM-SPEC
+compacted_date: 2026-04-16
 author: Dustin Cheng
 date: 2026-04-15
 epic: speculator-icu
