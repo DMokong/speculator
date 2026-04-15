@@ -27,6 +27,9 @@ What problem does this solve? Why now?
 
 ## Acceptance Criteria
 
+<!-- Gate 2b tip: name your tests after these AC IDs (e.g., test_ac1_...) to help
+     the eval-quality scorer map tests to criteria. Each AC should have at least
+     one test that verifies its observable outcome, not just its surface behavior. -->
 - [ ] AC1: Given [precondition], when [action], then [expected result]
 - [ ] AC2: Given [precondition], when [action], then [expected result]
 

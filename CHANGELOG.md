@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.7.0 — Gate 2b: Eval Quality Scoring
+
+### Added
+- **Gate 2b: Eval Quality Scoring** — optional LLM-as-judge gate that scores the quality of evals/tests in the diff across 7 dimensions: coverage breadth, boundary coverage, negative-case coverage, isolation quality, assertion precision, repeatability, and documentation clarity
+- **`eval-quality-scorer` agent** — reads test files from the diff, scores each dimension 1–5, aggregates a weighted overall score, emits blocking/advisory/pass results
+- **`eval-quality` rubric** (`rubrics/eval-quality.md`) — 7-dimension scoring rubric with calibration examples and threshold guidance
+- **Gate 2b phase detection** in `sdlc-run` — when `gate_2b_eval_quality` is enabled in `sdlc.local.md`, the pipeline inserts Gate 2b between Gate 2 and Gate 3
+- **Gate 2b routing** in `gate-check` skill — `gate-check 2b` invokes the eval-quality-scorer agent
+- **Opt-in config** — Gate 2b is disabled by default; enable with `gate_2b_eval_quality: true` in `sdlc.local.md`
+- **SPEC-001 spec** and Gate 1–4 evidence package committed alongside implementation
+
 ## 2.6.0 — Gate 3: Skill Description Eval
 
 ### Added
