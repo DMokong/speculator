@@ -56,7 +56,7 @@ The deeper intent: when a spec changes, tests should break because the behavior 
 
 ## Constraints
 
-- The rubric must include scored calibration examples (15–20 per dimension) — this is the critical path for LLM judge reliability
+- The rubric must include scored calibration examples per dimension (band-based: low-score and high-score examples per dimension) — this is the critical path for LLM judge reliability
 - Assertions-only extraction from Playwright tests is non-trivial (actions interleaved with assertions). MVP passes full test code with "focus on assertions" instruction — acceptable tradeoff for Phase 1
 - Gate 2b is Phase 1 only. Gate 2c (Comprehension Gate) is explicitly out of scope for this spec.
 
