@@ -27,6 +27,7 @@ You are helping the user verify or run a quality gate for a specification.
 2. **Identify the gate**: The user may specify a gate name. Valid gates:
    - `spec-quality` (Gate 1) — check if scorecard exists with `result: pass`
    - `code-quality` (Gate 2) — check test results and coverage evidence
+   - `eval-intent` (Gate 2a, opt-in) — check if eval intent scorecard exists with `result: pass` or `result: override-pass`
    - `eval-quality` (Gate 2b, opt-in) — check if eval quality scorecard exists with `result: pass`
    - `review` (Gate 3) — check if review evidence exists
    - `evidence-package` (Gate 4) — check if all prior gates passed
@@ -34,6 +35,7 @@ You are helping the user verify or run a quality gate for a specification.
 3. **Check gate status**: Look in `{spec_dir}/{spec_name}/evidence/` for the gate's evidence artifact:
    - Gate 1: `gate-1-scorecard.yml` with `result: pass`
    - Gate 2: `gate-2-quality.yml` with all required checks passing
+   - Gate 2a: `gate-2a-eval-intent.yml` with `result: pass` or `result: override-pass` (only checked if `gates.eval-intent.enabled: true`)
    - Gate 2b: `gate-2b-eval-quality.yml` with `result: pass` (only checked if `gates.eval-quality.enabled: true`)
    - Gate 3: `gate-3-review.yml` with approval recorded
    - Gate 4: `gate-4-summary.yml` with all gates listed as passed
@@ -41,6 +43,7 @@ You are helping the user verify or run a quality gate for a specification.
 4. **If gate evidence is missing**: Offer to help produce it:
    - Gate 1 missing → suggest `/sdlc score`
    - Gate 2 missing → guide the user to run tests and collect evidence, then write `gate-2-quality.yml`
+   - Gate 2a missing → dispatch eval-authoring skill with spec path, config path, and worktree base
    - Gate 2b missing → dispatch eval-quality-scorer agent from `${CLAUDE_PLUGIN_ROOT}/agents/eval-quality-scorer/AGENT.md` with spec path, config path, and worktree base
    - Gate 3 missing → guide the user to run code review, then write `gate-3-review.yml`
    - Gate 4 missing → check all prior gates, if all pass then write `gate-4-summary.yml`

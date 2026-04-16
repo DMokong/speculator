@@ -3,9 +3,10 @@ name: sdlc
 description: >-
   Master orchestrator for the Speculator quality pipeline — routes all /sdlc and
   /spec commands to specialized sub-skills. Use when the user says "/sdlc" or "/spec"
-  with any subcommand (start, score, gate, status, implement, review, close, run,
-  compact, doctor), says "run the quality pipeline", "quality gates", or just "/sdlc"
-  or "/spec" with no args to see status. Both prefixes are equivalent.
+  with any subcommand (start, score, gate, eval, status, implement, review, close, run,
+  compact, doctor), says "run the quality pipeline", "quality gates", "author evals",
+  "write evals", or just "/sdlc" or "/spec" with no args to see status. Both prefixes
+  are equivalent.
 ---
 
 # Speculator — Master Orchestrator
@@ -41,6 +42,7 @@ Based on the user's command, invoke the appropriate sub-skill. Both `/sdlc` and 
 | `/sdlc run` or `/spec run` | Run the full pipeline autonomously — invoke `sdlc-run` skill |
 | `/sdlc doctor` or `/spec doctor` | Run system diagnostics — invoke `sdlc-doctor` skill |
 | `/sdlc compact` or `/spec compact` | Bootstrap: process closed specs into SYSTEM-SPEC.md — invoke `spec-compact` skill |
+| `/sdlc eval` or `/spec eval` | Run eval authoring phase (Gate 2a) — invoke `eval-authoring` skill |
 
 ## `/sdlc implement`
 
