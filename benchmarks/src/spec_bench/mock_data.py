@@ -478,31 +478,22 @@ def build_seed_profile(api_key: str) -> dict[str, str]:
     route = {
         "id": _ROUTE_ID,
         "name": "Hornsby to Chatswood",
-        "origin": {
-            "id": "10101124",
-            "name": "Hornsby Station",
-            "stopId": "2000441",
-            "lat": -33.703298,
-            "lon": 151.098289,
-        },
-        "destination": {
-            "id": "10101282",
-            "name": "Chatswood Station",
-            "stopId": "2000325",
-            "lat": -33.796894,
-            "lon": 151.181877,
-        },
+        "createdAt": 1743150000000,
+        # legs format (used by both v0 and v2 specs)
+        "legs": [
+            {
+                "id": _LEG_ID,
+                "originStopId": "2000441",
+                "destinationStopId": "2000325",
+                "mode": "train",
+            }
+        ],
     }
 
-    behavior_entry = {
-        "timestamp": "2026-03-29T07:05:00+10:00",
-        "action": "check_departures",
-        "route_id": _ROUTE_ID,
-    }
     behavior_log = [
-        {**behavior_entry, "timestamp": "2026-03-27T07:03:00+10:00"},
-        {**behavior_entry, "timestamp": "2026-03-28T07:07:00+10:00"},
-        {**behavior_entry, "timestamp": "2026-03-29T07:05:00+10:00"},
+        {"routeId": _ROUTE_ID, "checkedAt": 1743051900000, "dayOfWeek": 3},  # Wed 8:05am
+        {"routeId": _ROUTE_ID, "checkedAt": 1743137880000, "dayOfWeek": 4},  # Thu 7:58am
+        {"routeId": _ROUTE_ID, "checkedAt": 1743224520000, "dayOfWeek": 5},  # Fri 8:12am
     ]
 
     notif_settings = {
@@ -522,8 +513,8 @@ def build_seed_profile(api_key: str) -> dict[str, str]:
         }),
         "smrt_routes": json.dumps([route]),
         "smrt_saved_routes": json.dumps([route]),
-        "smrt_active_route": json.dumps(route),
-        "smrt_selected_route": json.dumps(route),
+        "smrt_active_route": json.dumps(_ROUTE_ID),
+        "smrt_selected_route": json.dumps(_ROUTE_ID),
         "smrt_behavior": json.dumps(behavior_log),
         "smrt_behaviour": json.dumps(behavior_log),
         "smrt_behavior_log": json.dumps(behavior_log),

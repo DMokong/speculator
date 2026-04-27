@@ -46,6 +46,44 @@ def _find_in_tree(tree: dict, role: str = None, name_pattern: str = None) -> lis
     return results
 
 
+def _get_a11y_tree(page: Page) -> dict:
+    """Build an accessibility-like tree from the DOM using JavaScript.
+
+    Playwright's page.accessibility.snapshot() was removed in newer versions.
+    This replaces it with a JS-based equivalent that walks the DOM and captures
+    roles, names, and structure for interactive elements.
+    """
+    return page.evaluate("""() => {
+        function walk(el) {
+            if (!el || el.nodeType !== 1) return null;
+            const tag = el.tagName.toLowerCase();
+            const role = el.getAttribute('role') || ({
+                'a': 'link', 'button': 'button', 'input': 'textbox',
+                'select': 'combobox', 'textarea': 'textbox', 'h1': 'heading',
+                'h2': 'heading', 'h3': 'heading', 'nav': 'navigation',
+                'main': 'main', 'section': 'region', 'img': 'img',
+            }[tag] || '');
+            const name = el.getAttribute('aria-label')
+                || el.getAttribute('title')
+                || (tag === 'button' || tag === 'a' ? el.textContent.trim().slice(0, 80) : '')
+                || el.getAttribute('placeholder')
+                || '';
+            const children = [];
+            for (const child of el.children) {
+                const c = walk(child);
+                if (c) children.push(c);
+            }
+            if (!role && children.length === 0 && !name) return null;
+            const node = {};
+            if (role) node.role = role;
+            if (name) node.name = name;
+            if (children.length > 0) node.children = children;
+            return node;
+        }
+        return walk(document.body) || {};
+    }""") or {}
+
+
 def _get_storage(page: Page) -> dict:
     """Dump all localStorage as a dict."""
     return page.evaluate("""() => {
@@ -63,7 +101,7 @@ def _capture_state(page: Page, name: str, output_dir: Path) -> AppState:
     screenshot_path = str(output_dir / f"screenshot-{name}.png")
     page.screenshot(path=screenshot_path, full_page=True)
 
-    tree = page.accessibility.snapshot() or {}
+    tree = _get_a11y_tree(page)
     page_text = page.inner_text("body")
     storage = _get_storage(page)
 
@@ -119,7 +157,10 @@ def setup_api_mocks(page: Page, mock_data: dict) -> list[str]:
 def seed_profile(page: Page, seed_data: dict[str, str], base_url: str) -> None:
     """Write seed data to localStorage and reload."""
     for key, value in seed_data.items():
-        page.evaluate(f"() => localStorage.setItem('{key}', {json.dumps(value)})")
+        # value is already a JSON-encoded string from build_seed_profile().
+        # Pass it directly as a JS string literal — no extra json.dumps().
+        escaped = value.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+        page.evaluate(f"() => localStorage.setItem('{key}', '{escaped}')")
 
     page.goto(base_url, timeout=15000)
     page.wait_for_load_state("networkidle", timeout=15000)
@@ -130,7 +171,7 @@ def seed_profile(page: Page, seed_data: dict[str, str], base_url: str) -> None:
 
 def _dismiss_overlays(page: Page) -> None:
     """Close any overlays/drawers blocking the main UI using accessibility tree."""
-    tree = page.accessibility.snapshot() or {}
+    tree = _get_a11y_tree(page)
 
     close_buttons = _find_in_tree(tree, role="button", name_pattern=r"close|dismiss|cancel|✕|×")
 
@@ -158,7 +199,7 @@ def navigate_states(page: Page, base_url: str, output_dir: Path) -> list[AppStat
     states.append(_capture_state(page, "01-initial", output_dir))
 
     # --- State 2: Route builder ---
-    tree = page.accessibility.snapshot() or {}
+    tree = _get_a11y_tree(page)
     new_route_btns = _find_in_tree(tree, role="button", name_pattern=r"new route|add route|create route")
     if new_route_btns:
         name = new_route_btns[0].get("name", "")
@@ -175,7 +216,7 @@ def navigate_states(page: Page, base_url: str, output_dir: Path) -> list[AppStat
     page.wait_for_timeout(2000)
     _dismiss_overlays(page)
 
-    tree = page.accessibility.snapshot() or {}
+    tree = _get_a11y_tree(page)
     route_items = _find_in_tree(tree, name_pattern=r"hornsby|plan trip|chatswood")
     for item in route_items:
         name = item.get("name", "")
@@ -191,7 +232,7 @@ def navigate_states(page: Page, base_url: str, output_dir: Path) -> list[AppStat
     states.append(_capture_state(page, "03-trip-planner", output_dir))
 
     # --- State 4: Settings panel ---
-    tree = page.accessibility.snapshot() or {}
+    tree = _get_a11y_tree(page)
     settings_btns = _find_in_tree(tree, role="button", name_pattern=r"setting|config|gear|⚙")
     if settings_btns:
         name = settings_btns[0].get("name", "")

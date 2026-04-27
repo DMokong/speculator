@@ -15,9 +15,10 @@ gates:
     lint_required: false
     type_check_required: false
     required: true
-  eval-quality:
-    enabled: false
+  eval-intent:
+    enabled: true
     threshold: 6.5
+    max_eval_retries: 3
     per_dimension_minimum: 4
   review:
     required: true
