@@ -107,12 +107,16 @@ That's the thesis in action. Quality in, quality out.
 
 I want to be clear about what this is *not*. This is not waterfall. This is not a gate that blocks you from writing code until a committee approves your spec. This is continuous quality integrated into the flow.
 
-Speculator runs four gates:
+Speculator runs a six-stage quality pipeline — four required gates plus two opt-in eval gates that bracket implementation:
 
 1. **Spec Quality** — Is the specification good enough to implement?
-2. **Code Quality** — Does the implementation meet standards?
-3. **Code Review** — Does a reviewer (human or AI) approve the changes?
-4. **Evidence Package** — Is the work documented and mergeable?
+2. **Eval Intent** *(opt-in, pre-implementation)* — Do our acceptance criteria have authored evals that capture user-observable intent, before the code creates an attractor?
+3. **Code Quality** — Does the implementation meet standards (tests, coverage, build/lint/types)?
+4. **Eval Quality** *(opt-in, post-implementation)* — Are our tests good *instruments* — would they detect a spec violation, or just an internal-API change?
+5. **Code Review** — Does a reviewer (human or AI) approve the changes? Includes a mandatory secrets scan and a skill-description trigger eval.
+6. **Evidence Package** — Is every gate's artifact present, are blocking flags resolved, and is the work mergeable?
+
+Gates 2 (eval intent) and 4 (eval quality) are opt-in because mature teams need them and starting teams shouldn't be slowed by them — but they're how we close the loop on the part of the thesis that's hardest to defend without measurement: that the *spirit* of the spec, not just its letter, made it through.
 
 The spec quality gate uses a **trust ladder**: the spec's score determines how much autonomy the implementation gets. Score high enough, and the pipeline runs fully autonomously — scoring, planning, implementing, reviewing, and merging without intervention. Score lower, and you get guided mode with checkpoints. Score below the threshold, and the pipeline stops to ask questions.
 
@@ -145,6 +149,20 @@ This is where Speculator is heading:
 **Continuous cross-spec evaluation.** Finding conflicts, inconsistencies, and superseded assumptions across the full spec corpus. When a new spec contradicts an old one, that's not a bug — it's a signal. It might be intentional evolution, or it might be an oversight. Either way, surfacing it adds context and weight to future decisions.
 
 **Historical provenance.** Any line of code can be traced back through implementation → spec → requirement → intent. The spec history *is* the codebase's institutional memory. Not in a developer's head, not in tribal knowledge, not in a Confluence page nobody reads — in a structured, queryable record that agents can reason about.
+
+## VI½. Dark Code Is the Failure Mode We're Building Against
+
+While we were building Speculator, [Nate B Jones described the failure mode](https://natesnewsletter.substack.com/p/your-codebase-is-full-of-code-nobody) we were trying to prevent: **dark code** — production software that was generated, passed tests, shipped, and was *never understood by anyone at any point.* Distinct from technical debt, enabled by two breaks: (1) AI separates generation from comprehension, and (2) automated quality gates bypass the need for human understanding.
+
+The Amazon "Kiro" case study is the load-bearing example: an 80% AI-coding mandate plus 16K engineer layoffs, an autonomous tool deletes an entire environment, 13 hours of downtime, and the discovery that the senior engineers who *understood what the code was touching* were the ones who'd been let go. Jones's diagnosis generalized a week later: *"production is cheap, comprehension is scarce."*
+
+His three fixes map directly onto Speculator's pipeline:
+
+1. **Spec-driven dev** — comprehension lives in the spec. → Gates 1 and 2a.
+2. **Comprehension gates** — PRs blocked unless a human (or agent) can explain what the code does. → **Gate 2c, the next thing we're building.**
+3. **Context engineering** — failure modes and *why-wired-this-way* notes on high-risk modules. → The Gate 2c artifact, dual-purposed as durable per-AC explanation that lives next to the code.
+
+This is why Speculator's roadmap leads with Gate 2c rather than spec drift detection or other line items. The thesis isn't just *"quality in = quality out"* — it's *"if no one understands what shipped, neither does."* Closing that loop is what the rest of the gate model is in service of.
 
 ## VII. The Call
 

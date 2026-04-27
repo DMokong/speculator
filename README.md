@@ -8,7 +8,9 @@
 
 # Speculator
 
-A Claude Code plugin that enforces a 4-gate quality pipeline on agentic development workflows with LLM-as-judge spec scoring, git worktree isolation, and in-repo evidence artifacts. *Spec + Evaluator = Speculator.*
+A Claude Code plugin that enforces a 6-stage quality pipeline (4 required + 2 opt-in eval gates) on agentic development workflows with LLM-as-judge spec scoring, git worktree isolation, and in-repo evidence artifacts. *Spec + Evaluator = Speculator.*
+
+Speculator is being built toward an explicit goal: an **anti-dark-code pipeline** — a workflow that won't ship code unless intent, behavior, and comprehension can all be evidenced. Today it covers spec quality (Gate 1), eval intent (Gate 2a), code quality (Gate 2), eval quality (Gate 2b), code review (Gate 3), and evidence packaging (Gate 4). The next gate on the roadmap — **Gate 2c (Comprehension)** — closes the last gap between *"tests pass"* and *"any human or agent could explain what shipped."* See [ROADMAP.md](ROADMAP.md).
 
 ## Prerequisites
 
@@ -183,10 +185,10 @@ Speculator: Detected spec: webhook-notifications (score: 8.1, Full Auto)
   ▸ Planning .......................... ✅ 6 tasks created
   ▸ Implementation .................... ✅ All tasks complete
   ▸ Gate 2: Code Quality .............. ✅ Tests pass, 87% coverage
-  ▸ Gate 3: Code Review ............... ✅ No blocking findings
+  ▸ Gate 3: Code Review ............... ✅ No blocking findings (secrets scan clean, skill eval skipped)
   ▸ Gate 4: Evidence Package .......... ✅ All artifacts present
 
-  Ready to merge. Run /spec close to finalize.
+  SYSTEM-SPEC.md updated on feature branch. Ready to merge. Run /spec close to finalize.
 ```
 
 ### 5. When things go wrong
@@ -214,11 +216,40 @@ Speculator: Scoring spec...
 ## Gate Pipeline
 
 ```
-Gate 1: Spec Quality --> Gate 2: Code Quality --> Gate 3: Review --> Gate 4: Evidence Package
-   (LLM-as-judge)         (tests + coverage)      (code review)       (all gates pass -> merge)
+Gate 1: Spec        ┌──── Gate 2a: Eval Intent ────┐  Gate 2: Code   ┌──── Gate 2b: Eval Quality ────┐  Gate 3: Code   Gate 4: Evidence
+       Quality       │       (opt-in, v2.8.0)       │      Quality    │       (opt-in, v2.7.0)        │      Review        Package
+  (LLM-as-judge)  ──>│   pre-impl intent capture    │ ──>(tests + ──>│   instrument-quality on       │ ──>(6-point  ──>(all gates pass
+                     │   per AC, scored 4 dims      │    coverage)    │   shipped tests, scored 7d)   │    review +      → merge or PR)
+                     └──────────────────────────────┘                 └───────────────────────────────┘    secrets +
+                                                                                                            skill desc.)
 ```
 
-Each gate produces a YAML evidence artifact in `docs/specs/{feature}/evidence/`. All 4 gates have dedicated rubrics in `rubrics/` that define scoring criteria, checklists, and pass/fail thresholds.
+Six gate stages — four always-on, two opt-in:
+
+| Gate | Stage | Default | Evidence file |
+|------|-------|---------|---------------|
+| 1 — Spec Quality | pre-implementation | required | `gate-1-scorecard.yml` |
+| 2a — Eval Intent | between plan and implementation | **opt-in** (`gates.eval-intent.enabled`) | `gate-2a-eval-intent.yml` |
+| 2 — Code Quality | post-implementation | required | `gate-2-quality.yml` |
+| 2b — Eval Quality | between code and review | **opt-in** (`gates.eval-quality.enabled`) | `gate-2b-eval-quality.yml` |
+| 3 — Code Review | post-implementation | required | `gate-3-review.yml` |
+| 4 — Evidence Package | pre-merge | required | `gate-4-summary.yml` |
+
+Each gate produces a YAML evidence artifact in `docs/specs/{feature}/evidence/`. All gates have dedicated rubrics in `rubrics/` that define scoring criteria, checklists, and pass/fail thresholds.
+
+### Gate 2a: Eval Intent (opt-in, v2.8.0)
+
+Pre-implementation intent capture. For each acceptance criterion, the author writes an *eval* — a markdown artifact in `docs/specs/{feature}/evals/` describing the observable user outcome. The `eval-intent-scorer` agent scores the eval set on 4 dimensions (intent coverage, anti-pattern detection, journey completeness, implementation independence), checks SYSTEM-SPEC.md for behavioral conflicts, and scans prior specs for regression signals. Default threshold: 6.5. Disabled by default; enable with `gates.eval-intent.enabled: true`.
+
+Why pre-implementation? Catching letter-vs-spirit gaming requires measuring intent *before* the implementation creates an attractor. Evals authored after seeing the code tend to ratify whatever the code does.
+
+### Gate 3: Code Review
+
+Gate 3 runs three checks — all blocking on failure:
+
+1. **6-point code review** — correctness, error handling, readability, security, performance, spec alignment
+2. **Mandatory secrets scan** — active grep across 5 pattern categories (high-entropy assignments, API key formats, connection strings, bearer tokens, base64-encoded credentials). Any hardcoded secret is an automatic fail — no reviewer discretion.
+3. **Skill description eval** *(conditional)* — when `SKILL.md` or `AGENT.md` files appear in the diff, Gate 3 generates 5 trigger queries and 5 near-miss negatives to evaluate undertrigger/overtrigger risk. Undertriggering descriptions render skills useless, so a fail here is blocking. When no skill files are in the diff, this check is skipped and recorded as `skipped` in the evidence.
 
 ## Commands
 
@@ -226,10 +257,11 @@ Each gate produces a YAML evidence artifact in `docs/specs/{feature}/evidence/`.
 |---------|-------------|
 | `/spec start` | Create spec from template + git worktree + beads epic |
 | `/spec score` | Gate 1: LLM-as-judge spec quality scoring (6 dimensions) |
+| `/spec eval` | Gate 2a (opt-in): Pre-implementation eval authoring + intent scoring (4 dimensions) |
 | `/spec implement` | Create implementation plan + beads stories + execute tasks |
-| `/spec gate` | Check or run any specific gate |
-| `/spec review` | Gate 3: Automated code review |
-| `/spec close` | Gate 4: Evidence package + deliver to main (merge or PR) + compact into SYSTEM-SPEC.md |
+| `/spec gate` | Check or run any specific gate (1, 2, 2a, 2b, 3, 4) |
+| `/spec review` | Gate 3: Automated code review (incl. mandatory secrets scan + skill description eval) |
+| `/spec close` | Gate 4: Evidence package + compact SYSTEM-SPEC.md on feature branch + deliver to main (merge or PR) |
 | `/spec run [args]` | Run the full pipeline autonomously (trust-based oversight) |
 | `/spec compact` | Compact closed specs into SYSTEM-SPEC.md (`--all` for bootstrap) |
 | `/spec status` | Cross-worktree pipeline view (all features at a glance) |
@@ -293,7 +325,7 @@ As a project grows, specs accumulate. New features may modify behavior originall
 
 ### SYSTEM-SPEC.md — The Living System Specification
 
-When a spec passes all gates and merges via `/spec close`, its contributions are automatically folded into a single **compacted system specification** (`SYSTEM-SPEC.md`). This living document represents what the system currently does and why, structured by domain:
+When a spec passes all gates, `/spec close` folds its contributions into `SYSTEM-SPEC.md` on the feature branch *before* delivering to main — so the compaction is part of the PR diff, not a post-merge manual step. The result is a single **compacted system specification** that represents what the system currently does and why, structured by domain:
 
 ```markdown
 ## Auth
@@ -389,33 +421,48 @@ run:
 
 ```
 speculator/
-├── skills/
-│   ├── sdlc/SKILL.md         # Master orchestrator (routes /spec subcommands)
-│   ├── spec-create/SKILL.md  # /spec start -- spec + worktree + beads epic
-│   ├── spec-score/SKILL.md   # /spec score -- Gate 1 via spec-scorer agent
-│   ├── gate-check/SKILL.md   # /spec gate -- check/run any gate
-│   ├── sdlc-run/SKILL.md     # /spec run -- autonomous pipeline orchestrator
-│   ├── sdlc-status/SKILL.md  # /spec status -- cross-worktree pipeline view
-│   ├── sdlc-doctor/SKILL.md  # /spec doctor -- diagnostics + auto-fix
-│   └── spec-compact/SKILL.md # /spec compact -- bootstrap or single-spec compaction
-├── agents/
-│   ├── spec-scorer/AGENT.md    # LLM-as-judge subagent for spec evaluation + impact validation
-│   ├── code-reviewer/AGENT.md  # Gate 3 code review subagent (6-point checklist)
-│   └── spec-compactor/AGENT.md # Folds closed specs into SYSTEM-SPEC.md
-├── rubrics/
-│   ├── spec-quality.md        # 6-dimension rubric (completeness, clarity, testability, intent_verifiability, feasibility, scope)
-│   ├── impact-awareness.md    # Impact validation rubric with mismatch decision matrix
-│   ├── acceptance-criteria.md # Gate 2 sub-rubric for AC traceability
-│   ├── code-quality.md       # Gate 2 evidence-based rubric (7 checks)
-│   ├── review.md             # Gate 3 code review rubric (6 checklist items)
-│   └── evidence-package.md   # Gate 4 evidence completeness rubric
+├── skills/                          # 9 skills
+│   ├── sdlc/SKILL.md                # Master orchestrator (routes /spec subcommands)
+│   ├── spec-create/SKILL.md         # /spec start    — spec + worktree + beads epic
+│   ├── spec-score/SKILL.md          # /spec score    — Gate 1 via spec-scorer agent
+│   ├── eval-authoring/SKILL.md      # /spec eval     — Gate 2a authoring loop (opt-in, v2.8.0)
+│   ├── gate-check/SKILL.md          # /spec gate     — check/run any gate
+│   ├── sdlc-run/SKILL.md            # /spec run      — autonomous pipeline orchestrator
+│   ├── sdlc-status/SKILL.md         # /spec status   — cross-worktree pipeline view
+│   ├── sdlc-doctor/SKILL.md         # /spec doctor   — diagnostics + auto-fix
+│   └── spec-compact/SKILL.md        # /spec compact  — bootstrap or single-spec compaction
+├── agents/                          # 5 agents
+│   ├── spec-scorer/AGENT.md         # Gate 1 LLM-as-judge for spec quality + impact validation
+│   ├── eval-intent-scorer/AGENT.md  # Gate 2a — scores authored evals (4 dims) + SYSTEM-SPEC conflict + regression check
+│   ├── eval-quality-scorer/AGENT.md # Gate 2b — scores test suites as detection instruments (7 dims)
+│   ├── code-reviewer/AGENT.md       # Gate 3 — 6-point review + mandatory secrets scan + skill-description eval
+│   └── spec-compactor/AGENT.md      # Folds closed specs into SYSTEM-SPEC.md
+├── rubrics/                         # 8 rubrics
+│   ├── spec-quality.md              # Gate 1 — 6-dimension rubric (completeness, clarity, testability, intent_verifiability, feasibility, scope)
+│   ├── impact-awareness.md          # Gate 1 sub-validation — impact mismatch decision matrix
+│   ├── eval-intent.md               # Gate 2a — 4-dimension rubric for authored intent evals
+│   ├── acceptance-criteria.md       # Gate 2 sub-rubric for AC traceability
+│   ├── code-quality.md              # Gate 2 — evidence-based rubric (7 checks)
+│   ├── eval-quality.md              # Gate 2b — 7-dimension rubric for test-suite detection quality
+│   ├── review.md                    # Gate 3 — 6-point code review rubric
+│   └── evidence-package.md          # Gate 4 — evidence completeness rubric
 ├── templates/
-│   ├── spec-template.md       # Blank spec with YAML frontmatter (includes impact_rating + amends)
-│   └── scorecard-template.yml # Gate 1 evidence artifact template
+│   ├── spec-template.md             # Blank spec with YAML frontmatter (includes impact_rating + amends + AC traceability tip)
+│   └── scorecard-template.yml       # Gate 1 evidence artifact template
 ├── hooks/
-│   └── hooks.json            # PreToolUse: pre-commit gate warning
+│   └── hooks.json                   # PreToolUse: pre-commit gate warning
 ├── lib/
-│   └── spec-resolution.md    # Spec identification algorithm + worktree redirect
+│   └── spec-resolution.md           # Spec identification algorithm + worktree redirect + lock semantics
+├── tests/
+│   ├── test-eval-intent-structure.sh  # 30 structural tests for Gate 2a wiring
+│   ├── test-secrets-scan.sh           # 25 tests validating Gate 3 secrets-scan patterns
+│   └── fixtures/                       # Sample evals + clean/fake-secret fixtures
+├── benchmarks/                      # Spec-Bench harness (see § Spec-Bench below)
+├── docs/
+│   └── specs/                        # Speculator's own specs (dogfooded)
+├── CHANGELOG.md
+├── MANIFESTO.md
+├── ROADMAP.md
 ├── LICENSE
 └── README.md
 ```
@@ -469,6 +516,43 @@ When a skill needs to identify which spec to operate on, it follows this order:
 4. **Lock file check** -- skip specs locked by other sessions
 5. **Single spec fallback** -- one unlocked spec auto-selected
 6. **Ask the user** -- multiple specs, present choices
+
+## Spec-Bench
+
+`benchmarks/` ships a runnable evaluation harness that tests Speculator's core thesis: *does measuring spec quality actually produce better implementations?*
+
+The pipeline runs four phases for each PRD × target combination:
+
+1. **Spec generation** — each target (LLM × process × harness) generates a spec from the PRD.
+2. **Score + iterate** — Speculator scores each spec on the 6 dimensions; if below 7.8, the same target is given feedback and asked to improve, up to 3 rounds.
+3. **Constant implementation** — a fixed implementer (Claude Code + Superpowers) builds the feature twice: once from the original spec, once from the improved spec. Implementation quality is held constant so outcome differences are attributable to spec quality.
+4. **Review** — Playwright functional tests + LLM-as-judge against an outcome rubric. Results aggregated into YAML + an HTML dashboard.
+
+Default matrix: 8 targets across `claude-code` + `copilot-cli` × `opus-4-6` / `sonnet-4-6` / `gpt-4.1` × `vanilla` / `superpowers`.
+
+```bash
+cd benchmarks
+uv sync
+uv run spec-bench run --prd weather-transport --matrix default.yml --runs 1
+```
+
+A human-in-the-loop calibration protocol (`spec-bench calibrate`) flags judge-vs-human divergence > 1 point per dimension as `needs_tuning`, so the LLM-as-judge can be tuned against actual human assessment rather than trusted implicitly.
+
+Test status: **67/67 passing** (`benchmarks/tests/`). Published 3-round results live in `benchmarks/results/`.
+
+See [`benchmarks/README.md`](benchmarks/README.md) for the full harness, calibration protocol, and CLI reference.
+
+## Roadmap
+
+The forward-looking story lives in [ROADMAP.md](ROADMAP.md). High-level direction:
+
+- **Spec drift detection** — measure divergence between the living spec and the living code over time. SYSTEM-SPEC.md provides the corpus; the gap is automated diff + amendment-aware comparison.
+- **Spec-Bench public dataset + leaderboard** — the harness exists; the next step is community-contributed PRDs and openly published scores. The "SWE-bench for specifications" call from the [MANIFESTO](MANIFESTO.md) is now mostly an organizing-and-publishing problem rather than a build problem.
+- **SYSTEM-SPEC.md domain split** — the compactor agent has a `<500-line` sizing constraint flagged as future work. The first fold-in (SPEC-001) lives in a single-file SYSTEM-SPEC.md; once 5–10 specs accumulate, the file splits into per-domain files with a top-level index.
+- **Calibration guide** — published default tunings per project profile (greenfield, brownfield, refactor) backed by Spec-Bench distributions.
+- **Post-implementation quality tracing** — connect downstream findings (Gate 2 failures, Gate 3 blockers, post-merge bugs) back to the originating spec so we can answer "what spec gaps cost us?" empirically.
+
+See [ROADMAP.md](ROADMAP.md) for status, priorities, and how to contribute.
 
 ## License
 
