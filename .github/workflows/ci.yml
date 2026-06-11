@@ -15,6 +15,8 @@ jobs:
         run: bash tests/test-eval-intent-structure.sh
       - name: Secrets-scan pattern suite
         run: bash tests/test-secrets-scan.sh
+      - name: Gate wiring consistency suite
+        run: bash tests/test-gate-wiring.sh
       - name: verify-evidence.sh syntax check
         run: bash -n scripts/verify-evidence.sh
       - name: verify-evidence.sh self-test (known-good dogfood evidence)
