@@ -1,0 +1,36 @@
+benchmark:
+  prd: weather-transport
+  runs_per_combination: 3
+
+  constant_implementer:
+    harness: claude-code
+    model: sonnet-4-6
+    process: superpowers
+    permissions: dangerously-skip-permissions
+
+  judge:
+    model: opus-4-6
+
+  # Validation experiment: does scorer feedback improve specs beyond the
+  # compute of an extra revision pass? Both arms run identical revision-pass
+  # budgets; only the revision prompt differs (scorer flags vs. a generic
+  # "improve this spec" instruction). Scorer model pinned; production rubric
+  # so scoring matches the shipped judge.
+  scorer:
+    model: claude-sonnet-4-6
+    rubric_source: production
+
+  # Paired arms: identical harness/model/process, differing only on
+  # improvement_mode (target-level override of scorer.improvement_mode).
+  targets:
+    - id: cc-vanilla-sonnet-feedback
+      harness: claude-code
+      model: sonnet-4-6
+      process: vanilla
+      improvement_mode: feedback
+
+    - id: cc-vanilla-sonnet-control
+      harness: claude-code
+      model: sonnet-4-6
+      process: vanilla
+      improvement_mode: control

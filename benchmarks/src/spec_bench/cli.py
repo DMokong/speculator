@@ -103,8 +103,10 @@ def run(ctx, prd, matrix, runs):
         if spec_output.exists():
             spec_output.rename(spec_v0)
 
-        # Score and iterate
-        click.echo(f"  Scoring and iterating...")
+        # Score and iterate. Per-target improvement_mode (paired arms) wins
+        # over the matrix-level scorer default.
+        improvement_mode = target.improvement_mode or config.scorer.improvement_mode
+        click.echo(f"  Scoring and iterating (mode: {improvement_mode})...")
         iteration_log = iterate_spec(
             target=target,
             spec_dir=spec_dir,
@@ -112,6 +114,9 @@ def run(ctx, prd, matrix, runs):
             prompts_dir=prompts_dir,
             prd_path=prd_path,
             template_path=template_path,
+            scorer_model=config.scorer.model,
+            improvement_mode=improvement_mode,
+            rubric_source=config.scorer.rubric_source,
         )
 
         click.echo(f"  Score: {iteration_log['summary']['original_score']} → {iteration_log['summary']['final_score']}")
@@ -198,6 +203,11 @@ def run(ctx, prd, matrix, runs):
                     judge_model=config.judge_model,
                 )
 
+                # Token counts are None when unmeasured — record null, not 0
+                measured_tokens = [
+                    t for t in (gen_result.tokens_in, gen_result.tokens_out)
+                    if t is not None
+                ]
                 all_results.append({
                     "target": target.id,
                     "spec_version": spec_version,
@@ -205,12 +215,13 @@ def run(ctx, prd, matrix, runs):
                     "outcome_score": judge_scorecard.get("scores", {}).get("overall", 0),
                     "functional_pass_rate": functional_results.get("summary", {}).get("pass_rate", "0/0"),
                     "iterations_to_pass": iteration_log["summary"]["iterations_needed"],
-                    "total_tokens": gen_result.tokens_in + gen_result.tokens_out,
+                    "total_tokens": sum(measured_tokens) if measured_tokens else None,
                     "total_time_seconds": gen_result.wall_clock_seconds,
                     "status": "completed",
                     "harness": target.harness,
                     "model": target.model,
                     "process": target.process,
+                    "improvement_mode": improvement_mode,
                 })
 
     # Phase 4: Generate report

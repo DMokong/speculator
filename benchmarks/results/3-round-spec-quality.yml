@@ -7,6 +7,28 @@
 # Scorer: Speculator spec-scorer agent (LLM-as-judge, claude-sonnet-4-6)
 # Iterations per round: 1 (raw → v1)
 # Total data points: 18 (3 models × 3 rounds × 2 stages)
+#
+# ============================================================================
+# METHODOLOGY CAVEAT (added 2026-06-12) — read before citing these findings
+#
+# This benchmark measures JUDGE-SCORE LIFT IN A FEEDBACK LOOP WITH THE SAME
+# JUDGE: the spec-scorer that generated the improvement feedback is the same
+# LLM-as-judge that re-scored the improved spec. There was no control arm
+# (no unchanged-spec re-score, no independent judge), and the scorer model
+# was unpinned at the time of the run. Token accounting was non-functional,
+# so the cost-efficiency claims ("$1 model + Speculator matches a $3 model",
+# F6, and the relative_cost-based thesis lines) rest on list pricing, not
+# measured spend.
+#
+# In particular, "Speculator ALWAYS improves specs" (F4, 9/9 positive lifts)
+# and the convergence/equalizer findings (F5, F6) describe judge-score
+# movement only. They are NOT evidence that spec scores predict
+# implementation outcomes. A controlled re-run (control arm, pinned scorer
+# model, working token accounting, outcome measurement) is planned — see
+# ROADMAP.md, "Spec-Bench × mutation testing validation".
+#
+# The data below is unmodified.
+# ============================================================================
 
 benchmark:
   prd: weather-transport
@@ -103,6 +125,8 @@ validated_findings:
     evidence: "Avg lift +1.10, tightest post-iteration variance (sigma=0.06). Always lands at ~8.4"
 
   - id: F4
+    # CAVEAT: judge-score lift, same judge in the loop, no control arm —
+    # see METHODOLOGY CAVEAT at top of file.
     finding: "Speculator ALWAYS improves specs"
     evidence: "9/9 iterations showed positive lift. No regressions across any model or round"
 
@@ -111,6 +135,8 @@ validated_findings:
     evidence: "All 3 models converge to 8.4-8.6 range after iteration, regardless of starting point"
 
   - id: F6
+    # CAVEAT: cost figures are list pricing — token accounting was
+    # non-functional for this run. See METHODOLOGY CAVEAT at top of file.
     finding: "The iteration loop is the equalizer"
     evidence: >
       Sonnet (1x cost) → avg 8.43 iterated.
@@ -129,6 +155,8 @@ model_profiles:
     best_for: "Skip iteration entirely (8.0+ raw)"
     risk: "Lowest lift from iteration (+0.37)"
 
+# CAVEAT: thesis lines summarize judge-score movement, not implementation
+# outcomes — see METHODOLOGY CAVEAT at top of file.
 thesis:
   - "Speculator always improves specs (9/9 positive lifts)"
   - "Post-iteration, all models converge (~8.4-8.6)"

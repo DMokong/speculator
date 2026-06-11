@@ -285,13 +285,13 @@ Calculate overall score as a weighted average using the weights from the project
 | Feasibility           | 0.15   |
 | Scope                 | 0.10   |
 
-Round the overall score to one decimal place.
+Round the overall score to one decimal place, rounding half-up (7.25 → 7.3, 7.24 → 7.2). The overall score is the weighted sum of the dimension scores using the weights from the project config (defaults above) — it is mechanically recomputable from the dimension scores, and a scorecard whose `overall` does not match that recomputation is invalid.
 
 ### Per-Dimension Minimum
 
 Each dimension must score >= 5 individually. If any dimension scores below 5, the gate fails regardless of the overall weighted average. This prevents a strong score in one area from masking a critical weakness in another.
 
-The per-dimension minimum defaults to 5 but can be overridden in the project's `.claude/sdlc.local.md` via `scoring.per_dimension_minimum`.
+The per-dimension minimum defaults to 5 but can be overridden in the project's `.claude/sdlc.local.md` via `scoring.dimension_minimum`.
 
 ---
 

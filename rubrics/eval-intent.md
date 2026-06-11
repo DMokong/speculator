@@ -163,7 +163,7 @@ Eval: "A developer reviewing the scoring output can answer the three key questio
 | Journey Completeness       | 0.25   |
 | Implementation Independence| 0.20   |
 
-Round the overall score to one decimal place.
+Round the overall score to one decimal place, half-up (7.25 → 7.3, 7.24 → 7.2).
 
 ### Per-Dimension Minimum
 

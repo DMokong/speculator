@@ -33,12 +33,13 @@ Based on the user's command, invoke the appropriate sub-skill. Both `/sdlc` and 
 |---------|--------|
 | `/sdlc` or `/spec` (no args) | Show pipeline status — invoke `sdlc-status` skill |
 | `/sdlc start` or `/spec start` | Create a new spec — invoke `spec-create` skill (runs doctor first) |
+| `/sdlc create` or `/spec create` | Alias for start — invoke `spec-create` skill (the README quickstart uses `/spec create` to formalize a brainstormed plan into spec.md) |
 | `/sdlc score` or `/spec score` | Score a spec (Gate 1) — invoke `spec-score` skill |
 | `/sdlc gate` or `/spec gate` | Check/run a gate — invoke `gate-check` skill |
 | `/sdlc status` or `/spec status` | Show pipeline status — invoke `sdlc-status` skill |
-| `/sdlc implement` or `/spec implement` | Guide to implementation phase (see below) |
+| `/sdlc implement` or `/spec implement` | Run the implementation phase (plan + beads stories + execution handoff) — invoke `sdlc-implement` skill |
 | `/sdlc review` or `/spec review` | Run Gate 3 — invoke `gate-check` skill with gate=review |
-| `/sdlc close` or `/spec close` | Run Gate 4 — invoke `gate-check` skill with gate=evidence-package |
+| `/sdlc close` or `/spec close` | Run the full close workflow (Gate 4 + beads closure + lock release + merge/PR delivery + compaction) — invoke `sdlc-close` skill |
 | `/sdlc run` or `/spec run` | Run the full pipeline autonomously — invoke `sdlc-run` skill |
 | `/sdlc doctor` or `/spec doctor` | Run system diagnostics — invoke `sdlc-doctor` skill |
 | `/sdlc compact` or `/spec compact` | Bootstrap: process closed specs into SYSTEM-SPEC.md — invoke `spec-compact` skill |
@@ -46,167 +47,11 @@ Based on the user's command, invoke the appropriate sub-skill. Both `/sdlc` and 
 
 ## `/sdlc implement`
 
-This command bridges from the approved spec to actionable implementation work. It orchestrates planning, task creation, and execution handoff.
-
-### Process
-
-1. **Verify Gate 1** has passed. If not, block and redirect to `/sdlc score`.
-
-2. **Verify worktree** (check `git worktree list`). If not in a worktree, warn:
-   - "You're on main. For isolation, consider using `/sdlc start` to create a dedicated worktree."
-
-3. **Resolve the active spec** (follow `${CLAUDE_PLUGIN_ROOT}/lib/spec-resolution.md`).
-
-4. **Read the approved spec** to understand requirements, acceptance criteria, and constraints.
-
-5. **Create the implementation plan**:
-   - Invoke the `writing-plans` skill (from superpowers plugin if available)
-   - The plan should be derived FROM the spec — requirements map to tasks, ACs map to test criteria
-   - Plan is saved to `docs/plans/YYYY-MM-DD-{feature-name}.md` in the worktree
-   - If writing-plans is not available, guide the user to create a plan manually
-
-6. **Create beads user stories** from the plan:
-   - For each task in the plan, create a beads issue:
-     ```bash
-     beads create --title "Task N: {task title}" --description "{task description from plan}" --priority P2
-     ```
-   - Link each story to the epic (created during `/sdlc start`) using beads dependencies:
-     ```bash
-     beads dep add {story-id} --blocked-by {epic-id}
-     ```
-   - Record the story IDs in the plan document for traceability
-
-7. **Present the execution options**:
-   - **Subagent-Driven (this session)**: Dispatch fresh subagent per task, review between tasks. Use `subagent-driven-development` skill.
-   - **Parallel Session (separate)**: Open new session with `executing-plans` skill.
-   - **Manual**: User implements tasks themselves, checking them off as they go.
-
-8. **Remind about gates**: Gate 2 (code quality) will be checked before merge. Tests must pass, coverage must meet threshold.
-
-### Traceability Chain
-
-```
-Epic (beads)
-  └── Spec (docs/specs/{name}/spec.md)
-       └── Scorecard (evidence/gate-1-scorecard.yml)
-       └── Plan (docs/plans/YYYY-MM-DD-{name}.md)
-            └── Story 1 (beads) → Task 1 in plan
-            └── Story 2 (beads) → Task 2 in plan
-            └── Story N (beads) → Task N in plan
-```
-
-Each story can be tracked, audited, and closed independently. The epic closes when all stories are done and Gate 4 passes.
+Delegate to the `sdlc-implement` skill. It verifies Gate 1, creates the implementation plan, generates linked beads stories, and presents execution options. Pass along the resolved worktree base path from the preamble.
 
 ## `/sdlc close`
 
-This command finalizes the feature and delivers it to main. The delivery method depends on the `close.strategy` setting in the project config (`.claude/sdlc.local.md`):
-
-- `merge` (default) — direct merge to main from the worktree
-- `pr` — create a pull request to main (for environments with branch protection rules)
-
-### Steps 1–3: Common to both strategies
-
-1. **Run Gate 4** (evidence package) — invoke `gate-check` skill with gate=evidence-package.
-
-2. **Release the spec lock**: Remove the `.active` file from the spec directory:
-   ```bash
-   rm docs/specs/{spec-name}/.active
-   ```
-
-3. **Close beads issues**:
-   - Read the spec's `epic` field from YAML frontmatter to find the epic ID
-   - Find all stories linked to this epic (`beads dep list {epic-id}`)
-   - Verify all stories are completed — if any are open, warn the user
-   - Close all completed stories: `beads close {story-id}`
-   - Close the epic: `beads close {epic-id}`
-   - Update the spec's YAML frontmatter: `status: closed`
-
-### Step 4: Deliver to main
-
-Read `close.strategy` from the project config (`.claude/sdlc.local.md`). Default is `merge` if not set.
-
-#### Strategy: `merge` (default)
-
-4. **Guide the merge** (if Gate 4 passes):
-   a. Check if we're in a worktree (`git worktree list`)
-   b. If in a worktree:
-      - Commit all remaining changes
-      - Explain: "Ready to merge back to main. Since specs and evidence live in unique directories (`docs/specs/{feature-name}/`), merges are typically clean."
-      - Guide: `git checkout main && git merge {worktree-branch}`
-      - After merge: the worktree can be cleaned up on session exit
-   c. If on main: just confirm all gates passed and work is committed.
-
-5. **Compact into system spec** (runs after merge lands on main):
-   - Invoke the `spec-compactor` agent (from `${CLAUDE_PLUGIN_ROOT}/agents/spec-compactor/AGENT.md`) with:
-     - `spec_path`: path to the closing spec
-     - `system_spec_path`: `{spec_dir}/SYSTEM-SPEC.md`
-   - The agent produces an updated SYSTEM-SPEC.md (or creates it if this is the first compaction)
-   - If the agent fails or SYSTEM-SPEC.md cannot be written, log the failure and leave the spec at `status: closed` — do not block the close flow
-
-6. **Mark spec as compacted** (only if step 5 succeeded):
-   - Update the spec's YAML frontmatter:
-     - `status: compacted`
-     - `compacted_into: SYSTEM-SPEC`
-     - `compacted_date: {today's date in YYYY-MM-DD}`
-
-7. **Commit compaction changes** (only if step 5 succeeded):
-   - Stage SYSTEM-SPEC.md and the spec's updated frontmatter
-   - Commit with message: `chore(sdlc): compact {spec_id} into SYSTEM-SPEC.md`
-   - Tell the user: "Two commits created: merge commit + compaction commit. This is by design — compaction only runs for validated, shipped specs."
-
-8. **Remind about shared files**: "If you modified any shared files (.beads/, CLAUDE.md, sdlc.local.md) in the worktree, review those changes carefully during merge."
-
-#### Strategy: `pr`
-
-4. **Compact into system spec** (runs on the feature branch, before PR creation):
-   - Invoke the `spec-compactor` agent (from `${CLAUDE_PLUGIN_ROOT}/agents/spec-compactor/AGENT.md`) with:
-     - `spec_path`: path to the closing spec
-     - `system_spec_path`: `{spec_dir}/SYSTEM-SPEC.md`
-   - The agent produces an updated SYSTEM-SPEC.md (or creates it if this is the first compaction)
-   - If the agent fails or SYSTEM-SPEC.md cannot be written, log the failure and leave the spec at `status: closed` — do not block the close flow
-
-5. **Mark spec as compacted** (only if step 4 succeeded):
-   - Update the spec's YAML frontmatter:
-     - `status: compacted`
-     - `compacted_into: SYSTEM-SPEC`
-     - `compacted_date: {today's date in YYYY-MM-DD}`
-
-6. **Commit compaction changes** (only if step 4 succeeded):
-   - Stage SYSTEM-SPEC.md and the spec's updated frontmatter
-   - Commit with message: `chore(sdlc): compact {spec_id} into SYSTEM-SPEC.md`
-
-7. **Create a pull request**:
-   a. Check if we're in a worktree (`git worktree list`)
-   b. **Verify `gh` CLI is available**:
-      ```bash
-      which gh
-      ```
-      If `gh` is not found, stop and tell the user: *"gh CLI is required for PR creation. Install it: https://cli.github.com/ — then re-run `/sdlc close`."*
-   c. Push the branch to the remote:
-      ```bash
-      git push -u origin {worktree-branch}
-      ```
-      If the push fails, surface the error and suggest: *"Check your remote with `git remote -v`. Ensure the remote exists and you have push access."*
-   d. Build the PR body from the gate evidence:
-      - Read `gate-4-summary.yml` for the pipeline result
-      - Read the spec's title, problem statement, and acceptance criteria
-      - Read `gate-1-scorecard.yml` for the spec quality score
-      - Compose a PR description with:
-        - **Summary**: spec title and 1-2 sentence problem statement
-        - **Spec quality**: overall score from Gate 1
-        - **Evidence**: table showing all 4 gates and their results
-        - **Acceptance criteria**: list from the spec
-        - Footer: `🔬 Quality pipeline: Speculator | Spec: {spec_id} | Score: {overall_score}`
-   e. Create the PR:
-      ```bash
-      gh pr create --title "{spec_title}" --body "{composed body}" --base main
-      ```
-      If `gh pr create` fails, surface the error and suggest: *"Run `gh auth status` to verify authentication. Ensure you have repo access."*
-   f. Report the PR URL to the user.
-
-8. **Remind about shared files**: "If you modified any shared files (.beads/, CLAUDE.md, sdlc.local.md) in the worktree, review those changes carefully — they'll be part of the PR diff."
-
-9. **Worktree note**: "The worktree stays active until the PR merges. After merge, clean up with `git worktree remove {worktree-path}`."
+Delegate to the `sdlc-close` skill. It is the single source of truth for the delivery flow: Gate 4 evidence package, beads closure, spec lock release, merge or PR delivery per `close.strategy`, and SYSTEM-SPEC.md compaction. Pass along the resolved worktree base path from the preamble. Do not reimplement any close steps here.
 
 ## `/sdlc` with no args
 

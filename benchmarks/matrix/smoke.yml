@@ -11,6 +11,11 @@ benchmark:
   judge:
     model: opus-4-6
 
+  scorer:
+    model: claude-sonnet-4-6
+    improvement_mode: feedback   # feedback | control | none
+    rubric_source: inline        # inline | production (rubrics/spec-quality.md)
+
   # Smoke test: single target to validate pipeline end-to-end
   targets:
     - id: cc-vanilla-sonnet

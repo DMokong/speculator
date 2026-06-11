@@ -40,6 +40,19 @@ Check these files exist:
 - **PASS**: All required files present and valid
 - **FAIL**: Missing CLAUDE.md or sdlc.local.md
 
+**Config lint — scoring weights** (run when `sdlc.local.md` is present): if the frontmatter defines `scoring.weights`, the weights must sum to 1.0 (±0.001). A skewed sum silently distorts every Gate 1 weighted overall.
+
+```bash
+# Sum scoring.weights from the YAML frontmatter
+awk '/^scoring:/{s=1} s && /^  weights:/{w=1; next} w && /^    [a-z_]+:/{sum+=$2} w && /^  [a-z_]/{exit} END{printf "%.3f\n", sum}' .claude/sdlc.local.md
+```
+
+If the file's indentation deviates from the default layout, read the frontmatter and sum the `scoring.weights` values directly instead of relying on the snippet.
+
+- **PASS**: weights sum to 1.0 (±0.001)
+- **WARN**: weights sum to anything else — report the actual sum: `⚠️ scoring weights sum to {sum} (expected 1.0) — Gate 1 overall scores will be skewed; fix scoring.weights in .claude/sdlc.local.md`
+- If `scoring.weights` is absent entirely, the plugin defaults apply — no warning.
+
 ### 3. Plugin Wiring
 
 The SDLC plugin being loaded is self-evident — if `/sdlc doctor` is running, the plugin is installed and all skills are registered.
@@ -150,6 +163,7 @@ Environment
 Project Files
   ✅ CLAUDE.md present (245 lines)
   ✅ sdlc.local.md valid (spec_dir: docs/specs, 4 gates configured)
+  ✅ scoring weights sum to 1.000
 
 Plugin Wiring
   ✅ Plugin loaded (sdlc-doctor is running)

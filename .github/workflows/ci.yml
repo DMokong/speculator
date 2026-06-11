@@ -15,6 +15,10 @@ jobs:
         run: bash tests/test-eval-intent-structure.sh
       - name: Secrets-scan pattern suite
         run: bash tests/test-secrets-scan.sh
+      - name: verify-evidence.sh syntax check
+        run: bash -n scripts/verify-evidence.sh
+      - name: verify-evidence.sh self-test (known-good dogfood evidence)
+        run: scripts/verify-evidence.sh docs/specs/eval-quality-scoring
 
   benchmark-tests:
     name: Spec-Bench unit tests (pytest)

@@ -204,3 +204,26 @@ def test_generate_html_report(tmp_path):
     assert "Chart.js" in html_content or "chart.js" in html_content.lower()
     # Rankings data embedded
     assert "cc-sp-opus" in html_content
+
+
+def test_generate_html_report_renders_null_tokens(tmp_path):
+    """Unmeasured token counts (null) must not break the HTML template's {:,} formatting."""
+    from spec_bench.report import generate_yaml_report, generate_html_report
+
+    run_dir = tmp_path / "bench-null-tokens"
+    run_dir.mkdir()
+    (run_dir / "config.yml").write_text("benchmark:\n  prd: test\n  runs_per_combination: 1")
+
+    results = [
+        {**SAMPLE_RESULTS[0], "total_tokens": None},
+        {**SAMPLE_RESULTS[1], "total_tokens": None},
+    ]
+    report_data = generate_yaml_report(run_dir=run_dir, results=results)
+    # report.yml keeps the honest null
+    assert report_data["rankings"][0]["total_tokens"] is None
+
+    template_path = Path(__file__).parent.parent / "templates" / "report.html.j2"
+    output_path = tmp_path / "report.html"
+    generate_html_report(report_data, template_path, output_path)
+
+    assert output_path.exists()

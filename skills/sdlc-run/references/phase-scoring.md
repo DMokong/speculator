@@ -20,6 +20,8 @@ run:
 
 Invoke the `spec-score` skill → produces `evidence/gate-1-scorecard.yml`.
 
+**Scorer context hygiene**: the `spec-score` skill dispatches the spec-scorer agent with ONLY the scoring weights and dimension minimum (`scoring.weights`, `scoring.dimension_minimum`) — never the config file path, the gate threshold, or the `run:` trust-ladder values. A judge that reads the pass threshold before scoring invites score-attraction bias. The skill stamps `threshold` and `result` into the scorecard post-dispatch. The `run:` block read above is for THIS orchestrator's trust decision only — do not forward it to any scoring agent.
+
 Read the scorecard and extract:
 - `overall` score (weighted average)
 - `intent_verifiability` dimension score

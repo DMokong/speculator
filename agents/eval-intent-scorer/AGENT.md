@@ -75,7 +75,7 @@ If SYSTEM-SPEC.md exists:
 
 ### Step 5: Calculate score and write output
 
-Calculate weighted overall: intent_coverage×0.30 + anti_pattern_detection×0.25 + journey_completeness×0.25 + implementation_independence×0.20
+Calculate the weighted overall score using the dimension weights from the project config if it defines them, otherwise the Default Weights table in `${CLAUDE_PLUGIN_ROOT}/rubrics/eval-intent.md` (read in Step 1). Do not hardcode weights in this prompt — the rubric and config are the single source of truth.
 
 Write the completed scorecard to `{spec_dir}/{spec_name}/evidence/gate-2a-eval-intent.yml`.
 

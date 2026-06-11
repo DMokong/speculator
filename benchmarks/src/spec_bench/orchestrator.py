@@ -17,8 +17,22 @@ class RunResult:
     status: str  # "completed" | "adapter_failed"
     error: Optional[str] = None
     wall_clock_seconds: float = 0.0
-    tokens_in: int = 0
-    tokens_out: int = 0
+    # None means "token usage was not measured" — never recorded as 0,
+    # because zeros masquerade as measurements.
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+
+
+def _token_count(value) -> Optional[int]:
+    """Coerce an adapter-reported token count to a real measurement or None.
+
+    The claude-code adapter scrapes its session log for token counts and
+    writes 0 when the scrape finds nothing — so 0 means "not measured",
+    not "zero tokens were used."
+    """
+    if isinstance(value, (int, float)) and value > 0:
+        return int(value)
+    return None
 
 
 def create_run_directory(
@@ -106,8 +120,8 @@ def run_target(
                 target_id=target.id,
                 status="completed",
                 wall_clock_seconds=metrics.get("wall_clock_seconds", 0.0),
-                tokens_in=metrics.get("tokens_in", 0),
-                tokens_out=metrics.get("tokens_out", 0),
+                tokens_in=_token_count(metrics.get("tokens_in")),
+                tokens_out=_token_count(metrics.get("tokens_out")),
             )
 
         return RunResult(target_id=target.id, status="completed")

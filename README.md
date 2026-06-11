@@ -319,6 +319,27 @@ Specs declare a `risk_level` in YAML frontmatter:
 
 The scorer validates the declaration against spec content — if risk keywords are found but `risk_level` is "low", a `risk_mismatch` blocking flag is emitted.
 
+### What a Run Costs
+
+A run's cost is measured in agent dispatches. Every count below is derivable from config (`.claude/sdlc.local.md`):
+
+| Phase | Agent dispatches |
+|-------|------------------|
+| Gate 1 — Spec Quality | `spec-scorer` ×1, plus up to 3 re-scores during self-improvement (`max_spec_retries`) |
+| Implementation + Gate 2 | one implementation subagent per plan task, plus up to 3 Gate 2 self-heal cycles (`max_code_retries`) |
+| Gate 3 — Code Review | `code-reviewer` ×1, plus 1 re-dispatch after the self-fix cycle |
+| Gate 4 — Close | `spec-compactor` ×1 |
+| Gate 2a *(if enabled)* | `eval-intent-scorer` ×1, plus up to 3 improvement re-scores (`max_eval_retries`) |
+| Gate 2b *(if enabled)* | `eval-quality-scorer` ×1, plus 1 re-dispatch after the self-fix cycle |
+
+Order of magnitude: a Full Auto run is **tens of agent invocations, not a few**. The shipped defaults — opt-in gates off — *are* the minimal configuration; the four required gates cannot be disabled by design.
+
+**When not to use the pipeline:** sub-spec-sized changes — typo fixes, one-liners, mechanical renames — belong in the normal Claude Code flow, not `/spec run`. Reach for the pipeline when there's intent worth specifying and verifying.
+
+### Interruption & Resume
+
+Every phase commits a checkpoint when it completes. Pipeline position is re-derived purely from which evidence files exist — there is no separate state file to lose or corrupt. To resume an interrupted run, re-run `/sdlc run`: it detects the last completed checkpoint and continues from there. In headless contexts, Guided checkpoints degrade to commit-work-and-exit-with-instructions — the pipeline commits its work, prints how to continue, and exits cleanly instead of blocking on input.
+
 ## Spec Drift Detection
 
 As a project grows, specs accumulate. New features may modify behavior originally specified by older specs. Speculator tracks this through **spec compaction** and **impact analysis**.
@@ -583,7 +604,7 @@ See [`benchmarks/README.md`](benchmarks/README.md) for the full harness, calibra
 The forward-looking story lives in [ROADMAP.md](ROADMAP.md). High-level direction:
 
 - **Spec drift detection** — measure divergence between the living spec and the living code over time. SYSTEM-SPEC.md provides the corpus; the gap is automated diff + amendment-aware comparison.
-- **Spec-Bench public dataset + leaderboard** — the harness exists; the next step is community-contributed PRDs and openly published scores. The "SWE-bench for specifications" call from the [MANIFESTO](MANIFESTO.md) is now mostly an organizing-and-publishing problem rather than a build problem.
+- **Spec-Bench public dataset + leaderboard** — the harness exists; the next step is community-contributed PRDs and openly published scores. The "SWE-bench for specifications" call from the [MANIFESTO](MANIFESTO.md) is now mostly an organizing-and-publishing problem rather than a build problem. Deferred until ≥5 PRDs exist organically — see the ROADMAP backlog.
 - **SYSTEM-SPEC.md domain split** — the compactor agent has a `<500-line` sizing constraint flagged as future work. The first fold-in (SPEC-001) lives in a single-file SYSTEM-SPEC.md; once 5–10 specs accumulate, the file splits into per-domain files with a top-level index.
 - **Calibration guide** — published default tunings per project profile (greenfield, brownfield, refactor) backed by Spec-Bench distributions.
 - **Post-implementation quality tracing** — connect downstream findings (Gate 2 failures, Gate 3 blockers, post-merge bugs) back to the originating spec so we can answer "what spec gaps cost us?" empirically.

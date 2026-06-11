@@ -1,8 +1,10 @@
 # Phase 5: Evidence Package & Deliver (Gate 4)
 
+This phase wraps the close workflow with autonomy-mode checkpoints. The close mechanics themselves (Gate 4, beads closure, lock release, delivery, compaction) live in the `sdlc-close` skill — do not duplicate them here.
+
 Read `close.strategy` from the project config (`.claude/sdlc.local.md`). Default is `merge` if not set.
 
-## Steps 1–7: Common to both strategies
+## Autonomy checkpoints (run BEFORE the close workflow)
 
 1. **Guided + interactive mode** → Present a summary of all work before proceeding:
    ```
@@ -10,12 +12,16 @@ Read `close.strategy` from the project config (`.claude/sdlc.local.md`). Default
      Spec:           {spec_title} ({spec_id})
      Trust mode:     {autonomy_mode} (score: {trust_score})
      Gate 1 (spec):  pass ({score})
+     Gate 2a (eval intent):  pass ({score})
      Gate 2 (code):  pass
+     Gate 2b (eval quality): pass ({score})
      Gate 3 (review): pass
      Plan:           {N} tasks completed
      Stories:        {N} closed
      Delivery:       {close_strategy} (merge or pr)
    ```
+   The Gate 2a row is included only when `gates.eval-intent.enabled: true` in `.claude/sdlc.local.md`; the Gate 2b row only when `gates.eval-quality.enabled: true`. Omit the rows for disabled opt-in gates — do not show them as skipped.
+
    Then ask:
    ```
    AskUserQuestion: "All gates passed. Approve and {merge to main / create PR}? (y/n)"
@@ -35,78 +41,8 @@ Read `close.strategy` from the project config (`.claude/sdlc.local.md`). Default
      Run /sdlc close in interactive mode to create the PR with full evidence body.
      ```
 
-3. **Full Auto mode** → Proceed with delivery automatically (merge or PR based on strategy).
+3. **Full Auto mode** → Proceed with delivery automatically (merge or PR based on strategy), no approval pause.
 
-4. **Invoke `gate-check`** with `gate=evidence-package` → produces `evidence/gate-4-summary.yml`.
+## Close workflow (delegated)
 
-5. **Close beads issues**:
-   - Find all stories linked to the epic: `beads dep list {epic-id}`
-   - Close each completed story: `beads close {story-id}`
-   - Close the epic: `beads close {epic-id}`
-
-6. **Remove the `.active` lock file**:
-   ```bash
-   rm docs/specs/{spec-name}/.active
-   ```
-
-7. **Commit** all evidence:
-   ```
-   chore(sdlc): gate 4 — evidence package complete
-   ```
-
-## Step 8–9: Strategy-dependent delivery
-
-### Strategy: `merge` (default)
-
-8. **Merge** the worktree branch to main:
-   ```bash
-   git checkout main
-   git merge {worktree-branch}
-   ```
-
-9. **Compact into system spec:**
-   - After merge lands on main, invoke the `spec-compactor` agent from `${CLAUDE_PLUGIN_ROOT}/agents/spec-compactor/AGENT.md` with:
-     - `spec_path`: path to the closing spec
-     - `system_spec_path`: `{spec_dir}/SYSTEM-SPEC.md`
-   - Update spec frontmatter: `status: compacted`, `compacted_into: SYSTEM-SPEC`, `compacted_date: {today}`
-   - Commit: `chore(sdlc): compact {spec_id} into SYSTEM-SPEC.md`
-   - If compaction fails, warn but do not block — the spec remains `closed` (valid but not yet folded into system spec)
-
-### Strategy: `pr`
-
-8. **Compact into system spec** (runs on the feature branch, before PR creation):
-   - Invoke the `spec-compactor` agent from `${CLAUDE_PLUGIN_ROOT}/agents/spec-compactor/AGENT.md` with:
-     - `spec_path`: path to the closing spec
-     - `system_spec_path`: `{spec_dir}/SYSTEM-SPEC.md`
-   - Update spec frontmatter: `status: compacted`, `compacted_into: SYSTEM-SPEC`, `compacted_date: {today}`
-   - Commit: `chore(sdlc): compact {spec_id} into SYSTEM-SPEC.md`
-   - If compaction fails, warn but do not block — the spec remains `closed` (valid but not yet folded into system spec)
-
-9. **Create a pull request**:
-   a. **Verify `gh` CLI is available**:
-      ```bash
-      which gh
-      ```
-      If `gh` is not found, stop and tell the user: *"gh CLI is required for PR creation. Install it: https://cli.github.com/ — then re-run `/sdlc close`."*
-   b. Push the branch to the remote:
-      ```bash
-      git push -u origin {worktree-branch}
-      ```
-      If the push fails, surface the error and suggest: *"Check your remote with `git remote -v`. Ensure the remote exists and you have push access."*
-   c. Build the PR body from gate evidence:
-      - Read `gate-4-summary.yml` for the pipeline result
-      - Read the spec's title, problem statement, and acceptance criteria
-      - Read `gate-1-scorecard.yml` for the spec quality score
-      - Compose a PR description with:
-        - **Summary**: spec title and 1-2 sentence problem statement
-        - **Spec quality**: overall score from Gate 1
-        - **Evidence**: table showing all 4 gates and their results
-        - **Acceptance criteria**: list from the spec
-        - Footer: `🔬 Quality pipeline: Speculator | Spec: {spec_id} | Score: {overall_score}`
-   d. Create the PR:
-      ```bash
-      gh pr create --title "{spec_title}" --body "{composed body}" --base main
-      ```
-      If `gh pr create` fails, surface the error and suggest: *"Run `gh auth status` to verify authentication. Ensure you have repo access."*
-   e. Report the PR URL.
-   f. The worktree stays active until the PR merges.
+4. **Execute the close workflow exactly as defined in the `sdlc-close` skill** (`${CLAUDE_PLUGIN_ROOT}/skills/sdlc-close/SKILL.md`). It covers, in order: Gate 4 evidence package via `gate-check`, beads story/epic closure with `status: closed` frontmatter update, `.active` lock release, the evidence commit, and strategy-dependent delivery (merge + compaction, or PR with the evidence-table body — including Gate 2a/2b rows when enabled — + compaction).

@@ -1,6 +1,8 @@
 # Code Review Rubric
 
-Gate 3 checks whether the implementation has been reviewed for correctness, maintainability, and safety. This gate uses a checklist model: each check is pass/fail, and all six must pass with no blocking issues for the gate to pass.
+Gate 3 checks whether the implementation has been reviewed for correctness, maintainability, and safety. This gate uses a checklist model: each check receives a verdict (`pass`, `warn`, or `fail`), and the gate passes only when no check fails and no blocking issues remain.
+
+This rubric owns the **canonical evidence schema** for `gate-3-review.yml` (see Evidence Output Format below). Every producer of Gate 3 evidence — the code-reviewer agent, the gate-check skill, manual reviews — emits that schema exactly. Do not restate or fork the schema in other files; reference this rubric.
 
 Unlike Gate 2 (automated quality signals), Gate 3 is a judgment call — a human or agent reads the code and evaluates it against the spec and engineering standards.
 
@@ -21,7 +23,7 @@ Things to look for:
 - **Data integrity**: Confirm that data transformations (parsing, mapping, serialization) preserve meaning. A field renamed during refactoring but not updated in all consumers is a correctness bug.
 
 ```
-correctness: pass | fail
+correctness: pass | warn | fail
 ```
 
 ### 2. Error Handling
@@ -34,7 +36,7 @@ Things to look for:
 - **Graceful degradation**: When a non-critical dependency fails (e.g., a metrics endpoint is down), the primary operation should still succeed. Check that the code distinguishes between fatal and non-fatal errors.
 
 ```
-error_handling: pass | fail
+error_handling: pass | warn | fail
 ```
 
 ### 3. Readability
@@ -47,7 +49,7 @@ Things to look for:
 - **Consistency with codebase conventions**: New code should follow the patterns already established in the project (naming conventions, file organization, error handling style). Deviations from convention need a justifying reason.
 
 ```
-readability: pass | fail
+readability: pass | warn | fail
 ```
 
 ### 4. Security
@@ -78,7 +80,7 @@ Things to look for:
 - **Fail**: API key in a committed `.env` file, config file, or JSON fixture
 
 ```
-security: pass | fail
+security: pass | warn | fail
 ```
 
 ### 5. Performance
@@ -91,7 +93,7 @@ Things to look for:
 - **Resource cleanup**: File handles, database connections, and network sockets that are opened but not closed in all code paths (including error paths). Missing timeouts on external calls that could hang indefinitely.
 
 ```
-performance: pass | fail
+performance: pass | warn | fail
 ```
 
 ### 6. Spec Alignment
@@ -104,7 +106,7 @@ Things to look for:
 - **Out-of-scope compliance**: Check that the implementation respects the spec's out-of-scope section. If the spec explicitly deferred something (e.g., "Phase 2: custom plugin"), the implementation should not include it.
 
 ```
-spec_alignment: pass | fail
+spec_alignment: pass | warn | fail
 ```
 
 ---
@@ -113,49 +115,76 @@ spec_alignment: pass | fail
 
 The gate passes only when **both conditions** are met:
 
-1. **All 6 checks pass** (correctness, error_handling, readability, security, performance, spec_alignment)
+1. **No check has a `fail` verdict** — every check (correctness, error_handling, readability, security, performance, spec_alignment) is `pass` or `warn`
 2. **`blocking_issues` is empty** — no unresolved blocking issues remain
 
 If either condition fails: `result: fail`
 
 If both conditions pass: `result: pass`
 
+`warn` verdicts never affect the gate decision — see Verdict Tiers below.
+
 When requesting changes, clearly identify which checks failed and list blocking issues so the author knows exactly what to fix.
 
 ---
 
-## Evidence Output Format
+## Evidence Output Format (Canonical Schema)
+
+This is the **canonical schema** for `gate-3-review.yml`. Every producer of Gate 3 evidence MUST emit exactly this structure — same field names, same types, same verdict values. Producers may append producer-specific metadata fields (e.g., the code-reviewer agent adds `model`) but must never rename, restructure, or omit canonical fields.
 
 Write evidence to `{spec_dir}/{spec_name}/evidence/gate-3-review.yml`:
 
 ```yaml
-gate: review
-reviewer: "<name or agent>"
-review_method: "manual" | "agent-assisted" | "pr-review"
-timestamp: 2026-03-07T12:00:00Z
-result: pass | fail
-checks:
-  correctness: pass | fail
-  error_handling: pass | fail
-  readability: pass | fail
-  security: pass | fail
-  performance: pass | fail
-  spec_alignment: pass | fail
-observations:
-  - "..."
-blocking_issues:
-  - "..."  # must be empty for gate to pass
+gate: review                              # string — always the literal "review"
+spec_id: SPEC-042                         # string — spec id from the spec's YAML frontmatter
+spec_path: docs/specs/feature/spec.md     # string — path to the spec that was reviewed
+reviewer: "<name or agent>"               # string
+review_method: manual | agent-assisted | pr-review   # enum (string)
+timestamp: 2026-03-07T12:00:00Z           # string — ISO 8601
+checks:                                   # map — one entry per review dimension
+  correctness:
+    verdict: pass | warn | fail           # enum (string)
+    notes: "..."                          # string — cite specific file paths and line numbers
+  error_handling:
+    verdict: pass | warn | fail
+    notes: "..."
+  readability:
+    verdict: pass | warn | fail
+    notes: "..."
+  security:
+    verdict: pass | warn | fail
+    notes: "..."
+  performance:
+    verdict: pass | warn | fail
+    notes: "..."
+  spec_alignment:
+    verdict: pass | warn | fail
+    notes: "..."
+  skill_description:                      # conditional — present only when the producer ran the
+    verdict: pass | fail | skipped        # skill-description check (SKILL.md/AGENT.md in diff);
+    notes: "..."                          # omit entirely otherwise
+observations: []                          # list of strings — non-blocking findings; every warn
+                                          # verdict must have a corresponding entry here
+blocking_issues: []                       # list of strings — must be empty for the gate to pass
+result: pass | fail                       # enum (string) — gate decision per Gate Decision above
 ```
+
+### Verdict Tiers
+
+- **pass** — the check is satisfied. Nothing to record beyond the notes.
+- **warn** — a **non-blocking finding recorded in evidence**. A `warn` does NOT affect the gate's pass/fail result. Every `warn` verdict must have a corresponding entry in `observations` describing the finding, and warns are surfaced in the Gate 4 evidence-package summary so they remain visible at merge time.
+- **fail** — a blocking deficiency. Any `fail` verdict forces `result: fail` and must have a corresponding entry in `blocking_issues`.
 
 ### Field Definitions
 
+- **spec_id / spec_path**: Identify the spec under review, taken from the spec's YAML frontmatter and its file path.
 - **reviewer**: The person or agent who performed the review. Use a name, not a role.
 - **review_method**: How the review was conducted:
   - `manual` — A human read the code and evaluated it
   - `agent-assisted` — An AI agent performed the review (e.g., via `/sdlc review`)
   - `pr-review` — Review was done as part of a GitHub PR review workflow
 - **timestamp**: ISO 8601 timestamp of when the review was completed.
-- **result**: `pass` if all checks pass and no blocking issues; `fail` otherwise.
-- **checks**: Pass/fail for each of the 6 review dimensions.
-- **observations**: Noteworthy findings — things the reviewer noticed that are worth recording, whether positive or negative. Not all observations are blocking.
+- **checks**: One entry per review dimension, each with a `verdict` (per Verdict Tiers) and `notes` citing specific files and line numbers. `skill_description` is conditional — see the schema comment.
+- **observations**: Noteworthy non-blocking findings, positive or negative. Includes one entry per `warn` verdict.
 - **blocking_issues**: Issues that must be resolved before the gate can pass. These are distinct from observations: an observation might note "error messages could be more descriptive" (non-blocking), while a blocking issue would be "catch block on line 42 silently swallows database connection failures" (must fix).
+- **result**: `pass` if no check has a `fail` verdict and `blocking_issues` is empty; `fail` otherwise. `warn` verdicts do not affect `result`.

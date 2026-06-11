@@ -1,6 +1,7 @@
 """Spec scoring module — integrates with Speculator's spec-scorer and implements
 the iteration loop for improving specs before benchmarking."""
 
+import json
 import os
 import re
 import shutil
@@ -39,7 +40,12 @@ def _map_claude_model(model_id: str) -> str:
     """Map a matrix model ID to a Claude CLI model identifier."""
     return _CLAUDE_MODEL_MAP.get(model_id, model_id)
 
-from .config import Target
+from .config import (
+    DEFAULT_SCORER_MODEL,
+    Target,
+    VALID_IMPROVEMENT_MODES,
+    VALID_RUBRIC_SOURCES,
+)
 
 # Default scoring weights matching the Speculator rubric
 DIMENSION_WEIGHTS = {
@@ -105,6 +111,61 @@ flags:
 ```
 """
 
+PRODUCTION_SCORING_PROMPT_TEMPLATE = """\
+You are a specification quality evaluator. Evaluate the following software spec
+using the production Speculator rubric below. Apply the rubric exactly as written —
+including its calibration examples, anti-inflation guidance, per-dimension minimum,
+and gate decision rules.
+
+## Rubric
+
+{rubric_content}
+
+## Spec to evaluate
+
+{spec_content}
+
+## Required output format
+
+Respond with ONLY a YAML block (no prose before or after):
+
+```yaml
+scores:
+  completeness: <1-10>
+  clarity: <1-10>
+  testability: <1-10>
+  intent_verifiability: <1-10>
+  feasibility: <1-10>
+  scope: <1-10>
+  overall: <weighted average, 1 decimal>
+flags:
+  blocking: []
+  recommended:
+    - "<observation>"
+  advisory:
+    - "<observation>"
+```
+"""
+
+
+def _resolve_production_rubric() -> Path:
+    """Locate the shipped judge rubric (rubrics/spec-quality.md) at the repo root.
+
+    Walks up from this file's directory so the path survives the package being
+    installed in editable mode or the benchmarks dir being relocated. Raises
+    FileNotFoundError with the searched roots if the rubric cannot be found.
+    """
+    searched = []
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "rubrics" / "spec-quality.md"
+        if candidate.exists():
+            return candidate
+        searched.append(str(candidate))
+    raise FileNotFoundError(
+        "Production rubric not found. Searched:\n" + "\n".join(searched)
+    )
+
+
 IMPROVEMENT_PROMPT_TEMPLATE = """\
 A software spec was evaluated and scored {score:.1f} overall (pass threshold: {threshold:.1f}).
 
@@ -129,6 +190,31 @@ Feedback from the scorecard:
 
 Improve the spec to address the feedback above. Keep the same overall structure
 and requirements. Focus specifically on the weakest dimensions. Output ONLY the
+improved spec — no commentary, no preamble.
+"""
+
+# Control arm: identical revision-pass structure to IMPROVEMENT_PROMPT_TEMPLATE,
+# but deliberately contains NO scorer output — no score, no threshold, no weakest
+# dimensions, no flag text. This separates the value of scorer feedback from the
+# value of simply spending another revision pass.
+CONTROL_PROMPT_TEMPLATE = """\
+A software spec is being revised.
+
+## Original PRD
+
+{prd_content}
+
+## Current spec (version {version})
+
+{spec_content}
+
+## Spec template
+
+{template_content}
+
+## Your task
+
+Improve this spec. Keep the same overall structure and requirements. Output ONLY the
 improved spec — no commentary, no preamble.
 """
 
@@ -171,11 +257,51 @@ def parse_scorecard_yaml(text: str) -> dict:
     raise ValueError(f"Could not extract a valid YAML scorecard from response:\n{text[:500]}")
 
 
-def _build_scoring_prompt(spec_content: str) -> str:
-    return SCORING_PROMPT_TEMPLATE.format(spec_content=spec_content)
+def _build_scoring_prompt(spec_content: str, rubric_source: str = "inline") -> str:
+    if rubric_source == "inline":
+        return SCORING_PROMPT_TEMPLATE.format(spec_content=spec_content)
+    if rubric_source == "production":
+        rubric_content = _resolve_production_rubric().read_text()
+        return PRODUCTION_SCORING_PROMPT_TEMPLATE.format(
+            rubric_content=rubric_content,
+            spec_content=spec_content,
+        )
+    raise ValueError(
+        f"Invalid rubric_source '{rubric_source}'. Valid values: {VALID_RUBRIC_SOURCES}"
+    )
 
 
-def score_spec(spec_path: Path, output_dir: Path, version: int = 0) -> dict:
+def _parse_claude_json_envelope(stdout: str) -> tuple[str, Optional[int], Optional[int]]:
+    """Extract (response_text, tokens_in, tokens_out) from `claude -p --output-format json`.
+
+    Token counts are None — not 0 — when usage is unavailable (e.g. plain-text
+    output from an older CLI). Zeros masquerade as measurements.
+    """
+    try:
+        envelope = json.loads(stdout)
+    except (json.JSONDecodeError, TypeError):
+        return stdout, None, None
+
+    if not isinstance(envelope, dict) or "result" not in envelope:
+        return stdout, None, None
+
+    usage = envelope.get("usage") or {}
+    tokens_in = usage.get("input_tokens")
+    tokens_out = usage.get("output_tokens")
+    return (
+        str(envelope.get("result", "")),
+        int(tokens_in) if isinstance(tokens_in, (int, float)) else None,
+        int(tokens_out) if isinstance(tokens_out, (int, float)) else None,
+    )
+
+
+def score_spec(
+    spec_path: Path,
+    output_dir: Path,
+    version: int = 0,
+    model: str = DEFAULT_SCORER_MODEL,
+    rubric_source: str = "inline",
+) -> dict:
     """Score a spec using the Speculator rubric via `claude -p`.
 
     Args:
@@ -183,18 +309,29 @@ def score_spec(spec_path: Path, output_dir: Path, version: int = 0) -> dict:
         output_dir: Directory to write the scorecard YAML into.
         version: Integer version number — determines output filename
                  (e.g. version=0 → scorecard-v0.yml).
+        model: Claude model for the scorer. Always passed via --model so the
+               recorded scorer model is not operator-environment-dependent.
+        rubric_source: 'inline' (simplified benchmark prompt) or 'production'
+               (shipped judge rubric from <repo-root>/rubrics/spec-quality.md).
 
     Returns:
-        Parsed scorecard dict with 'scores' and 'flags' keys.
+        Parsed scorecard dict with 'scores' and 'flags' keys, plus a 'scorer'
+        provenance block ({model, rubric_source, tokens_in, tokens_out}).
 
     Raises:
         RuntimeError: If the subprocess exits non-zero.
     """
     spec_content = spec_path.read_text()
-    prompt = _build_scoring_prompt(spec_content)
+    prompt = _build_scoring_prompt(spec_content, rubric_source=rubric_source)
 
     result = subprocess.run(
-        [_resolve_claude_bin(), "-p", prompt, "--dangerously-skip-permissions"],
+        [
+            _resolve_claude_bin(),
+            "-p", prompt,
+            "--dangerously-skip-permissions",
+            "--model", _map_claude_model(model),
+            "--output-format", "json",
+        ],
         capture_output=True,
         text=True,
         timeout=300,
@@ -205,7 +342,17 @@ def score_spec(spec_path: Path, output_dir: Path, version: int = 0) -> dict:
             f"Scorer failed (exit {result.returncode}): {result.stderr[:500]}"
         )
 
-    scorecard = parse_scorecard_yaml(result.stdout)
+    response_text, tokens_in, tokens_out = _parse_claude_json_envelope(result.stdout)
+    scorecard = parse_scorecard_yaml(response_text)
+
+    # Provenance: record which model/rubric produced these scores and what
+    # they cost. Token counts are None when unmeasured, never 0.
+    scorecard["scorer"] = {
+        "model": model,
+        "rubric_source": rubric_source,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+    }
 
     # Write scorecard to output dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -268,6 +415,51 @@ def build_feedback_prompt(
     )
 
 
+def build_control_prompt(
+    spec_content: str,
+    prd_content: str,
+    template_content: str,
+    version: int = 0,
+) -> str:
+    """Construct the control-arm revision prompt — no scorer feedback of any kind."""
+    return CONTROL_PROMPT_TEMPLATE.format(
+        prd_content=prd_content,
+        spec_content=spec_content,
+        template_content=template_content,
+        version=version,
+    )
+
+
+def _scorecard_tokens(scorecard: dict) -> Optional[int]:
+    """Sum the scorer token usage recorded on a scorecard, or None if unmeasured."""
+    scorer = scorecard.get("scorer") or {}
+    measured = [
+        int(v) for v in (scorer.get("tokens_in"), scorer.get("tokens_out"))
+        if isinstance(v, (int, float))
+    ]
+    return sum(measured) if measured else None
+
+
+def _adapter_tokens(output_dir: Path) -> Optional[int]:
+    """Read token usage from an adapter-written metrics.json, or None if unmeasured.
+
+    The adapter scrapes its session log for token counts and writes 0 when it
+    finds nothing — treat 0 as "not measured", never as a measurement.
+    """
+    metrics_path = output_dir / "metrics.json"
+    if not metrics_path.exists():
+        return None
+    try:
+        metrics = json.loads(metrics_path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    measured = [
+        int(v) for v in (metrics.get("tokens_in"), metrics.get("tokens_out"))
+        if isinstance(v, (int, float)) and v > 0
+    ]
+    return sum(measured) if measured else None
+
+
 def iterate_spec(
     target: Target,
     spec_dir: Path,
@@ -277,18 +469,44 @@ def iterate_spec(
     template_path: Path,
     max_iterations: int = 3,
     pass_threshold: float = 7.8,
+    scorer_model: str = DEFAULT_SCORER_MODEL,
+    improvement_mode: str = "feedback",
+    rubric_source: str = "inline",
 ) -> dict:
     """Run the spec iteration loop: score → improve → rescore until pass or max_iterations.
 
     Implements AC2, AC3, AC8 from the Spec-Bench spec.
+
+    Args:
+        scorer_model: Claude model for the scorer (pinned via --model).
+        improvement_mode: 'feedback' (scorer flags fed into revision prompts),
+            'control' (same revision passes, generic prompt with NO scorer
+            feedback), or 'none' (score v0 only, no revision passes).
+        rubric_source: 'inline' or 'production' — which rubric the scorer uses.
 
     Returns:
         The iteration-log dict (also written to spec_dir/iteration-log.yml).
     """
     from .orchestrator import ADAPTER_MAP
 
+    if improvement_mode not in VALID_IMPROVEMENT_MODES:
+        raise ValueError(
+            f"Invalid improvement_mode '{improvement_mode}'. "
+            f"Valid values: {VALID_IMPROVEMENT_MODES}"
+        )
+
     start_time = time.time()
-    iteration_tokens = 0
+
+    # Token accounting: accumulate only real measurements. If nothing was
+    # measured, the log records null — zeros masquerade as measurements.
+    token_total = 0
+    tokens_measured = False
+
+    def _add_tokens(amount: Optional[int]) -> None:
+        nonlocal token_total, tokens_measured
+        if amount is not None:
+            token_total += amount
+            tokens_measured = True
 
     # Determine prompt path based on process
     prompt_path: Optional[Path] = None
@@ -301,21 +519,27 @@ def iterate_spec(
 
     # --- Score v0 ---
     spec_v0 = spec_dir / "spec-v0.md"
-    scorecard = score_spec(spec_v0, spec_dir, version=0)
+    scorecard = score_spec(
+        spec_v0, spec_dir, version=0, model=scorer_model, rubric_source=rubric_source
+    )
+    _add_tokens(_scorecard_tokens(scorecard))
     overall = scorecard["scores"]["overall"]
     version_history.append({"version": 0, "score": overall, "scorecard": scorecard})
 
-    # --- Fast-pass: already above threshold ---
-    if overall >= pass_threshold:
+    # --- Fast-pass (above threshold) or mode 'none' (no revision passes) ---
+    if overall >= pass_threshold or improvement_mode == "none":
         _write_improved(spec_dir, spec_v0)
         log = _build_log(
             version_history=version_history,
             best_score=overall,
             iterations_needed=0,
-            passed=True,
+            passed=overall >= pass_threshold,
             elapsed=time.time() - start_time,
-            total_tokens=iteration_tokens,
+            total_tokens=token_total if tokens_measured else None,
             pass_threshold=pass_threshold,
+            scorer_model=scorer_model,
+            improvement_mode=improvement_mode,
+            rubric_source=rubric_source,
         )
         _write_log(spec_dir, log)
         return log
@@ -331,28 +555,39 @@ def iterate_spec(
         next_version = current_version + 1
         next_spec = spec_dir / f"spec-v{next_version}.md"
 
-        # Build feedback prompt and write to a temp file so the adapter can read it
+        # Build the revision prompt and write to a file so the adapter can read it.
+        # 'feedback' feeds the scorer's flags back; 'control' uses a generic
+        # improvement instruction with no scorer output, isolating feedback
+        # value from extra-pass compute.
         current_spec_content = (spec_dir / f"spec-v{current_version}.md").read_text()
-        feedback_prompt = build_feedback_prompt(
-            scorecard=version_history[-1]["scorecard"],
-            spec_content=current_spec_content,
-            prd_content=prd_content,
-            template_content=template_content,
-            version=current_version,
-            pass_threshold=pass_threshold,
-        )
+        if improvement_mode == "control":
+            revision_prompt = build_control_prompt(
+                spec_content=current_spec_content,
+                prd_content=prd_content,
+                template_content=template_content,
+                version=current_version,
+            )
+        else:
+            revision_prompt = build_feedback_prompt(
+                scorecard=version_history[-1]["scorecard"],
+                spec_content=current_spec_content,
+                prd_content=prd_content,
+                template_content=template_content,
+                version=current_version,
+                pass_threshold=pass_threshold,
+            )
 
-        feedback_prompt_path = spec_dir / f"feedback-prompt-v{next_version}.md"
-        feedback_prompt_path.write_text(feedback_prompt)
+        revision_prompt_path = spec_dir / f"{improvement_mode}-prompt-v{next_version}.md"
+        revision_prompt_path.write_text(revision_prompt)
 
-        # Re-invoke the adapter with the feedback prompt
+        # Re-invoke the adapter with the revision prompt
         cmd = [
             str(adapter_script),
             "--prd", str(prd_path),
             "--template", str(template_path),
             "--model", target.model,
             "--output-dir", str(spec_dir),
-            "--prompt", str(feedback_prompt_path),
+            "--prompt", str(revision_prompt_path),
         ]
 
         adapter_result = subprocess.run(
@@ -368,6 +603,8 @@ def iterate_spec(
             # Adapter failed — stop iterating, use best so far
             break
 
+        _add_tokens(_adapter_tokens(spec_dir))
+
         # Adapter always writes spec.md — rename to versioned name
         adapter_output = spec_dir / "spec.md"
         if adapter_output.exists():
@@ -378,7 +615,11 @@ def iterate_spec(
             # Adapter didn't produce the expected output file — stop
             break
 
-        scorecard = score_spec(next_spec, spec_dir, version=next_version)
+        scorecard = score_spec(
+            next_spec, spec_dir, version=next_version,
+            model=scorer_model, rubric_source=rubric_source,
+        )
+        _add_tokens(_scorecard_tokens(scorecard))
         overall = scorecard["scores"]["overall"]
         version_history.append({"version": next_version, "score": overall, "scorecard": scorecard})
         current_version = next_version
@@ -400,8 +641,11 @@ def iterate_spec(
         iterations_needed=iterations_done,
         passed=passed,
         elapsed=time.time() - start_time,
-        total_tokens=iteration_tokens,
+        total_tokens=token_total if tokens_measured else None,
         pass_threshold=pass_threshold,
+        scorer_model=scorer_model,
+        improvement_mode=improvement_mode,
+        rubric_source=rubric_source,
     )
     _write_log(spec_dir, log)
     return log
@@ -419,8 +663,11 @@ def _build_log(
     iterations_needed: int,
     passed: bool,
     elapsed: float,
-    total_tokens: int,
+    total_tokens: Optional[int],
     pass_threshold: float,
+    scorer_model: str = DEFAULT_SCORER_MODEL,
+    improvement_mode: str = "feedback",
+    rubric_source: str = "inline",
 ) -> dict:
     """Build the iteration-log data structure."""
     original_score = version_history[0]["score"] if version_history else 0.0
@@ -451,9 +698,13 @@ def _build_log(
             "final_score": final_score,
             "improvement_deltas": improvement_deltas,
             "convergence_rate": convergence_rate,
+            # null when no token usage was measured — never 0
             "total_iteration_tokens": total_tokens,
             "total_iteration_time_seconds": round(elapsed, 2),
             "pass_threshold": pass_threshold,
+            "scorer_model": scorer_model,
+            "improvement_mode": improvement_mode,
+            "rubric_source": rubric_source,
         },
     }
 

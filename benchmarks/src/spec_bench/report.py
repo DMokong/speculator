@@ -347,14 +347,20 @@ def _load_results_from_disk(run_dir: Path) -> list[dict]:
             func = yaml.safe_load(functional_path.read_text()) or {}
             functional_pass_rate = func.get("summary", {}).get("pass_rate", "0/0")
 
-        # Read timing / token metrics
+        # Read timing / token metrics. Token counts of 0 mean the adapter's
+        # log scrape found nothing — record null, not 0, so unmeasured runs
+        # never masquerade as measurements.
         metrics_path = impl_dir / "metrics.json"
-        total_tokens = 0
+        total_tokens = None
         total_time_seconds = 0.0
         if metrics_path.exists():
             import json
             metrics = json.loads(metrics_path.read_text())
-            total_tokens = metrics.get("tokens_in", 0) + metrics.get("tokens_out", 0)
+            measured = [
+                int(v) for v in (metrics.get("tokens_in"), metrics.get("tokens_out"))
+                if isinstance(v, (int, float)) and v > 0
+            ]
+            total_tokens = sum(measured) if measured else None
             total_time_seconds = metrics.get("wall_clock_seconds", 0.0)
 
         # Target metadata
@@ -408,7 +414,8 @@ def _build_rankings(results: list[dict]) -> list[dict]:
             "outcome_score": r["outcome_score"],
             "functional_pass_rate": r.get("functional_pass_rate", "0/0"),
             "iterations_to_pass": r.get("iterations_to_pass", 0),
-            "total_tokens": r.get("total_tokens", 0),
+            # None (null) when token usage was not measured — never 0
+            "total_tokens": r.get("total_tokens"),
             "total_time_seconds": r.get("total_time_seconds", 0.0),
             "status": r.get("status", "completed"),
         })
@@ -422,7 +429,7 @@ def _build_rankings(results: list[dict]) -> list[dict]:
             "outcome_score": 0.0,
             "functional_pass_rate": "0/0",
             "iterations_to_pass": 0,
-            "total_tokens": 0,
+            "total_tokens": None,
             "total_time_seconds": 0.0,
             "status": r.get("status", "adapter_failed"),
         })
@@ -549,8 +556,13 @@ def generate_html_report(
     )
     template = env.get_template(template_path.name)
 
-    # Prepare chart-friendly data
-    rankings = report_data.get("rankings", [])
+    # Prepare chart-friendly data. The template formats total_tokens with
+    # "{:,}", which cannot render None — coerce null to 0 for display only;
+    # the canonical null lives in report.yml.
+    rankings = [
+        {**r, "total_tokens": r.get("total_tokens") or 0}
+        for r in report_data.get("rankings", [])
+    ]
     correlations = report_data.get("correlations", {})
     axis_analysis = report_data.get("axis_analysis", {})
     insights = report_data.get("insights", [])

@@ -1,6 +1,6 @@
 # Speculator Roadmap
 
-> Last updated: 2026-04-28 (v2.8.0)
+> Last updated: 2026-06-12 (v2.8.1)
 >
 > The MANIFESTO defines the *thesis*. The CHANGELOG records *what shipped*. This document covers *what's next* and *what we deliberately deferred*.
 
@@ -20,7 +20,7 @@ Jones proposed three fixes. Speculator's pipeline maps to all three:
 | Jones's fix | Speculator gate | Status |
 |-------------|------------------|--------|
 | **Spec-driven dev** — comprehension lives in the spec | Gate 1 (Spec Quality) + Gate 2a (Eval Intent) | ✅ Shipped |
-| **Comprehension gates** — PRs blocked unless human can explain what the code does | **Gate 2c (Comprehension Gate)** | 🚧 **Designed, not yet built — top priority** |
+| **Comprehension gates** — PRs blocked unless human can explain what the code does | **Gate 2c (Comprehension Gate)** | 🚧 **Components on branch `gate-2c-comprehension`, wiring pending — top priority** |
 | **Context engineering** — failure modes + why-wired-this-way on high-risk modules | Gate 2c artifact (durable per-AC explanation, not just a gate) | 🚧 Same artifact, dual purpose |
 
 Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass while testing the wrong thing — and was always **Phase 1 of a two-phase anti-dark-code expansion**. Gate 2c is **Phase 2**.
@@ -35,14 +35,14 @@ Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass whi
 
 ---
 
-## Where we are (2026-04-28)
+## Where we are (2026-06-12)
 
 | Pillar | Status |
 |---|---|
 | Required 4-gate pipeline (Spec / Code / Review / Evidence) | ✅ Shipped, dogfooded on Speculator's own SPECs |
 | Gate 2a — Eval Intent (pre-implementation) | ✅ Shipped v2.8.0, opt-in |
 | Gate 2b — Eval Quality (post-implementation) — *Anti-dark-code Phase 1* | ✅ Shipped v2.7.0, opt-in |
-| **Gate 2c — Comprehension Gate** — *Anti-dark-code Phase 2* | 🚧 **Designed, not yet built** |
+| **Gate 2c — Comprehension Gate** — *Anti-dark-code Phase 2* | 🚧 Components rescued to branch `gate-2c-comprehension` (2026-06-12), wiring pending |
 | Gate 3 — Mandatory secrets scan | ✅ Shipped v2.5.0, 25/25 fixture tests passing |
 | Gate 3 — Skill description eval | ✅ Shipped v2.6.0 |
 | `/sdlc run` autonomous orchestrator with trust ladder | ✅ Shipped v1.3.0, refined through v2.x |
@@ -125,6 +125,8 @@ The agent code is mostly mechanical. **Calibration is the build.** A confidently
 - Publish the correlation matrix in `benchmarks/results/`.
 - If correlation is weak: Gate 2b's rubric needs re-tuning. If strong: Gate 2b can be promoted from advisory to load-bearing in dev workflows.
 
+**Prerequisite:** Gate 2b has never produced an evidence artifact, and the bench corpus contains zero test files. The correlation work first requires the constant-implementer arm to ship test suites and Gate 2b to run on them — there is nothing to correlate until both exist.
+
 **Status:** opportunity called out in the Phase 1 design doc; not started. This is the single highest-leverage research move because it gives us the empirical answer to *"does this actually work?"*
 
 ### 3. Spec drift detection
@@ -138,22 +140,11 @@ The agent code is mostly mechanical. **Calibration is the build.** A confidently
 - Output: `evidence/audit-{date}.yml` summarizing drift per domain section.
 - Integrates with Spec-Bench so we can measure drift-rate as a property of teams/harnesses.
 
+**Precondition:** deferred behind in-repo SYSTEM-SPEC dogfooding — drift detection cannot ship before the living spec has a corpus to drift against. SYSTEM-SPEC.md is one fold-in (~35 lines) today.
+
 **Status:** not started. Design notes welcome via issue.
 
-### 4. Spec-Bench public dataset + leaderboard
-
-**Goal:** community-contributed PRDs with openly scored spec quality results, addressing the MANIFESTO's "we need a spec quality benchmark" call.
-
-**Why now:** the harness ships, the calibration protocol works, the hard part remaining is curation and operations. SWE-bench mattered because it created shared vocabulary; we want the same thing for specs.
-
-**Shape (proposed):**
-- `benchmarks/prds/` already structured for contribution (PRD + functional-tests.yml).
-- Need: contribution guidelines, license clarity, a public results table (markdown in repo or simple static site), a dataset versioning scheme.
-- Need: at least 5 PRDs across different domains (currently only weather-transport).
-
-**Status:** harness ready; curation and ops not started.
-
-### 5. SYSTEM-SPEC.md domain split
+### 4. SYSTEM-SPEC.md domain split
 
 **Goal:** prepare for scale. The compactor agent has a hardcoded `<500-line` sizing constraint as a known cliff. The first fold-in is one domain (eval quality, ~35 lines from SPEC-001). Once 5–10 specs accumulate, single-file SYSTEM-SPEC.md will start to feel cramped.
 
@@ -164,7 +155,7 @@ The agent code is mostly mechanical. **Calibration is the build.** A confidently
 
 **Trigger:** when SYSTEM-SPEC.md crosses ~300 lines, plan the split. We're at ~35 today.
 
-### 6. Calibration guide
+### 5. Calibration guide
 
 **Goal:** published default tunings per project profile, backed by Spec-Bench distributions.
 
@@ -181,6 +172,7 @@ The agent code is mostly mechanical. **Calibration is the build.** A confidently
 
 ## Backlog (prioritized but not scheduled)
 
+- **Spec-Bench public dataset + leaderboard** *(moved from active priorities, 2026-06-12)*. Community-contributed PRDs with openly scored results — the MANIFESTO's "we need a spec quality benchmark" call. The harness and calibration protocol ship today; what's missing is curation and operations. **Trigger: deferred until ≥5 PRDs exist organically — a leaderboard with one PRD and no community is an operations sinkhole.** Re-activate when contributions arrive (see "How to contribute"), not by building ahead of them.
 - **Post-implementation quality tracing.** Connect Gate 2 failures, Gate 3 blockers, and post-merge bugs back to the originating spec so we can answer "what spec gaps cost us?" empirically. Requires a thin telemetry layer over the existing evidence files.
 - **Risk-level-bound gate enablement.** Today opt-in gates are global on/off via `sdlc.local.md`. Binding Gate 2c to `risk_level: high` (and similar) lets teams adopt it where it matters most without paying the latency tax on trivial specs.
 - **NBJ "Explanation Artifact" 4-question template** as an optional Gate 2c output mode. The Apr 21 follow-up describes a labor-market-friendly format ("what is this code doing / what assumptions / what could break / what would I change") that doubles as a hiring signal. Gate 2c could emit either the structured YAML *or* the 4-question prose, configurable per project.

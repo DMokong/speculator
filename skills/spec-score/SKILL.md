@@ -25,21 +25,36 @@ You are helping the user run the spec quality gate on a specification.
    - Single unlocked spec in `draft` status → use it
    - Multiple unlocked specs → list them and ask the user
 
-2. **Invoke the spec-scorer agent**: Launch the `spec-scorer` agent (from this plugin's `agents/` directory) with:
-   - The spec file path
-   - The project config path (`.claude/sdlc.local.md`)
+2. **Read the scoring config**: From `.claude/sdlc.local.md`, extract:
+   - `scoring.weights` — the dimension weights
+   - `scoring.dimension_minimum` — the per-dimension minimum (default 5)
+   - `run.risk_signals` — the risk-signal keyword list, if configured (bias-safe to share — it contains no thresholds)
+   - `gates.spec-quality.threshold` — the Gate 1 pass threshold (e.g. 7.0). Keep this for step 4; do NOT pass it to the scorer.
 
-3. **Present results**: After the agent produces the scorecard, read it and present to the user:
+3. **Invoke the spec-scorer agent**: Launch the `spec-scorer` agent (from this plugin's `agents/` directory) with:
+   - The spec file path
+   - The scoring weights, dimension minimum, and risk-signal keyword list (if configured), written inline in the dispatch prompt (the values extracted in step 2)
+
+   **Scorer context hygiene — do NOT pass the config file path or any threshold.** `.claude/sdlc.local.md` contains the Gate 1 pass threshold and the `run:` trust-ladder thresholds; a judge that reads the pass threshold before scoring invites score-attraction bias. The scorer's view is ONLY the weights, the dimension minimum, and the risk-signal keywords. Instruct the agent to score the dimensions, compute the weighted overall, run risk/impact validation, and emit flags — and to leave the scorecard's `threshold` and `result` fields unset for the invoker to stamp.
+
+4. **Stamp threshold and result (post-dispatch)**: After the agent writes the scorecard, this skill — not the scorer — performs the threshold comparison:
+   - Read the scorecard's `overall`, per-dimension scores, and `flags`
+   - Write `threshold:` into the scorecard from `gates.spec-quality.threshold`
+   - Determine and write `result:` — `pass` only if `overall` >= threshold AND every dimension >= `dimension_minimum` AND `flags.blocking` is empty; otherwise `fail`
+
+5. **Present results**: Read the stamped scorecard and present to the user:
    - Show each dimension's score with a brief explanation
    - Show the overall score and whether it passed the threshold
    - Show all flags as actionable feedback
    - If it passed: congratulate and suggest next steps (`/sdlc implement` or start coding)
    - If it failed: show what needs improvement, offer to help revise the spec
 
-4. **Update spec status**: If the gate passed, update the spec's YAML frontmatter `status` from `draft` to `approved`.
+6. **Update spec status**: If the gate passed, update the spec's YAML frontmatter `status` from `draft` to `approved`.
 
 ## Do NOT
 
 - Skip the agent — always use the spec-scorer agent for consistent evaluation
+- Pass the full project config (or its path) to the scorer — only the weights, dimension minimum, and risk-signal keywords cross the dispatch boundary
+- Let the scorer stamp `threshold` or `result` — that is this skill's post-dispatch responsibility
 - Modify the spec content (only update the status field in frontmatter)
 - Proceed to implementation guidance if the gate failed

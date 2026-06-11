@@ -126,6 +126,24 @@ How to verify:
 
 This check uses the same evidence as check 2 (test-run). No additional evidence block is needed — the gate checker should verify that the test command covers the full suite.
 
+## Prompt-Only Changesets (N/A Rationale)
+
+Some specs change only markdown/prompt content — skills, agents, rubrics, templates, documentation — with no executable code paths. Coverage thresholds and feature-level tests do not meaningfully apply to these changesets. For a prompt-only changeset, Gate 2 is satisfied by **both** of:
+
+1. **The repo's structural test suites pass** — whatever automated validation the project has for its prompt artifacts (e.g. plugin structure validation, frontmatter linting, link checks), recorded as normal test-run evidence (check 2).
+2. **A documented N/A rationale in `gate-2-quality.yml`** for each check recorded as not applicable (coverage, feature-level tests):
+
+```yaml
+evidence_type: coverage
+status: not-applicable
+rationale: "Changeset is markdown/prompt-only (3 skill files, 1 rubric); no executable code paths to cover. Structural suite passed — see test-run evidence."
+timestamp: 2026-03-03T11:00:00Z
+```
+
+**The `rationale` field MUST be non-empty whenever a check is recorded as N/A.** An N/A entry with an empty or missing rationale does not satisfy the check — treat it as a fail.
+
+**Do NOT invent LLM-judged pseudo-tests to fill the gap** (e.g. "have a model read the skill and judge whether it would behave correctly"). Such tests are fragile and non-reproducible, and they manufacture false confidence. The honest evidence for a prompt-only changeset is structural validation plus an explicit rationale — not simulated test results.
+
 ## Gate Decision
 
 - All required checks must pass

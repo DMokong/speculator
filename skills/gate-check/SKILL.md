@@ -38,7 +38,7 @@ You are helping the user verify or run a quality gate for a specification.
    - Gate 2a: `gate-2a-eval-intent.yml` with `result: pass` or `result: override-pass` (only checked if `gates.eval-intent.enabled: true`)
    - Gate 2b: `gate-2b-eval-quality.yml` with `result: pass` (only checked if `gates.eval-quality.enabled: true`)
    - Gate 3: `gate-3-review.yml` with approval recorded
-   - Gate 4: `gate-4-summary.yml` with all gates listed as passed
+   - Gate 4: `gate-4-summary.yml` with all required gates listed as passed and all enabled opt-in gates (2a/2b/2c per `gates.*.enabled` in `.claude/sdlc.local.md`) passed or `n/a`
 
 4. **If gate evidence is missing**: Offer to help produce it:
    - Gate 1 missing → suggest `/sdlc score`
@@ -46,7 +46,7 @@ You are helping the user verify or run a quality gate for a specification.
    - Gate 2a missing → dispatch eval-authoring skill with spec path, config path, and worktree base
    - Gate 2b missing → dispatch eval-quality-scorer agent from `${CLAUDE_PLUGIN_ROOT}/agents/eval-quality-scorer/AGENT.md` with spec path, config path, and worktree base
    - Gate 3 missing → guide the user to run code review, then write `gate-3-review.yml`
-   - Gate 4 missing → check all prior gates, if all pass then write `gate-4-summary.yml`
+   - Gate 4 missing → check all prior gates (required gates plus any enabled opt-in gates), if all pass then write `gate-4-summary.yml`
 
 5. **Report status**: Show which gates are passed, pending, or failed for this spec.
 
@@ -92,7 +92,7 @@ When running Gate 2b:
    - Show each dimension score with one-line reasoning
    - Show overall score and pass/fail against threshold
    - Show all flags as actionable feedback
-   - If passed: suggest proceeding to Gate 2c (if enabled) or Gate 3
+   - If passed: suggest proceeding to Gate 3 (review)
    - If failed: explain which dimensions need improvement and how
 
 ## Gate 3: Collecting Review Evidence
@@ -113,25 +113,7 @@ When running Gate 3:
      5. Rate as `pass` (triggers reliably, good negative discrimination) or `fail` (undertriggers, overtriggers, or description is vague).
      6. Record any suggested improvements in `observations`.
    - Record the result in `skill_description` in the evidence file.
-5. Write evidence to `{spec_dir}/{spec_name}/evidence/gate-3-review.yml` with the following structure:
-
-```yaml
-gate: review
-result: pass | fail
-timestamp: ISO-8601
-checks:
-  correctness: pass | fail
-  error_handling: pass | fail
-  readability: pass | fail
-  security: pass | fail
-  performance: pass | fail
-  spec_alignment: pass | fail
-  skill_description: pass | fail | skipped  # skipped when no SKILL.md/AGENT.md in diff
-observations:
-  - "Free-text observations about the implementation"
-blocking_issues:
-  - "Any issues that must be fixed before passing (empty if result is pass)"
-```
+5. Write evidence to `{spec_dir}/{spec_name}/evidence/gate-3-review.yml` **exactly per the canonical schema in `${CLAUDE_PLUGIN_ROOT}/rubrics/review.md`** ("Evidence Output Format (Canonical Schema)") — do not restate or restructure the schema here; the rubric is the single source of truth, including the `pass | warn | fail` verdict tiers and the `skill_description` conditional check.
 
 > **Note**: A `fail` on `skill_description` is a blocking issue — descriptions that undertrigger render skills useless.
 
@@ -140,18 +122,24 @@ blocking_issues:
 When running Gate 4:
 
 1. **Read the evidence-package rubric** at `${CLAUDE_PLUGIN_ROOT}/rubrics/evidence-package.md` and verify each checklist item.
-2. Read all prior gate evidence files.
-3. Verify all required gates (from project config) have `result: pass`.
-4. **Verify Gate 1 scorecard has no unaddressed blocking flags.** If the scorecard contains blocking flags that were not resolved, the evidence package fails.
-5. **If a beads epic exists for this spec, verify all child stories are closed.** Open stories indicate incomplete work.
-6. Write a summary to `{spec_dir}/{spec_name}/evidence/gate-4-summary.yml` containing:
-   - List of all gates with their results
-   - Overall pipeline result (pass only if all required gates pass)
+2. **Run the mechanical verifier** if the script exists: `bash scripts/verify-evidence.sh {spec_dir}/{spec_name}`. A non-zero exit is a blocking finding — record it and the gate fails. If the script does not exist, skip this step (the rubric checks below still apply).
+3. Read all prior gate evidence files.
+4. Verify all required gates (from project config) have `result: pass`.
+5. **Verify opt-in gates per the project config** (`.claude/sdlc.local.md`):
+   - If `gates.eval-intent.enabled: true` → `gate-2a-eval-intent.yml` must exist with `result: pass` or `result: override-pass`
+   - If `gates.eval-quality.enabled: true` → `gate-2b-eval-quality.yml` must exist with `result: pass`
+   - If `gates.comprehension.enabled: true` → `gate-2c-comprehension.yml` must exist with `result: pass`
+   - Disabled or absent opt-in gates are `n/a` and do not block
+6. **Verify Gate 1 scorecard has no unaddressed blocking flags.** If the scorecard contains blocking flags that were not resolved, the evidence package fails.
+7. **If a beads epic exists for this spec, verify all child stories are closed.** Open stories indicate incomplete work.
+8. Write a summary to `{spec_dir}/{spec_name}/evidence/gate-4-summary.yml` containing:
+   - List of all gates with their results (opt-in gates report `n/a` when disabled)
+   - Overall pipeline result (pass only if all required gates pass and all enabled opt-in gates pass)
    - Timestamp
    - Whether work was done in a worktree (check `git worktree list`)
    - Blocking flags status (from Gate 1 scorecard)
    - Beads epic status (if applicable)
-7. If all gates pass and we're in a worktree, suggest running `/sdlc close` to merge back to main
+9. If all gates pass and we're in a worktree, suggest running `/sdlc close` to merge back to main
 
 ## Worktree Awareness
 

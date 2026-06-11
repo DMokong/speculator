@@ -70,3 +70,34 @@ def test_run_target_adapter_success(tmp_path):
         )
     assert result.status == "completed"
     assert result.error is None
+    # Real (non-zero) token counts are recorded as-is
+    assert result.tokens_in == 100
+    assert result.tokens_out == 200
+
+
+def test_run_target_zero_tokens_recorded_as_null(tmp_path):
+    """Adapter metrics with tokens 0 (unmeasured) record None — never 0."""
+    target = Target(id="good-target", harness="claude-code", model="opus-4-6", process="vanilla")
+    (tmp_path / "prd.md").write_text("# PRD")
+    (tmp_path / "template.md").write_text("# Template")
+    (tmp_path / "vanilla.md").write_text("# Vanilla")
+    (tmp_path / "adapters").mkdir()
+    (tmp_path / "adapters" / "claude-code.sh").write_text("#!/bin/bash\nexit 0")
+    output_dir = tmp_path / "specs" / "good-target"
+    output_dir.mkdir(parents=True)
+    (output_dir / "spec.md").write_text("# Generated spec")
+    (output_dir / "metrics.json").write_text('{"tokens_in": 0, "tokens_out": 0, "wall_clock_seconds": 30.0}')
+
+    with patch("spec_bench.orchestrator.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        result = run_target(
+            target=target,
+            output_dir=output_dir,
+            prd_path=tmp_path / "prd.md",
+            template_path=tmp_path / "template.md",
+            prompt_path=tmp_path / "vanilla.md",
+            adapters_dir=tmp_path / "adapters",
+        )
+    assert result.status == "completed"
+    assert result.tokens_in is None
+    assert result.tokens_out is None

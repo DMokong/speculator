@@ -11,6 +11,14 @@ benchmark:
   judge:
     model: opus-4-6
 
+  # Spec scorer (Gate-1 LLM judge). model is pinned — without it the scorer
+  # runs on whatever the operator's claude CLI defaults to, making the
+  # recorded scorer_model unverifiable.
+  scorer:
+    model: claude-sonnet-4-6
+    improvement_mode: feedback   # feedback | control | none
+    rubric_source: inline        # inline | production (rubrics/spec-quality.md)
+
   targets:
     - id: cc-vanilla-opus
       harness: claude-code

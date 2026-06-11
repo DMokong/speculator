@@ -31,9 +31,9 @@ You will be told:
 4. **Run the mandatory secrets scan** (see below) — this MUST happen before evaluating the security dimension
 5. Review each relevant file against the 6-point checklist
 6. For each checklist item, assign a verdict: `pass`, `warn`, or `fail`
-7. Collect blocking issues (anything that must be fixed before merge) and advisory notes
-8. Determine the overall result: `fail` if any checklist item is `fail`, otherwise `pass`
-9. Write the review evidence YAML to the specified output path
+7. Collect blocking issues (anything that must be fixed before merge) and non-blocking observations
+8. Determine the overall result: `fail` if any checklist item is `fail`, otherwise `pass` (`warn` never affects the result)
+9. Write the review evidence YAML to the specified output path, exactly per the canonical schema in `${CLAUDE_PLUGIN_ROOT}/rubrics/review.md` (see Output Format below)
 
 ## Mandatory Secrets Scan
 
@@ -143,48 +143,22 @@ Does the implementation match the design decisions in the spec?
 
 ## Output Format
 
+Emit evidence **exactly per the canonical schema** in `${CLAUDE_PLUGIN_ROOT}/rubrics/review.md`, section "Evidence Output Format (Canonical Schema)". Read that section before writing the artifact — do not reproduce the schema from memory, and do not rename, restructure, or omit any canonical field (the checks map is `checks:`, with per-check `verdict` and `notes`; non-blocking findings go in `observations`).
+
 Write the review evidence to the specified path. Create parent directories if they don't exist.
 
-```yaml
-gate: review
-spec_id: {spec_id}
-spec_path: {spec_path}
-timestamp: {ISO 8601}
-reviewer: agent
-review_method: agent-assisted
-model: {your model}
+Agent-specific additions (additive metadata only):
 
-checklist:
-  correctness:
-    verdict: pass | warn | fail
-    notes: "..."
-  error_handling:
-    verdict: pass | warn | fail
-    notes: "..."
-  readability:
-    verdict: pass | warn | fail
-    notes: "..."
-  security:
-    verdict: pass | warn | fail
-    notes: "..."
-  performance:
-    verdict: pass | warn | fail
-    notes: "..."
-  spec_alignment:
-    verdict: pass | warn | fail
-    notes: "..."
-
-blocking_issues: []
-advisory_notes: []
-result: pass | fail
-```
+- `reviewer: agent`
+- `review_method: agent-assisted`
+- `model: {your model}` — the model that produced this review
 
 ## Rules
 
 - Be thorough but fair — flag real issues, not style preferences
 - `fail` on any checklist item means the overall `result` is `fail`
-- `warn` does not cause overall failure but must appear in `advisory_notes`
-- Always include at least one advisory note, even for clean implementations
+- `warn` does not cause overall failure but must have a corresponding entry in `observations` (warn-tier semantics are defined in the rubric)
+- Always include at least one entry in `observations`, even for clean implementations
 - Focus on bugs, security vulnerabilities, and maintenance problems — not aesthetic choices
 - Do not suggest refactoring unless it fixes a concrete problem (correctness, security, or performance)
 - Reference specific file paths and line numbers in checklist notes and blocking issues
