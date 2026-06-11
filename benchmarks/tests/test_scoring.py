@@ -498,10 +498,53 @@ def test_score_spec_parses_usage_from_json_envelope(tmp_path):
     assert scorecard["scores"]["overall"] == 7.3
     assert scorecard["scorer"]["tokens_in"] == 1234
     assert scorecard["scorer"]["tokens_out"] == 567
+    # Absent cache fields in a present usage block record as 0 in the breakdown
+    assert scorecard["scorer"]["tokens_in_components"] == {
+        "input_tokens": 1234,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    }
 
     # Persisted scorecard carries the same provenance
     written = yaml.safe_load((tmp_path / "scorecard-v0.yml").read_text())
     assert written["scorer"]["tokens_in"] == 1234
+
+
+def test_score_spec_sums_cache_tokens_into_tokens_in(tmp_path):
+    """Realistic envelope: cache fields carry nearly the whole prompt — tokens_in
+    must be cache-inclusive, with components recorded for per-tier pricing."""
+    spec_file = tmp_path / "spec.md"
+    spec_file.write_text("# Spec")
+
+    # Real proportions observed from the live CLI: input_tokens single-digit,
+    # cache fields carrying ~48k.
+    envelope = json.dumps({
+        "type": "result",
+        "result": SAMPLE_SCORECARD_YAML,
+        "usage": {
+            "input_tokens": 10,
+            "cache_creation_input_tokens": 30591,
+            "cache_read_input_tokens": 17302,
+            "output_tokens": 567,
+        },
+    })
+
+    with patch("spec_bench.scoring.subprocess.run") as mock_run:
+        mock_run.return_value = _mock_scorer_run(stdout=envelope)
+        scorecard = score_spec(spec_file, tmp_path)
+
+    assert scorecard["scorer"]["tokens_in"] == 10 + 30591 + 17302
+    assert scorecard["scorer"]["tokens_out"] == 567
+    assert scorecard["scorer"]["tokens_in_components"] == {
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 30591,
+        "cache_read_input_tokens": 17302,
+    }
+
+    # Persisted scorecard carries the cache-inclusive provenance
+    written = yaml.safe_load((tmp_path / "scorecard-v0.yml").read_text())
+    assert written["scorer"]["tokens_in"] == 47903
+    assert written["scorer"]["tokens_in_components"]["cache_read_input_tokens"] == 17302
 
 
 def test_score_spec_null_tokens_when_usage_unavailable(tmp_path):
@@ -515,6 +558,60 @@ def test_score_spec_null_tokens_when_usage_unavailable(tmp_path):
 
     assert scorecard["scorer"]["tokens_in"] is None
     assert scorecard["scorer"]["tokens_out"] is None
+    assert scorecard["scorer"]["tokens_in_components"] is None
+
+
+def test_parse_envelope_dict_without_result_returns_raw():
+    """A JSON dict without a 'result' key falls back to the raw stdout —
+    parse_scorecard_yaml's error then shows the actual response, not garbage."""
+    from spec_bench.scoring import _parse_claude_json_envelope
+
+    raw = json.dumps({"type": "error", "message": "something went wrong"})
+    text, tokens_in, tokens_out, components = _parse_claude_json_envelope(raw)
+    assert (text, tokens_in, tokens_out) == (raw, None, None)
+    assert components is None
+
+
+def test_parse_envelope_result_without_usage_returns_null_tokens():
+    """A 'result'-bearing envelope with no usage block yields the result text
+    and None token counts — never 0."""
+    from spec_bench.scoring import _parse_claude_json_envelope
+
+    raw = json.dumps({"type": "result", "result": "scores: {}"})
+    text, tokens_in, tokens_out, components = _parse_claude_json_envelope(raw)
+    assert (text, tokens_in, tokens_out) == ("scores: {}", None, None)
+    assert components is None
+
+
+def test_score_spec_provenance_records_post_map_model(tmp_path):
+    """Alias model forms (sonnet-4-6) map to floating CLI aliases — provenance
+    must record what was actually passed to --model, not the pre-map value."""
+    spec_file = tmp_path / "spec.md"
+    spec_file.write_text("# Spec")
+
+    with patch("spec_bench.scoring.subprocess.run") as mock_run:
+        mock_run.return_value = _mock_scorer_run()
+        scorecard = score_spec(spec_file, tmp_path, model="sonnet-4-6")
+
+    cmd = mock_run.call_args[0][0]
+    assert cmd[cmd.index("--model") + 1] == "sonnet"
+    # Provenance asserts the model the CLI actually ran
+    assert scorecard["scorer"]["model"] == "sonnet"
+
+    written = yaml.safe_load((tmp_path / "scorecard-v0.yml").read_text())
+    assert written["scorer"]["model"] == "sonnet"
+
+
+def test_resolve_production_rubric_anchored_to_plugin_root():
+    """The walk-up resolves the rubric at the plugin root (marked by
+    .claude-plugin/plugin.json) and never inside benchmarks/."""
+    from spec_bench.scoring import _resolve_production_rubric
+
+    rubric = _resolve_production_rubric()
+    assert rubric.name == "spec-quality.md"
+    root = rubric.parent.parent
+    assert (root / ".claude-plugin" / "plugin.json").exists()
+    assert root.name != "benchmarks"
 
 
 def test_iterate_spec_accumulates_scorer_tokens(tmp_path):
@@ -747,3 +844,28 @@ def test_iteration_log_records_scorer_provenance(tmp_path):
     _, kwargs = mock_score.call_args
     assert kwargs["model"] == "claude-opus-4-6"
     assert kwargs["rubric_source"] == "production"
+
+
+def test_iteration_log_records_post_map_scorer_model(tmp_path):
+    """Alias scorer_model forms record the post-map value the CLI actually ran."""
+    spec_dir = tmp_path / "specs" / "test-target"
+    spec_dir.mkdir(parents=True)
+    (spec_dir / "spec-v0.md").write_text("# Good spec")
+
+    target = Target(id="test-target", harness="claude-code", model="opus-4-6", process="vanilla")
+
+    with patch("spec_bench.scoring.score_spec") as mock_score:
+        mock_score.return_value = yaml.safe_load(PASSING_SCORECARD_YAML)
+        result = iterate_spec(
+            target=target,
+            spec_dir=spec_dir,
+            adapters_dir=tmp_path / "adapters",
+            prompts_dir=tmp_path / "prompts",
+            prd_path=tmp_path / "prd.md",
+            template_path=tmp_path / "template.md",
+            scorer_model="sonnet-4-6",
+        )
+
+    assert result["summary"]["scorer_model"] == "sonnet"
+    log = yaml.safe_load((spec_dir / "iteration-log.yml").read_text())
+    assert log["summary"]["scorer_model"] == "sonnet"

@@ -144,8 +144,39 @@ timestamp: 2026-03-03T11:00:00Z
 
 **Do NOT invent LLM-judged pseudo-tests to fill the gap** (e.g. "have a model read the skill and judge whether it would behave correctly"). Such tests are fragile and non-reproducible, and they manufacture false confidence. The honest evidence for a prompt-only changeset is structural validation plus an explicit rationale — not simulated test results.
 
+## Evidence Output Format (Combined `gate-2-quality.yml`)
+
+The per-check evidence blocks above describe what each check records. The combined file written to `{spec_dir}/{spec_name}/evidence/gate-2-quality.yml` is a **single YAML mapping** with this canonical shape — it is what `scripts/verify-evidence.sh` parses:
+
+```yaml
+gate: code-quality                  # string — always the literal "code-quality"
+spec_id: SPEC-042                   # string — from the spec's YAML frontmatter
+timestamp: 2026-03-03T11:00:00Z     # string — ISO 8601
+checks:                             # map — one entry per check that ran; nest the
+  tests_pass:                       # per-check evidence blocks from above here
+    command: "pytest tests/ -v"     # (command/rationale fields may live nested
+    exit_code: 0                    # inside check blocks — the verifier searches
+    tests_passed: 42                # both top-level and nested fields)
+    tests_failed: 0
+    result: pass
+  coverage:
+    status: not-applicable          # N/A entries use status + a non-empty rationale
+    rationale: "markdown-only changeset — no executable code paths to cover"
+notes:                              # list or string — commands run, context, N/A
+  - "Full suite run; no regressions"  # rationale; at least one non-empty
+                                      # command/rationale/notes field must exist
+                                      # somewhere in the file (top-level or nested)
+result: pass                        # REQUIRED top-level — pass | fail; the gate decision
+```
+
+Field requirements (what the mechanical verifier enforces):
+- The YAML root MUST be a mapping (not a list of evidence blocks)
+- A top-level `result:` field MUST be present with the gate decision
+- At least one non-empty `test_command` / `test_commands` / `commands` / `command` / `rationale` / `notes` field must exist — top-level or nested inside `checks.*` blocks. Recorded commands are never re-executed by the verifier.
+- Per-check outcome fields: use `result: pass | fail` for checks that ran, `status: not-applicable` + `rationale` for N/A entries (per the Prompt-Only Changesets section)
+
 ## Gate Decision
 
 - All required checks must pass
 - Optional checks only apply when their config flag is set to `true`
-- Write evidence to `{spec_dir}/{spec_name}/evidence/gate-2-quality.yml`
+- Write evidence to `{spec_dir}/{spec_name}/evidence/gate-2-quality.yml` in the combined format above

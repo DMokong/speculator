@@ -14,7 +14,7 @@ Impact awareness validation exists to catch this class of problem at spec time, 
 
 ## When to Run
 
-Run impact validation after 6-dimension scoring, but only when `SYSTEM-SPEC.md` is present and parseable in the project root or spec directory. Impact validation is **skipped** (silently) when:
+Run impact validation after 6-dimension scoring, but only when `SYSTEM-SPEC.md` is present and parseable at `{spec_dir}/SYSTEM-SPEC.md` (the resolved path is provided inline to the scorer by the invoking skill). Impact validation is **skipped** (silently) when:
 
 - No `SYSTEM-SPEC.md` exists (greenfield project)
 - `SYSTEM-SPEC.md` exists but contains 0 domain headers and 0 behavior entries (equivalent to greenfield)

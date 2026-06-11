@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.9.0 — Consolidation Release: gate registry, deterministic verification, scorer blinding (2026-06-12)
+
+Closes out the 2026-06-12 multi-agent review. Every change below was implemented, then adversarially re-verified by six independent review lenses (6 blocking + 30 should-fix findings found and fixed before this release).
+
+### Added
+- **`lib/gates.md`** — canonical gate registry (7 gates × evidence file, config key, threshold, phase position, rubric, scorer), enforced by test rather than dereferenced at runtime
+- **`tests/test-gate-wiring.sh`** — 79-assertion structural test: registry→touchpoint wiring + closure (every gate reference must have a registry row). Mutation-tested against all four historical half-wiring failure modes. Adding a gate now means one registry row + test failures enumerating every remaining touchpoint
+- **`scripts/verify-evidence.sh`** — first deterministic verification layer: mechanizes Gate 4's checklist, recomputes scorecard overalls from recorded weights (±0.05), validates result/threshold/minimum consistency, honors overrides. Invoked via `${CLAUDE_PLUGIN_ROOT}` from gate-check; self-tested in CI against dogfood evidence
+- **`skills/sdlc-close` + `skills/sdlc-implement`** — close/implement extracted from the router into dedicated skills (single source of truth; close ordering: beads closure → Gate 4 → status+lock release → delivery)
+- **Scorer blinding (Gate 1)** — spec-scorer receives only weights, dimension minimum, spec_dir, and risk signals inline; never the config path or any threshold. The invoking skill stamps `threshold`/`result` post-dispatch. Scorecards now record weights, making `overall` mechanically recomputable
+- **Opt-in gate awareness** — Gate 4 (evidence-package) requires enabled opt-in gate evidence (2a/2b, forward-compatible 2c); sdlc-status renders conditional opt-in rows; pipeline summary and PR body include enabled opt-in gates
+- **Canonical evidence schemas** — gate-3 schema (with `warn` tier) lives in rubrics/review.md; gate-2 schema in rubrics/code-quality.md; schema-versioning grace rules for historical evidence
+- **Prompt-only changesets** — N/A-rationale section in rubrics/code-quality.md (structural suites + documented rationale; no invented pseudo-tests)
+- **README**: "What a Run Costs" (dispatch counts per phase) and "Interruption & Resume" sections
+- **Doctor**: scoring-weights sum-to-1.0 config lint; WARN on unwired `gates.comprehension.enabled`
+- **Spec-Bench validation prerequisites**: pinned scorer model with post-map provenance, no-feedback control arm (`improvement_mode: feedback|control|none` + `matrix/feedback-ablation.yml`), production-rubric scoring option, cache-inclusive token accounting (null over fake zeros), CLI honors `runs_per_combination`. 101 tests (34 new since 2.8.1)
+
+### Changed
+- `SYSTEM-SPEC.md` moved from repo root to `docs/specs/` — where `{spec_dir}` consumers actually look; impact-awareness and compaction machinery now active in this repo
+- Position detection: resume rows for failed opt-in gate evidence (2a/2b retry)
+- Phase 2a autonomy mode derives from the recorded trust decision, not re-derived from raw score
+- ROADMAP: leaderboard deferred until ≥5 PRDs; drift detection preconditioned on SYSTEM-SPEC corpus; mutation-testing prerequisites documented
+- Benchmark published results carry methodology caveats (same-judge feedback loop, no control arm) pending the controlled re-run
+
 ## 2.8.1 — Trust Release: distribution resync, hook fix, CI (2026-06-12)
 
 ### Fixed

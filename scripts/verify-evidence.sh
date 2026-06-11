@@ -16,12 +16,16 @@
 #     (tolerance ±0.05 for rounding conventions; SKIP when the file records no
 #     weights — older evidence schemas don't)
 #   - recorded result consistent with recorded threshold + per-dimension minimums
-#   - gate-2 has a non-empty test command/rationale field; recorded test commands
-#     are NEVER re-executed (cross-repo / DB-dependent / sometimes manual)
+#     + blocking flags (a recorded `fail` with a non-empty override justification
+#     is always consistent — the legitimate human-override path)
+#   - gate-2 has a non-empty test command/rationale field, top-level or nested
+#     under per-check blocks (checks.*.command); recorded test commands are
+#     NEVER re-executed (cross-repo / DB-dependent / sometimes manual)
 #   - opt-in gates enabled in .claude/sdlc.local.md (eval-intent, eval-quality,
 #     comprehension) must have their evidence file (gate-2a/2b/2c). A missing
 #     file is a WARN by default — a policy gap, since the gate may have been
-#     enabled after the spec closed — and a FAIL with --strict.
+#     enabled after the spec closed — and a FAIL with --strict. A present opt-in
+#     file may record `result: n/a` (e.g. gate enabled post-closure, with rationale).
 #
 # Usage: scripts/verify-evidence.sh [--strict] <spec-dir>
 #   e.g. scripts/verify-evidence.sh docs/specs/my-feature
@@ -151,9 +155,11 @@ def is_num(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
-def check_common(name, path):
+def check_common(name, path, allow_na=False, na_note=""):
     """Exists / parses / result field / result pass / blocking flags.
 
+    allow_na: accept a recorded `result: n/a` (legitimate for opt-in gates —
+    e.g. a gate enabled after the spec closed, recorded with a rationale).
     Returns the parsed dict, or None if deeper checks are impossible.
     """
     if not os.path.isfile(path):
@@ -175,8 +181,9 @@ def check_common(name, path):
         fail(f"{name}: no result field")
     else:
         result = str(data.get("result") or "").strip().lower()
-        if result == "pass":
-            ok(f"{name}: result: pass")
+        if result == "pass" or (allow_na and result in ("n/a", "na")):
+            note = f" ({na_note})" if (result != "pass" and na_note) else ""
+            ok(f"{name}: result: {result}{note}")
         else:
             j = override_justification(data)
             if j:
@@ -229,7 +236,9 @@ def check_scorecard(name, data):
             else:
                 fail(f"{name}: recorded overall {overall} != recomputed {computed:.3f} (tolerance ±0.05)")
 
-    # result consistency vs recorded threshold + per-dimension minimums
+    # result consistency vs recorded threshold + per-dimension minimums +
+    # blocking flags (mirrors the full stamp rule in spec-score SKILL.md step 4:
+    # pass only if overall >= threshold AND dims >= minimum AND no blocking flags)
     threshold = data.get("threshold")
     dim_min = data.get("dimension_minimum", data.get("per_dimension_minimum"))
     result = str(data.get("result") or "").strip().lower()
@@ -242,26 +251,72 @@ def check_scorecard(name, data):
         low = sorted(d for d, v in dims.items() if v < float(dim_min))
         if low:
             expected = "fail"
-    if result == expected or (expected == "fail" and override_justification(data)):
+    blocking = []
+    flags = data.get("flags")
+    if isinstance(flags, dict) and flags.get("blocking"):
+        blocking.extend(flags["blocking"])
+    if data.get("blocking_issues"):
+        blocking.extend(data["blocking_issues"])
+    if blocking and not override_justification(data):
+        # Unresolved blocking flags force the stamped result to fail.
+        expected = "fail"
+    # A recorded `fail` paired with an override (non-empty justification) is
+    # always consistent — the legitimate human-override path stamps fail and
+    # records why (regardless of whether the fail came from score, dims, or flags).
+    if (result == expected
+            or (result == "fail" and override_justification(data))
+            or (expected == "fail" and override_justification(data))):
         detail = f"overall {overall} vs threshold {threshold}"
         if is_num(dim_min):
             detail += f", dimension minimum {dim_min}"
+        if blocking:
+            detail += f", {len(blocking)} blocking flag(s)"
+        if result != expected:
+            detail += " — recorded override accepted"
         ok(f"{name}: recorded result '{result}' consistent with {detail}")
     else:
         why = f"overall {overall} vs threshold {threshold}"
         if low:
             why += f"; dimension(s) below minimum {dim_min}: {', '.join(low)}"
+        if blocking:
+            why += f"; {len(blocking)} unresolved blocking flag(s)"
         fail(f"{name}: recorded result '{result}' inconsistent — expected '{expected}' ({why})")
 
 
-def check_gate2(name, data):
-    """A non-empty test command/rationale field must exist. Never re-execute it."""
-    for field in ("test_command", "test_commands", "commands", "command", "rationale", "notes"):
-        v = data.get(field)
+GATE2_FIELDS = ("test_command", "test_commands", "commands", "command", "rationale", "notes")
+
+
+def _find_gate2_field(node, depth=0):
+    """Search a mapping (recursively, e.g. under `checks.*`) for a non-empty
+    command/rationale field. Real Gate 2 evidence nests `command` inside
+    per-check blocks like `checks.tests_pass.command`."""
+    if not isinstance(node, dict) or depth > 4:
+        return None
+    for field in GATE2_FIELDS:
+        v = node.get(field)
         if (isinstance(v, str) and v.strip()) or (isinstance(v, (list, dict)) and v):
-            ok(f"{name}: non-empty '{field}' field present (recorded commands are not re-executed)")
-            return
-    fail(f"{name}: no non-empty test command/rationale field "
+            return field
+    for v in node.values():
+        if isinstance(v, dict):
+            found = _find_gate2_field(v, depth + 1)
+            if found:
+                return found
+        elif isinstance(v, list):
+            for item in v:
+                found = _find_gate2_field(item, depth + 1)
+                if found:
+                    return found
+    return None
+
+
+def check_gate2(name, data):
+    """A non-empty test command/rationale field must exist (top-level or nested
+    inside per-check blocks). Never re-execute recorded commands."""
+    field = _find_gate2_field(data)
+    if field:
+        ok(f"{name}: non-empty '{field}' field present (recorded commands are not re-executed)")
+        return
+    fail(f"{name}: no non-empty test command/rationale field, top-level or nested "
          "(looked for: test_command, test_commands, commands, command, rationale, notes)")
 
 
@@ -308,7 +363,14 @@ for gate_name, fname, kind in (("eval-intent", "gate-2a-eval-intent.yml", "score
                  "closed); use --strict to fail on this")
         continue
     # File present (whether or not the gate is currently enabled): verify integrity.
-    data = check_common(fname, path)
+    # `result: n/a` is a legitimate recorded value for opt-in gates (e.g. recorded
+    # with rationale "gate enabled post-closure" per rubrics/evidence-package.md).
+    na_note = ("legitimate for opt-in gates — verify a rationale is recorded"
+               if enabled else "opt-in gate disabled")
+    data = check_common(fname, path, allow_na=True, na_note=na_note)
+    if data is not None and enabled and str(data.get("result") or "").strip().lower() in ("n/a", "na"):
+        warn(f"{fname}: gates.{gate_name}.enabled is true but result is 'n/a' — "
+             "acceptable only with a recorded rationale (e.g. gate enabled post-closure)")
     if data is not None and kind == "scorecard":
         check_scorecard(fname, data)
 

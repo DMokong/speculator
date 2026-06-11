@@ -63,7 +63,7 @@ How to verify:
 1. Look for `{spec_dir}/{spec_name}/evidence/gate-3-review.yml`
 2. Parse the YAML and check that the `result` field is `pass`
 3. If the file is missing, result is `missing`. If present but `result` is not `pass`, result is `fail`
-4. Additionally count any `warn` verdicts in the `checks` section — warns never affect pass/fail, but they must be surfaced in the gate-4 summary (`review_warnings`) so non-blocking findings aren't silently dropped at merge time
+4. Additionally count any `warn` verdicts in the `checks` section — warns never affect pass/fail, but they must be surfaced in the gate-4 summary (`gates.review.warnings` in the Evidence Output Format below) so non-blocking findings aren't silently dropped at merge time
 
 ### 7. No Blocking Flags (required)
 
@@ -93,6 +93,13 @@ How to verify:
 2. If no epic exists, this check is `n/a` and does not block
 3. If an epic exists, run `bd show <epic_id>` and verify all child stories have status `closed`
 4. Pass if all stories are closed; fail if any are open
+
+## Schema Versioning & Historical Evidence
+
+Two grace rules keep this checklist from retroactively failing specs that closed under earlier plugin versions:
+
+- **Earlier-schema evidence is verified structurally only.** Evidence files produced by earlier plugin versions (e.g. a flat `checks:` map without per-check `verdict`/`notes` nesting, or a scorecard without a `weights:` block) are verified for structural validity — present, parseable, `result` field recorded — not for conformance to the current canonical schemas. Do not fail a closed spec because its evidence predates a schema change.
+- **Opt-in gates enabled after a spec closed**: when an opt-in gate (checks 3–5) was enabled in the project config AFTER the spec closed, the gate's evidence is recorded as `n/a` with the rationale `"gate enabled post-closure"` — not treated as `missing`. This matches the WARN behavior of `scripts/verify-evidence.sh` for the same condition.
 
 ## Gate Decision
 

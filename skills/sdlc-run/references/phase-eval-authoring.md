@@ -9,7 +9,7 @@ It executes after Phase 2 (Plan Creation) and before Phase 3 (Implementation).
    - Spec path
    - Project config path (`.claude/sdlc.local.md`)
    - Worktree base directory
-   - Mode: `full_auto` if trust score ≥ full_auto_threshold, else `interactive`
+   - Mode: `full_auto` if the spec frontmatter's recorded `autonomy_mode` is `full_auto`, else `interactive`. Use the recorded trust decision from Phase 1 — do NOT re-derive the mode from the raw score (hard gates like `risk_level: high` or a `risk_mismatch` flag force Guided regardless of score, and re-deriving would skip the guided eval-review checkpoint those gates exist to enforce).
 
 3. **Guided mode checkpoint** (handled by the skill in step 8 of eval-authoring):
    - The skill presents authored evals for review before scoring

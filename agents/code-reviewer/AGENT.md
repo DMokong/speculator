@@ -32,7 +32,7 @@ You will be told:
 5. Review each relevant file against the 6-point checklist
 6. For each checklist item, assign a verdict: `pass`, `warn`, or `fail`
 7. Collect blocking issues (anything that must be fixed before merge) and non-blocking observations
-8. Determine the overall result: `fail` if any checklist item is `fail`, otherwise `pass` (`warn` never affects the result)
+8. Determine the overall result per the rubric's Gate Decision: `fail` if any checklist item is `fail` OR `blocking_issues` is non-empty; otherwise `pass` (`warn` never affects the result)
 9. Write the review evidence YAML to the specified output path, exactly per the canonical schema in `${CLAUDE_PLUGIN_ROOT}/rubrics/review.md` (see Output Format below)
 
 ## Mandatory Secrets Scan
@@ -147,16 +147,19 @@ Emit evidence **exactly per the canonical schema** in `${CLAUDE_PLUGIN_ROOT}/rub
 
 Write the review evidence to the specified path. Create parent directories if they don't exist.
 
+Values for the canonical `reviewer` and `review_method` fields (these are schema fields, not additions):
+
+- `reviewer: code-reviewer` — a name, per the rubric's field definition ("use a name, not a role")
+- `review_method: agent-assisted`
+
 Agent-specific additions (additive metadata only):
 
-- `reviewer: agent`
-- `review_method: agent-assisted`
 - `model: {your model}` — the model that produced this review
 
 ## Rules
 
 - Be thorough but fair — flag real issues, not style preferences
-- `fail` on any checklist item means the overall `result` is `fail`
+- `fail` on any checklist item, OR a non-empty `blocking_issues` list, means the overall `result` is `fail` (the rubric's Gate Decision requires both conditions clear)
 - `warn` does not cause overall failure but must have a corresponding entry in `observations` (warn-tier semantics are defined in the rubric)
 - Always include at least one entry in `observations`, even for clean implementations
 - Focus on bugs, security vulnerabilities, and maintenance problems — not aesthetic choices

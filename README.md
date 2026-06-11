@@ -256,6 +256,7 @@ Gate 3 runs three checks — all blocking on failure:
 | Command | Description |
 |---------|-------------|
 | `/spec start` | Create spec from template + git worktree + beads epic |
+| `/spec create` | Alias for `/spec start` — formalize a brainstormed plan into spec.md |
 | `/spec score` | Gate 1: LLM-as-judge spec quality scoring (6 dimensions) |
 | `/spec eval` | Gate 2a (opt-in): Pre-implementation eval authoring + intent scoring (4 dimensions) |
 | `/spec implement` | Create implementation plan + beads stories + execute tasks |
@@ -321,7 +322,7 @@ The scorer validates the declaration against spec content — if risk keywords a
 
 ### What a Run Costs
 
-A run's cost is measured in agent dispatches. Every count below is derivable from config (`.claude/sdlc.local.md`):
+A run's cost is measured in agent dispatches. The retry caps below are derivable from config (`.claude/sdlc.local.md`); the ×1 dispatches and single re-dispatches are fixed by the phase design:
 
 | Phase | Agent dispatches |
 |-------|------------------|
@@ -338,7 +339,7 @@ Order of magnitude: a Full Auto run is **tens of agent invocations, not a few**.
 
 ### Interruption & Resume
 
-Every phase commits a checkpoint when it completes. Pipeline position is re-derived purely from which evidence files exist — there is no separate state file to lose or corrupt. To resume an interrupted run, re-run `/sdlc run`: it detects the last completed checkpoint and continues from there. In headless contexts, Guided checkpoints degrade to commit-work-and-exit-with-instructions — the pipeline commits its work, prints how to continue, and exits cleanly instead of blocking on input.
+Every phase commits a checkpoint when it completes. Pipeline position is re-derived from which artifacts exist (evidence files and the plan) plus gate config — there is no separate state file to lose or corrupt. To resume an interrupted run, re-run `/sdlc run`: it detects the last completed checkpoint and continues from there. In headless contexts, Guided checkpoints degrade to commit-work-and-exit-with-instructions — the pipeline commits its work, prints how to continue, and exits cleanly instead of blocking on input.
 
 ## Spec Drift Detection
 
@@ -477,13 +478,15 @@ Run `/spec doctor --init` in a fresh project to generate a default `.claude/sdlc
 
 ```
 speculator/
-├── skills/                          # 9 skills
+├── skills/                          # 11 skills
 │   ├── sdlc/SKILL.md                # Master orchestrator (routes /spec subcommands)
 │   ├── spec-create/SKILL.md         # /spec start    — spec + worktree + beads epic
 │   ├── spec-score/SKILL.md          # /spec score    — Gate 1 via spec-scorer agent
 │   ├── eval-authoring/SKILL.md      # /spec eval     — Gate 2a authoring loop (opt-in, v2.8.0)
+│   ├── sdlc-implement/SKILL.md      # /spec implement — plan + beads stories + execution handoff
 │   ├── gate-check/SKILL.md          # /spec gate     — check/run any gate
 │   ├── sdlc-run/SKILL.md            # /spec run      — autonomous pipeline orchestrator
+│   ├── sdlc-close/SKILL.md          # /spec close    — Gate 4 evidence + delivery + SYSTEM-SPEC compaction
 │   ├── sdlc-status/SKILL.md         # /spec status   — cross-worktree pipeline view
 │   ├── sdlc-doctor/SKILL.md         # /spec doctor   — diagnostics + auto-fix
 │   └── spec-compact/SKILL.md        # /spec compact  — bootstrap or single-spec compaction
@@ -509,17 +512,24 @@ speculator/
 ├── hooks/
 │   └── hooks.json                   # PreToolUse: pre-commit gate warning
 ├── lib/
+│   ├── gates.md                     # Canonical gate registry (enforced by tests/test-gate-wiring.sh)
 │   └── spec-resolution.md           # Spec identification algorithm + worktree redirect + lock semantics
+├── scripts/
+│   └── verify-evidence.sh           # Deterministic evidence-package verifier (mechanizes Gate 4 checks)
 ├── tests/
 │   ├── test-eval-intent-structure.sh  # 30 structural tests for Gate 2a wiring
 │   ├── test-secrets-scan.sh           # 25 tests validating Gate 3 secrets-scan patterns
+│   ├── test-gate-wiring.sh            # Registry-driven gate wiring consistency (both directions)
 │   └── fixtures/                       # Sample evals + clean/fake-secret fixtures
 ├── benchmarks/                      # Spec-Bench harness (see § Spec-Bench below)
 ├── docs/
-│   └── specs/                        # Speculator's own specs (dogfooded)
+│   └── specs/                        # Speculator's own specs (dogfooded) + SYSTEM-SPEC.md (living spec)
+├── .github/workflows/
+│   └── ci.yml                       # Structural suites + verify-evidence checks + Spec-Bench pytest + version consistency
 ├── CHANGELOG.md
 ├── MANIFESTO.md
 ├── ROADMAP.md
+├── RELEASE.md
 ├── LICENSE
 └── README.md
 ```

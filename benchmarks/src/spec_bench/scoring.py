@@ -149,20 +149,30 @@ flags:
 
 
 def _resolve_production_rubric() -> Path:
-    """Locate the shipped judge rubric (rubrics/spec-quality.md) at the repo root.
+    """Locate the shipped judge rubric (rubrics/spec-quality.md) at the plugin root.
 
-    Walks up from this file's directory so the path survives the package being
-    installed in editable mode or the benchmarks dir being relocated. Raises
-    FileNotFoundError with the searched roots if the rubric cannot be found.
+    Walks up from this file's directory (cwd-independent) so the path survives
+    the package being installed in editable mode or the benchmarks dir being
+    relocated. A candidate is accepted only when its parent is the actual
+    plugin root — marked by a sibling .claude-plugin/plugin.json — and the
+    benchmarks/ dir is skipped explicitly, so benchmarks/rubrics/ (or any other
+    intermediate rubrics/ dir) can never shadow the shipped judge rubric.
+    Raises FileNotFoundError with the searched roots if the rubric cannot be
+    found.
     """
     searched = []
     for parent in Path(__file__).resolve().parents:
+        if parent.name == "benchmarks":
+            # benchmarks/rubrics/ holds benchmark-local rubrics (e.g.
+            # outcome-rubric.md) — never the production judge rubric.
+            continue
         candidate = parent / "rubrics" / "spec-quality.md"
-        if candidate.exists():
+        if candidate.exists() and (parent / ".claude-plugin" / "plugin.json").exists():
             return candidate
         searched.append(str(candidate))
     raise FileNotFoundError(
-        "Production rubric not found. Searched:\n" + "\n".join(searched)
+        "Production rubric not found (looked for rubrics/spec-quality.md beside "
+        ".claude-plugin/plugin.json). Searched:\n" + "\n".join(searched)
     )
 
 
@@ -271,8 +281,21 @@ def _build_scoring_prompt(spec_content: str, rubric_source: str = "inline") -> s
     )
 
 
-def _parse_claude_json_envelope(stdout: str) -> tuple[str, Optional[int], Optional[int]]:
-    """Extract (response_text, tokens_in, tokens_out) from `claude -p --output-format json`.
+def _parse_claude_json_envelope(
+    stdout: str,
+) -> tuple[str, Optional[int], Optional[int], Optional[dict]]:
+    """Extract (response_text, tokens_in, tokens_out, tokens_in_components)
+    from `claude -p --output-format json`.
+
+    tokens_in is the FULL input-side count: input_tokens plus
+    cache_creation_input_tokens plus cache_read_input_tokens. With prompt
+    caching, almost the entire prompt lands in the cache fields (empirically:
+    input_tokens ~10 while cache fields carry ~48k), so summing only
+    input_tokens undercounts by orders of magnitude.
+
+    tokens_in_components records the three input-side fields separately so
+    cost can still be computed with per-tier pricing (cache writes/reads are
+    priced differently from fresh input).
 
     Token counts are None — not 0 — when usage is unavailable (e.g. plain-text
     output from an older CLI). Zeros masquerade as measurements.
@@ -280,18 +303,37 @@ def _parse_claude_json_envelope(stdout: str) -> tuple[str, Optional[int], Option
     try:
         envelope = json.loads(stdout)
     except (json.JSONDecodeError, TypeError):
-        return stdout, None, None
+        return stdout, None, None, None
 
     if not isinstance(envelope, dict) or "result" not in envelope:
-        return stdout, None, None
+        return stdout, None, None, None
 
     usage = envelope.get("usage") or {}
-    tokens_in = usage.get("input_tokens")
+    input_fields = {
+        name: usage.get(name)
+        for name in (
+            "input_tokens",
+            "cache_creation_input_tokens",
+            "cache_read_input_tokens",
+        )
+    }
+    measured_inputs = {
+        name: int(v)
+        for name, v in input_fields.items()
+        if isinstance(v, (int, float))
+    }
+    tokens_in = sum(measured_inputs.values()) if measured_inputs else None
+    components = (
+        {name: measured_inputs.get(name, 0) for name in input_fields}
+        if measured_inputs
+        else None
+    )
     tokens_out = usage.get("output_tokens")
     return (
         str(envelope.get("result", "")),
-        int(tokens_in) if isinstance(tokens_in, (int, float)) else None,
+        tokens_in,
         int(tokens_out) if isinstance(tokens_out, (int, float)) else None,
+        components,
     )
 
 
@@ -324,12 +366,18 @@ def score_spec(
     spec_content = spec_path.read_text()
     prompt = _build_scoring_prompt(spec_content, rubric_source=rubric_source)
 
+    # Resolve the model BEFORE the call so provenance records the value that
+    # was actually passed to --model. Alias forms (e.g. sonnet-4-6) map to
+    # floating CLI aliases — recording the pre-map value would assert a model
+    # ID the CLI never ran.
+    cli_model = _map_claude_model(model)
+
     result = subprocess.run(
         [
             _resolve_claude_bin(),
             "-p", prompt,
             "--dangerously-skip-permissions",
-            "--model", _map_claude_model(model),
+            "--model", cli_model,
             "--output-format", "json",
         ],
         capture_output=True,
@@ -342,16 +390,21 @@ def score_spec(
             f"Scorer failed (exit {result.returncode}): {result.stderr[:500]}"
         )
 
-    response_text, tokens_in, tokens_out = _parse_claude_json_envelope(result.stdout)
+    response_text, tokens_in, tokens_out, tokens_in_components = (
+        _parse_claude_json_envelope(result.stdout)
+    )
     scorecard = parse_scorecard_yaml(response_text)
 
     # Provenance: record which model/rubric produced these scores and what
-    # they cost. Token counts are None when unmeasured, never 0.
+    # they cost. Token counts are None when unmeasured, never 0. tokens_in is
+    # cache-inclusive; tokens_in_components keeps the per-tier breakdown so
+    # per-tier pricing stays possible.
     scorecard["scorer"] = {
-        "model": model,
+        "model": cli_model,
         "rubric_source": rubric_source,
         "tokens_in": tokens_in,
         "tokens_out": tokens_out,
+        "tokens_in_components": tokens_in_components,
     }
 
     # Write scorecard to output dir
@@ -431,7 +484,15 @@ def build_control_prompt(
 
 
 def _scorecard_tokens(scorecard: dict) -> Optional[int]:
-    """Sum the scorer token usage recorded on a scorecard, or None if unmeasured."""
+    """Sum the scorer token usage recorded on a scorecard, or None if unmeasured.
+
+    Deliberately NO `> 0` guard here, unlike _adapter_tokens/_token_count:
+    scorecard token counts come from the claude CLI's JSON envelope, where a
+    numeric value is a real measurement (the envelope reports actual usage —
+    a 0 means zero tokens, not "scrape found nothing"). The `> 0` guard exists
+    only for adapter-scraped metrics, which write 0 when the scrape fails.
+    Unmeasured envelope values are already None, filtered by isinstance.
+    """
     scorer = scorecard.get("scorer") or {}
     measured = [
         int(v) for v in (scorer.get("tokens_in"), scorer.get("tokens_out"))
@@ -537,7 +598,8 @@ def iterate_spec(
             elapsed=time.time() - start_time,
             total_tokens=token_total if tokens_measured else None,
             pass_threshold=pass_threshold,
-            scorer_model=scorer_model,
+            # Post-map value — what was actually passed to the CLI's --model
+            scorer_model=_map_claude_model(scorer_model),
             improvement_mode=improvement_mode,
             rubric_source=rubric_source,
         )
@@ -643,7 +705,8 @@ def iterate_spec(
         elapsed=time.time() - start_time,
         total_tokens=token_total if tokens_measured else None,
         pass_threshold=pass_threshold,
-        scorer_model=scorer_model,
+        # Post-map value — what was actually passed to the CLI's --model
+        scorer_model=_map_claude_model(scorer_model),
         improvement_mode=improvement_mode,
         rubric_source=rubric_source,
     )

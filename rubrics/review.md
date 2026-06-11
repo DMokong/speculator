@@ -132,6 +132,8 @@ When requesting changes, clearly identify which checks failed and list blocking 
 
 This is the **canonical schema** for `gate-3-review.yml`. Every producer of Gate 3 evidence MUST emit exactly this structure — same field names, same types, same verdict values. Producers may append producer-specific metadata fields (e.g., the code-reviewer agent adds `model`) but must never rename, restructure, or omit canonical fields.
 
+> **Schema versioning**: evidence produced by earlier plugin versions (e.g. a flat `checks: {correctness: pass}` map without per-check `verdict`/`notes` nesting) is verified structurally only — present, parseable, `result` field recorded. The canonical schema below applies to evidence produced from this version onward; do not retroactively fail or regenerate historical evidence.
+
 Write evidence to `{spec_dir}/{spec_name}/evidence/gate-3-review.yml`:
 
 ```yaml

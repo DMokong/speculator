@@ -12,10 +12,13 @@ benchmark:
     model: opus-4-6
 
   # Validation experiment: does scorer feedback improve specs beyond the
-  # compute of an extra revision pass? Both arms run identical revision-pass
-  # budgets; only the revision prompt differs (scorer flags vs. a generic
-  # "improve this spec" instruction). Scorer model pinned; production rubric
-  # so scoring matches the shipped judge.
+  # compute of an extra revision pass? Both arms run identical max revision
+  # budgets (early-stop on pass in both arms); only the revision prompt
+  # differs (scorer flags vs. a generic "improve this spec" instruction).
+  # Realized pass counts are score-dependent — when analyzing results,
+  # compare iterations_needed (iteration-log.yml summary) across arms.
+  # Scorer model pinned; production rubric so scoring matches the shipped
+  # judge.
   scorer:
     model: claude-sonnet-4-6
     rubric_source: production

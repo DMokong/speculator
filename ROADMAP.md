@@ -176,13 +176,16 @@ The agent code is mostly mechanical. **Calibration is the build.** A confidently
 - **Post-implementation quality tracing.** Connect Gate 2 failures, Gate 3 blockers, and post-merge bugs back to the originating spec so we can answer "what spec gaps cost us?" empirically. Requires a thin telemetry layer over the existing evidence files.
 - **Risk-level-bound gate enablement.** Today opt-in gates are global on/off via `sdlc.local.md`. Binding Gate 2c to `risk_level: high` (and similar) lets teams adopt it where it matters most without paying the latency tax on trivial specs.
 - **NBJ "Explanation Artifact" 4-question template** as an optional Gate 2c output mode. The Apr 21 follow-up describes a labor-market-friendly format ("what is this code doing / what assumptions / what could break / what would I change") that doubles as a hiring signal. Gate 2c could emit either the structured YAML *or* the 4-question prose, configurable per project.
-- **Promote `/sdlc implement` to its own skill file** for symmetry with the rest of the skills directory.
 - **Add a `Makefile`** target for `test`, `lint`, and the full structural validation pass — currently each suite is a separate manual command.
-- **`RELEASE.md`** documenting the three-step release dance (plugin repo → marketplace repo → local cache copy) plus the known landmines (e.g. `.claude/` paths sometimes block Bash mkdir).
 - **Hard-block mode for the pre-commit hook.** Today it's warning-only (`hooks/hooks.json`); v3 could let users opt into a hard block once the warning has trained the workflow.
 - **Test-runner-driven discovery in `eval-quality-scorer`.** Today the agent globs for fixed patterns (`**/test_*.py`, `**/*.test.ts`, etc.). Reading `pytest.ini` / `vitest.config.ts` / `cargo.toml` would generalize discovery without hardcoded language assumptions.
-- **CI workflow.** No `.github/workflows/*.yml` exists today. A minimal workflow that runs the three test suites on PRs would catch most regressions.
-- **N/A rationale paragraph in `rubrics/code-quality.md`** for prompt-only specs — closes the loophole that's currently informal practice (record Gate 2 as N/A with explicit rationale rather than inventing fragile LLM tests).
+
+### Shipped from backlog
+
+- **`RELEASE.md`** — shipped v2.8.1. Documents the three-step release dance plus the known landmines.
+- **CI workflow** — shipped v2.8.1 (`.github/workflows/ci.yml`). Runs all three structural test suites, `verify-evidence.sh` checks, the Spec-Bench pytest suite, and a plugin.json/CHANGELOG version-consistency check on pushes and PRs.
+- **Promote `/sdlc implement` to its own skill file** — shipped v2.9.0: `skills/sdlc-implement/SKILL.md`.
+- **N/A rationale paragraph in `rubrics/code-quality.md`** — shipped v2.9.0: "Prompt-Only Changesets (N/A Rationale)" section formalizes the previously informal practice.
 
 ---
 

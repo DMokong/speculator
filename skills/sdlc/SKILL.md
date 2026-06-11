@@ -33,7 +33,7 @@ Based on the user's command, invoke the appropriate sub-skill. Both `/sdlc` and 
 |---------|--------|
 | `/sdlc` or `/spec` (no args) | Show pipeline status — invoke `sdlc-status` skill |
 | `/sdlc start` or `/spec start` | Create a new spec — invoke `spec-create` skill (runs doctor first) |
-| `/sdlc create` or `/spec create` | Alias for start — invoke `spec-create` skill (the README quickstart uses `/spec create` to formalize a brainstormed plan into spec.md) |
+| `/sdlc create` or `/spec create` | Alias for start — invoke `spec-create` skill (the README quickstart uses `/spec create` to formalize a brainstormed plan into spec.md). Deliberately NOT in the preamble skip-list: create may formalize a plan into an existing spec skeleton, so worktree/spec resolution still applies |
 | `/sdlc score` or `/spec score` | Score a spec (Gate 1) — invoke `spec-score` skill |
 | `/sdlc gate` or `/spec gate` | Check/run a gate — invoke `gate-check` skill |
 | `/sdlc status` or `/spec status` | Show pipeline status — invoke `sdlc-status` skill |

@@ -66,163 +66,172 @@ def run(ctx, prd, matrix, runs):
 
     all_results = []
 
-    for target in config.targets:
-        click.echo(f"\n--- Target: {target.id} ---")
+    # Honor runs_per_combination: repeat the full per-target pipeline once per
+    # run, suffixing artifact directories with -runN (mirroring run_benchmark's
+    # convention) so repeated runs never collide on disk.
+    for run_num in range(config.runs_per_combination):
+        run_suffix = f"-run{run_num + 1}" if config.runs_per_combination > 1 else ""
+        for target in config.targets:
+            target_run_id = f"{target.id}{run_suffix}"
+            click.echo(f"\n--- Target: {target_run_id} ---")
 
-        # Generate spec
-        spec_dir = run_dir / "specs" / target.id
-        spec_dir.mkdir(parents=True, exist_ok=True)
+            # Generate spec
+            spec_dir = run_dir / "specs" / target_run_id
+            spec_dir.mkdir(parents=True, exist_ok=True)
 
-        prompt_path = prompts_dir / "vanilla.md" if target.process == "vanilla" else None
+            prompt_path = prompts_dir / "vanilla.md" if target.process == "vanilla" else None
 
-        click.echo(f"  Generating spec...")
-        gen_result = run_target(
-            target=target,
-            output_dir=spec_dir,
-            prd_path=prd_path,
-            template_path=template_path,
-            prompt_path=prompt_path,
-            adapters_dir=adapters_dir,
-        )
-
-        if gen_result.status == "adapter_failed":
-            click.echo(f"  Adapter failed: {gen_result.error}")
-            all_results.append({
-                "target": target.id,
-                "status": "adapter_failed",
-                "error": gen_result.error,
-                "harness": target.harness,
-                "model": target.model,
-                "process": target.process,
-            })
-            continue
-
-        # Rename generated spec to spec-v0.md for the iteration loop
-        spec_output = spec_dir / "spec.md"
-        spec_v0 = spec_dir / "spec-v0.md"
-        if spec_output.exists():
-            spec_output.rename(spec_v0)
-
-        # Score and iterate. Per-target improvement_mode (paired arms) wins
-        # over the matrix-level scorer default.
-        improvement_mode = target.improvement_mode or config.scorer.improvement_mode
-        click.echo(f"  Scoring and iterating (mode: {improvement_mode})...")
-        iteration_log = iterate_spec(
-            target=target,
-            spec_dir=spec_dir,
-            adapters_dir=adapters_dir,
-            prompts_dir=prompts_dir,
-            prd_path=prd_path,
-            template_path=template_path,
-            scorer_model=config.scorer.model,
-            improvement_mode=improvement_mode,
-            rubric_source=config.scorer.rubric_source,
-        )
-
-        click.echo(f"  Score: {iteration_log['summary']['original_score']} → {iteration_log['summary']['final_score']}")
-        click.echo(f"  Iterations: {iteration_log['summary']['iterations_needed']}")
-        click.echo(f"  Passed: {'yes' if iteration_log['summary']['passed'] else 'no'}")
-
-        # Phase 2: Implementation (both original and improved)
-        for spec_version in ["original", "improved"]:
-            impl_id = f"{target.id}-{spec_version}"
-            impl_dir = run_dir / "implementations" / impl_id
-            impl_dir.mkdir(parents=True, exist_ok=True)
-
-            spec_file = spec_dir / f"spec-{'v0' if spec_version == 'original' else 'improved'}.md"
-            if not spec_file.exists():
-                continue
-
-            click.echo(f"  Implementing ({spec_version})...")
-
-            # Invoke constant implementer
-            impl_target = Target(
-                id=f"{target.id}-{spec_version}",
-                harness=config.constant_implementer.harness,
-                model=config.constant_implementer.model,
-                process=config.constant_implementer.process,
-            )
-
-            # Write the spec as the prompt for the implementer
-            impl_prompt_path = impl_dir / "impl-prompt.md"
-            impl_prompt_path.write_text(
-                f"Implement the following specification. All code must be created in the current working directory.\n\n"
-                f"Use the superpowers:writing-plans skill to write an implementation plan first, "
-                f"then use superpowers:executing-plans with superpowers:subagent-driven-development "
-                f"to execute the plan. Do not ask for user input — execute autonomously.\n\n"
-                f"Tech stack: Vite + React + TypeScript + Tailwind CSS. No other frameworks.\n\n"
-                f"{spec_file.read_text()}"
-            )
-
-            # Find Superpowers plugin — check standard install locations
-            superpowers_candidates = [
-                Path.home() / ".claude" / "plugins" / "cache" / "claude-plugins-official" / "superpowers",
-            ]
-            superpowers_path = None
-            for candidate in superpowers_candidates:
-                if candidate.exists():
-                    # Use the latest version directory
-                    versions = sorted(candidate.iterdir(), reverse=True)
-                    if versions:
-                        superpowers_path = versions[0]
-                        break
-            impl_result = run_target(
-                target=impl_target,
-                output_dir=impl_dir / "app",
-                prd_path=impl_prompt_path,
+            click.echo(f"  Generating spec...")
+            gen_result = run_target(
+                target=target,
+                output_dir=spec_dir,
+                prd_path=prd_path,
                 template_path=template_path,
-                prompt_path=None,
+                prompt_path=prompt_path,
                 adapters_dir=adapters_dir,
-                superpowers_path=superpowers_path if impl_target.process == "superpowers" else None,
             )
 
-            if impl_result.status == "adapter_failed":
-                click.echo(f"  Implementer failed: {impl_result.error}")
-
-            # Phase 3: Review (functional tests + judge)
-            # Only run if implementation produced an app
-            app_dir = impl_dir / "app"
-            if app_dir.exists():
-                click.echo(f"  Reviewing ({spec_version})...")
-
-                # Layer 1: Functional tests
-                functional_tests_path = bench_dir / "prds" / prd / "functional-tests.yml"
-                functional_results = run_functional_tests(
-                    app_dir=app_dir,
-                    functional_tests_path=functional_tests_path,
-                    output_dir=impl_dir,
-                )
-
-                # Layer 2: LLM-as-judge
-                judge_scorecard = run_judge(
-                    prd_path=prd_path,
-                    spec_path=spec_file,
-                    impl_dir=app_dir,
-                    rubric_path=rubric_path,
-                    output_dir=impl_dir,
-                    judge_model=config.judge_model,
-                )
-
-                # Token counts are None when unmeasured — record null, not 0
-                measured_tokens = [
-                    t for t in (gen_result.tokens_in, gen_result.tokens_out)
-                    if t is not None
-                ]
+            if gen_result.status == "adapter_failed":
+                click.echo(f"  Adapter failed: {gen_result.error}")
                 all_results.append({
                     "target": target.id,
-                    "spec_version": spec_version,
-                    "speculator_score": iteration_log["summary"]["final_score"] if spec_version == "improved" else iteration_log["summary"]["original_score"],
-                    "outcome_score": judge_scorecard.get("scores", {}).get("overall", 0),
-                    "functional_pass_rate": functional_results.get("summary", {}).get("pass_rate", "0/0"),
-                    "iterations_to_pass": iteration_log["summary"]["iterations_needed"],
-                    "total_tokens": sum(measured_tokens) if measured_tokens else None,
-                    "total_time_seconds": gen_result.wall_clock_seconds,
-                    "status": "completed",
+                    "status": "adapter_failed",
+                    "error": gen_result.error,
                     "harness": target.harness,
                     "model": target.model,
                     "process": target.process,
-                    "improvement_mode": improvement_mode,
                 })
+                continue
+
+            # Rename generated spec to spec-v0.md for the iteration loop
+            spec_output = spec_dir / "spec.md"
+            spec_v0 = spec_dir / "spec-v0.md"
+            if spec_output.exists():
+                spec_output.rename(spec_v0)
+
+            # Score and iterate. Per-target improvement_mode (paired arms) wins
+            # over the matrix-level scorer default.
+            improvement_mode = target.improvement_mode or config.scorer.improvement_mode
+            click.echo(f"  Scoring and iterating (mode: {improvement_mode})...")
+            iteration_log = iterate_spec(
+                target=target,
+                spec_dir=spec_dir,
+                adapters_dir=adapters_dir,
+                prompts_dir=prompts_dir,
+                prd_path=prd_path,
+                template_path=template_path,
+                scorer_model=config.scorer.model,
+                improvement_mode=improvement_mode,
+                rubric_source=config.scorer.rubric_source,
+            )
+
+            click.echo(f"  Score: {iteration_log['summary']['original_score']} → {iteration_log['summary']['final_score']}")
+            click.echo(f"  Iterations: {iteration_log['summary']['iterations_needed']}")
+            click.echo(f"  Passed: {'yes' if iteration_log['summary']['passed'] else 'no'}")
+
+            # Phase 2: Implementation (both original and improved)
+            for spec_version in ["original", "improved"]:
+                impl_id = f"{target_run_id}-{spec_version}"
+                impl_dir = run_dir / "implementations" / impl_id
+                impl_dir.mkdir(parents=True, exist_ok=True)
+
+                spec_file = spec_dir / f"spec-{'v0' if spec_version == 'original' else 'improved'}.md"
+                if not spec_file.exists():
+                    continue
+
+                click.echo(f"  Implementing ({spec_version})...")
+
+                # Invoke constant implementer
+                impl_target = Target(
+                    id=impl_id,
+                    harness=config.constant_implementer.harness,
+                    model=config.constant_implementer.model,
+                    process=config.constant_implementer.process,
+                )
+
+                # Write the spec as the prompt for the implementer
+                impl_prompt_path = impl_dir / "impl-prompt.md"
+                impl_prompt_path.write_text(
+                    f"Implement the following specification. All code must be created in the current working directory.\n\n"
+                    f"Use the superpowers:writing-plans skill to write an implementation plan first, "
+                    f"then use superpowers:executing-plans with superpowers:subagent-driven-development "
+                    f"to execute the plan. Do not ask for user input — execute autonomously.\n\n"
+                    f"Tech stack: Vite + React + TypeScript + Tailwind CSS. No other frameworks.\n\n"
+                    f"{spec_file.read_text()}"
+                )
+
+                # Find Superpowers plugin — check standard install locations
+                superpowers_candidates = [
+                    Path.home() / ".claude" / "plugins" / "cache" / "claude-plugins-official" / "superpowers",
+                ]
+                superpowers_path = None
+                for candidate in superpowers_candidates:
+                    if candidate.exists():
+                        # Use the latest version directory
+                        versions = sorted(candidate.iterdir(), reverse=True)
+                        if versions:
+                            superpowers_path = versions[0]
+                            break
+                impl_result = run_target(
+                    target=impl_target,
+                    output_dir=impl_dir / "app",
+                    prd_path=impl_prompt_path,
+                    template_path=template_path,
+                    prompt_path=None,
+                    adapters_dir=adapters_dir,
+                    superpowers_path=superpowers_path if impl_target.process == "superpowers" else None,
+                )
+
+                if impl_result.status == "adapter_failed":
+                    click.echo(f"  Implementer failed: {impl_result.error}")
+
+                # Phase 3: Review (functional tests + judge)
+                # Only run if implementation produced an app
+                app_dir = impl_dir / "app"
+                if app_dir.exists():
+                    click.echo(f"  Reviewing ({spec_version})...")
+
+                    # Layer 1: Functional tests
+                    functional_tests_path = bench_dir / "prds" / prd / "functional-tests.yml"
+                    functional_results = run_functional_tests(
+                        app_dir=app_dir,
+                        functional_tests_path=functional_tests_path,
+                        output_dir=impl_dir,
+                    )
+
+                    # Layer 2: LLM-as-judge
+                    judge_scorecard = run_judge(
+                        prd_path=prd_path,
+                        spec_path=spec_file,
+                        impl_dir=app_dir,
+                        rubric_path=rubric_path,
+                        output_dir=impl_dir,
+                        judge_model=config.judge_model,
+                    )
+
+                    # Token counts are None when unmeasured — record null, not 0
+                    measured_tokens = [
+                        t for t in (gen_result.tokens_in, gen_result.tokens_out)
+                        if t is not None
+                    ]
+                    # Results rows record the BASE target id (no run suffix) so
+                    # variance/axis analysis can group repeated runs of the same
+                    # combination — matching run_benchmark's RunResult convention.
+                    all_results.append({
+                        "target": target.id,
+                        "spec_version": spec_version,
+                        "speculator_score": iteration_log["summary"]["final_score"] if spec_version == "improved" else iteration_log["summary"]["original_score"],
+                        "outcome_score": judge_scorecard.get("scores", {}).get("overall", 0),
+                        "functional_pass_rate": functional_results.get("summary", {}).get("pass_rate", "0/0"),
+                        "iterations_to_pass": iteration_log["summary"]["iterations_needed"],
+                        "total_tokens": sum(measured_tokens) if measured_tokens else None,
+                        "total_time_seconds": gen_result.wall_clock_seconds,
+                        "status": "completed",
+                        "harness": target.harness,
+                        "model": target.model,
+                        "process": target.process,
+                        "improvement_mode": improvement_mode,
+                    })
 
     # Phase 4: Generate report
     click.echo(f"\n--- Generating Report ---")

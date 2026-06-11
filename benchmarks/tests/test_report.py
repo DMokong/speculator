@@ -227,3 +227,64 @@ def test_generate_html_report_renders_null_tokens(tmp_path):
     generate_html_report(report_data, template_path, output_path)
 
     assert output_path.exists()
+    html_content = output_path.read_text()
+    # Unmeasured tokens render as 'n/a' in the dashboard — never as 0,
+    # which would masquerade as a measurement.
+    assert "<td>n/a</td>" in html_content
+    assert "<td>0</td>" not in html_content
+
+
+def test_rankings_carry_improvement_mode(tmp_path):
+    """improvement_mode flows from results rows into report.yml rankings
+    (None on rows that never recorded it, e.g. failures)."""
+    run_dir = tmp_path / "bench-imode"
+    run_dir.mkdir()
+    (run_dir / "config.yml").write_text("benchmark:\n  prd: test\n  runs_per_combination: 1")
+
+    results = [
+        {**SAMPLE_RESULTS[0], "target": "arm-feedback", "improvement_mode": "feedback"},
+        {**SAMPLE_RESULTS[1], "target": "arm-control", "improvement_mode": "control"},
+        {**SAMPLE_RESULTS[2]},  # no improvement_mode recorded
+    ]
+    report = generate_yaml_report(run_dir=run_dir, results=results)
+
+    by_target = {r["target"]: r for r in report["rankings"]}
+    assert by_target["arm-feedback"]["improvement_mode"] == "feedback"
+    assert by_target["arm-control"]["improvement_mode"] == "control"
+    assert by_target["cc-sp-opus"]["improvement_mode"] is None
+
+
+def test_load_results_from_disk_reads_improvement_mode(tmp_path):
+    """Regenerated reports pick up summary.improvement_mode from iteration-log.yml."""
+    from spec_bench.report import _load_results_from_disk
+
+    run_dir = tmp_path / "bench-disk-imode"
+    impl_dir = run_dir / "implementations" / "arm-feedback-improved"
+    impl_dir.mkdir(parents=True)
+    spec_dir = run_dir / "specs" / "arm-feedback"
+    spec_dir.mkdir(parents=True)
+    (spec_dir / "iteration-log.yml").write_text(yaml.dump({
+        "summary": {
+            "iterations_needed": 2,
+            "original_score": 6.5,
+            "final_score": 8.0,
+            "improvement_mode": "feedback",
+        },
+    }))
+    (run_dir / "config.yml").write_text(yaml.dump({
+        "benchmark": {
+            "prd": "test",
+            "runs_per_combination": 1,
+            "targets": [
+                {"id": "arm-feedback", "harness": "claude-code",
+                 "model": "sonnet-4-6", "process": "vanilla"},
+            ],
+        },
+    }))
+
+    results = _load_results_from_disk(run_dir)
+
+    assert len(results) == 1
+    assert results[0]["target"] == "arm-feedback"
+    assert results[0]["improvement_mode"] == "feedback"
+    assert results[0]["speculator_score"] == 8.0

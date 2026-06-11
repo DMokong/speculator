@@ -314,6 +314,7 @@ def _load_results_from_disk(run_dir: Path) -> list[dict]:
         spec_dir = specs_dir / target_id if specs_dir.exists() else None
         speculator_score = 0.0
         iterations_to_pass = 0
+        improvement_mode = None
 
         if spec_dir and spec_dir.exists():
             iteration_log_path = spec_dir / "iteration-log.yml"
@@ -321,6 +322,7 @@ def _load_results_from_disk(run_dir: Path) -> list[dict]:
                 log = yaml.safe_load(iteration_log_path.read_text()) or {}
                 summary = log.get("summary", {})
                 iterations_to_pass = summary.get("iterations_needed", 0)
+                improvement_mode = summary.get("improvement_mode")
                 if spec_version == "improved":
                     speculator_score = summary.get("final_score", 0.0)
                 else:
@@ -388,6 +390,7 @@ def _load_results_from_disk(run_dir: Path) -> list[dict]:
             "model": model,
             "process": process,
             "status": status,
+            "improvement_mode": improvement_mode,
         })
 
     return results
@@ -418,6 +421,8 @@ def _build_rankings(results: list[dict]) -> list[dict]:
             "total_tokens": r.get("total_tokens"),
             "total_time_seconds": r.get("total_time_seconds", 0.0),
             "status": r.get("status", "completed"),
+            # Ablation arm label (feedback | control | none) — None when unknown
+            "improvement_mode": r.get("improvement_mode"),
         })
     # Append failed entries at the end (no rank)
     for r in failed:
@@ -432,6 +437,7 @@ def _build_rankings(results: list[dict]) -> list[dict]:
             "total_tokens": None,
             "total_time_seconds": 0.0,
             "status": r.get("status", "adapter_failed"),
+            "improvement_mode": None,
         })
     return rankings
 
@@ -556,13 +562,10 @@ def generate_html_report(
     )
     template = env.get_template(template_path.name)
 
-    # Prepare chart-friendly data. The template formats total_tokens with
-    # "{:,}", which cannot render None — coerce null to 0 for display only;
-    # the canonical null lives in report.yml.
-    rankings = [
-        {**r, "total_tokens": r.get("total_tokens") or 0}
-        for r in report_data.get("rankings", [])
-    ]
+    # Null token counts pass through unchanged — the template renders them as
+    # 'n/a' so unmeasured runs never masquerade as 0-token measurements in the
+    # dashboard. The canonical null lives in report.yml.
+    rankings = report_data.get("rankings", [])
     correlations = report_data.get("correlations", {})
     axis_analysis = report_data.get("axis_analysis", {})
     insights = report_data.get("insights", [])

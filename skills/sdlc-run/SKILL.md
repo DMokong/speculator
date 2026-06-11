@@ -70,9 +70,11 @@ After resolving the spec, determine where the pipeline left off by checking evid
 | 1 | No `evidence/gate-1-scorecard.yml` | Phase 1: Scoring |
 | 2 | Scorecard exists, no plan in `docs/plans/` matching this spec | Phase 2: Planning |
 | 2a | Plan exists, `eval-intent.enabled: true`, no `evidence/gate-2a-eval-intent.yml` | Phase 2a: Eval Authoring |
+| 2a-retry | `evidence/gate-2a-eval-intent.yml` exists but `result` is not `pass`/`override-pass` (e.g. `fail` after a previous escalation) | Phase 2a: Eval Authoring |
 | 3 | Plan exists, gate 2a satisfied (or disabled), no `evidence/gate-2-quality.yml` | Phase 3: Implementation + Gate 2 |
 | 3a | Gate 2 exists, `eval-quality.enabled: true`, no `evidence/gate-2b-eval-quality.yml` | Phase 3a: Eval Quality (Gate 2b) |
-| 4 | Gate 2 exists (and 2b if enabled), no `evidence/gate-3-review.yml` | Phase 4: Review |
+| 3a-retry | `evidence/gate-2b-eval-quality.yml` exists but `result` is not `pass` | Phase 3a: Eval Quality (Gate 2b) |
+| 4 | Gate 2 exists (and 2b satisfied if enabled), no `evidence/gate-3-review.yml` | Phase 4: Review |
 | 5 | Gate 3 exists, no `evidence/gate-4-summary.yml` | Phase 5: Close |
 | 6 | All required gates exist | Pipeline complete — nothing to do |
 
@@ -160,8 +162,8 @@ Dispatch `code-reviewer` agent, one self-fix cycle for blocking issues, escalate
 → Read `references/phase-review.md` for detailed steps.
 
 ### Phase 5: Evidence Package & Merge (Gate 4)
-Present pipeline summary (Guided mode), invoke `gate-check` for evidence package, close beads issues, merge to main, compact into SYSTEM-SPEC.md.
-→ Read `references/phase-evidence.md` for detailed steps.
+Present the pipeline summary and autonomy checkpoint, then execute the close workflow via the `sdlc-close` skill — beads closure, Gate 4, lock release, the evidence commit, merge or PR delivery per `close.strategy`, and SYSTEM-SPEC.md compaction. `sdlc-close` is the single source of truth for close mechanics; do not run them inline here.
+→ Read `references/phase-evidence.md` for checkpoint details.
 
 ---
 

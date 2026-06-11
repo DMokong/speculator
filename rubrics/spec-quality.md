@@ -285,7 +285,7 @@ Calculate overall score as a weighted average using the weights from the project
 | Feasibility           | 0.15   |
 | Scope                 | 0.10   |
 
-Round the overall score to one decimal place, rounding half-up (7.25 → 7.3, 7.24 → 7.2). The overall score is the weighted sum of the dimension scores using the weights from the project config (defaults above) — it is mechanically recomputable from the dimension scores, and a scorecard whose `overall` does not match that recomputation is invalid.
+Round the overall score to one decimal place, rounding half-up (7.25 → 7.3, 7.24 → 7.2). The overall score is the weighted sum of the dimension scores using the weights from the project config (defaults above) — it is mechanically recomputable from the dimension scores, and a scorecard whose `overall` does not match that recomputation is invalid. The scorer records the weights it used in the scorecard's `weights:` block, which is what makes the recomputation mechanically enforceable (`scripts/verify-evidence.sh` recomputes from the recorded weights).
 
 ### Per-Dimension Minimum
 
@@ -332,6 +332,8 @@ Examples:
 ---
 
 ## Gate Decision
+
+> **Invoker-only — not part of the scorer's reading.** This section describes how the *invoking skill* stamps `threshold` and `result` after the scorer finishes. The blinded scorer agent is instructed to skip this section: it must not see the pass threshold before scoring (score-attraction bias) and never sets `result` itself.
 
 The gate passes only when **all three conditions** are met:
 

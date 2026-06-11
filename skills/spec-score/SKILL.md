@@ -29,13 +29,17 @@ You are helping the user run the spec quality gate on a specification.
    - `scoring.weights` — the dimension weights
    - `scoring.dimension_minimum` — the per-dimension minimum (default 5)
    - `run.risk_signals` — the risk-signal keyword list, if configured (bias-safe to share — it contains no thresholds)
+   - `spec_dir` — the spec directory (bias-safe — contains no thresholds). Resolve `{spec_dir}/SYSTEM-SPEC.md` for step 3; the scorer needs this path for impact validation.
    - `gates.spec-quality.threshold` — the Gate 1 pass threshold (e.g. 7.0). Keep this for step 4; do NOT pass it to the scorer.
 
 3. **Invoke the spec-scorer agent**: Launch the `spec-scorer` agent (from this plugin's `agents/` directory) with:
    - The spec file path
    - The scoring weights, dimension minimum, and risk-signal keyword list (if configured), written inline in the dispatch prompt (the values extracted in step 2)
+   - The resolved `system_spec_path` (`{spec_dir}/SYSTEM-SPEC.md`), written inline — the scorer must not read the config to derive it
 
-   **Scorer context hygiene — do NOT pass the config file path or any threshold.** `.claude/sdlc.local.md` contains the Gate 1 pass threshold and the `run:` trust-ladder thresholds; a judge that reads the pass threshold before scoring invites score-attraction bias. The scorer's view is ONLY the weights, the dimension minimum, and the risk-signal keywords. Instruct the agent to score the dimensions, compute the weighted overall, run risk/impact validation, and emit flags — and to leave the scorecard's `threshold` and `result` fields unset for the invoker to stamp.
+   **Scorer context hygiene — do NOT pass the config file path or any threshold.** `.claude/sdlc.local.md` contains the Gate 1 pass threshold and the `run:` trust-ladder thresholds; a judge that reads the pass threshold before scoring invites score-attraction bias. The scorer's view is ONLY the weights, the dimension minimum, the risk-signal keywords, and the resolved SYSTEM-SPEC.md path. Instruct the agent to score the dimensions, compute the weighted overall, record the weights and dimension minimum it was given in the scorecard, run risk/impact validation, and emit flags — and to leave the scorecard's `threshold` and `result` fields unset for the invoker to stamp.
+
+   **Re-score blinding** (self-improvement loop or any re-dispatch): if `evidence/gate-1-scorecard.yml` already exists, blank its stamped `threshold:` and `result:` fields (or delete the file) BEFORE dispatching, and include in the dispatch prompt: "Do not read any existing scorecard — write a fresh evaluation." A prior round's stamped threshold in the file the scorer overwrites is a blinding leak.
 
 4. **Stamp threshold and result (post-dispatch)**: After the agent writes the scorecard, this skill — not the scorer — performs the threshold comparison:
    - Read the scorecard's `overall`, per-dimension scores, and `flags`

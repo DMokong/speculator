@@ -85,8 +85,12 @@ while IFS= read -r row; do
 
   # Fact checks that apply to every row, including comprehension:
   check "[$id] rubric file exists ($rubric)" "[ -f '$ROOT/$rubric' ]"
+  # Threshold lives in invoker-facing surfaces (registry + doctor --init template),
+  # NOT necessarily in the rubric — the Gate 1 rubric's Gate Decision section is
+  # invoker-only and the blinded scorer skips it, so do not require the threshold
+  # literal in rubric files (that would cement a blinding leak).
   if [[ "$threshold" =~ ^[0-9]+\.[0-9]+$ ]]; then
-    check "[$id] threshold $threshold appears in rubric" "grep -qF '$threshold' '$ROOT/$rubric'"
+    check "[$id] threshold $threshold appears in gate registry" "grep -qF '$threshold' '$REGISTRY'"
   fi
 
   # Comprehension is NOT wired — skip its wiring assertions entirely.

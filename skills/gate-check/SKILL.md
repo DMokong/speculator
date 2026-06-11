@@ -15,7 +15,7 @@ You are helping the user verify or run a quality gate for a specification.
 
 ## Process
 
-0. **Worktree redirect check**: Run the **Worktree Redirect Check** from `${CLAUDE_PLUGIN_ROOT}/lib/spec-resolution.md`. If on main and specs exist in worktrees, ask the user which worktree to target and use its absolute path as the base for all file operations below. Gates and evidence live in the worktree — they won't exist on main until merged.
+0. **Worktree redirect check**: If the `sdlc` router, `sdlc-run` orchestrator, or `sdlc-close` skill already resolved a worktree base path, use it and skip this check — do not re-ask the user. Otherwise run the **Worktree Redirect Check** from `${CLAUDE_PLUGIN_ROOT}/lib/spec-resolution.md`. If on main and specs exist in worktrees, ask the user which worktree to target and use its absolute path as the base for all file operations below. Gates and evidence live in the worktree — they won't exist on main until merged.
 
 1. **Identify the spec** (follow resolution order from `${CLAUDE_PLUGIN_ROOT}/lib/spec-resolution.md`):
    - If user specified a spec name/path → use it
@@ -38,7 +38,7 @@ You are helping the user verify or run a quality gate for a specification.
    - Gate 2a: `gate-2a-eval-intent.yml` with `result: pass` or `result: override-pass` (only checked if `gates.eval-intent.enabled: true`)
    - Gate 2b: `gate-2b-eval-quality.yml` with `result: pass` (only checked if `gates.eval-quality.enabled: true`)
    - Gate 3: `gate-3-review.yml` with approval recorded
-   - Gate 4: `gate-4-summary.yml` with all required gates listed as passed and all enabled opt-in gates (2a/2b/2c per `gates.*.enabled` in `.claude/sdlc.local.md`) passed or `n/a`
+   - Gate 4: `gate-4-summary.yml` with all required gates listed as passed and all enabled opt-in gates (2a/2b/2c per `gates.*.enabled` in `.claude/sdlc.local.md`) passed (disabled opt-in gates report `n/a`)
 
 4. **If gate evidence is missing**: Offer to help produce it:
    - Gate 1 missing → suggest `/sdlc score`
@@ -122,24 +122,26 @@ When running Gate 3:
 When running Gate 4:
 
 1. **Read the evidence-package rubric** at `${CLAUDE_PLUGIN_ROOT}/rubrics/evidence-package.md` and verify each checklist item.
-2. **Run the mechanical verifier** if the script exists: `bash scripts/verify-evidence.sh {spec_dir}/{spec_name}`. A non-zero exit is a blocking finding — record it and the gate fails. If the script does not exist, skip this step (the rubric checks below still apply).
+2. **Run the mechanical verifier**: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-evidence.sh" {spec_dir}/{spec_name}`. The script ships inside the plugin — invoke it via `${CLAUDE_PLUGIN_ROOT}`, not a project-relative path. A non-zero exit is a blocking finding — record it and the gate fails. If the script is not present at that path (e.g. a distribution that strips `scripts/`), report "mechanical verifier not found — skipping" and continue (the rubric checks below still apply); never skip silently.
 3. Read all prior gate evidence files.
 4. Verify all required gates (from project config) have `result: pass`.
 5. **Verify opt-in gates per the project config** (`.claude/sdlc.local.md`):
    - If `gates.eval-intent.enabled: true` → `gate-2a-eval-intent.yml` must exist with `result: pass` or `result: override-pass`
    - If `gates.eval-quality.enabled: true` → `gate-2b-eval-quality.yml` must exist with `result: pass`
-   - If `gates.comprehension.enabled: true` → `gate-2c-comprehension.yml` must exist with `result: pass`
+   - If `gates.comprehension.enabled: true` → `gate-2c-comprehension.yml` must exist with `result: pass`. If the file is missing, do not report a bare missing-evidence failure — report: *"`gates.comprehension.enabled` is true but the gate is not wired in this release — disable it in `.claude/sdlc.local.md` or check out branch `gate-2c-comprehension`."*
    - Disabled or absent opt-in gates are `n/a` and do not block
+   - **Historical-evidence grace**: for an opt-in gate that was enabled AFTER the spec closed, the evidence file may record `result: n/a` with the rationale `"gate enabled post-closure"` instead of being treated as missing — accept it and note the rationale in the summary
 6. **Verify Gate 1 scorecard has no unaddressed blocking flags.** If the scorecard contains blocking flags that were not resolved, the evidence package fails.
 7. **If a beads epic exists for this spec, verify all child stories are closed.** Open stories indicate incomplete work.
 8. Write a summary to `{spec_dir}/{spec_name}/evidence/gate-4-summary.yml` containing:
    - List of all gates with their results (opt-in gates report `n/a` when disabled)
+   - Review warn count in `gates.review.warnings` — the count of `warn` verdicts in gate-3 checks, surfaced so non-blocking findings stay visible at merge time
    - Overall pipeline result (pass only if all required gates pass and all enabled opt-in gates pass)
    - Timestamp
    - Whether work was done in a worktree (check `git worktree list`)
    - Blocking flags status (from Gate 1 scorecard)
    - Beads epic status (if applicable)
-9. If all gates pass and we're in a worktree, suggest running `/sdlc close` to merge back to main
+9. If all gates pass, we're in a worktree, and we're not already running inside the `/sdlc close` workflow, suggest running `/sdlc close` to merge back to main (when invoked FROM `sdlc-close`, just return the Gate 4 result — the close workflow continues on its own)
 
 ## Worktree Awareness
 

@@ -53,6 +53,10 @@ If the file's indentation deviates from the default layout, read the frontmatter
 - **WARN**: weights sum to anything else — report the actual sum: `⚠️ scoring weights sum to {sum} (expected 1.0) — Gate 1 overall scores will be skewed; fix scoring.weights in .claude/sdlc.local.md`
 - If `scoring.weights` is absent entirely, the plugin defaults apply — no warning.
 
+**Config lint — unwired comprehension gate** (run when `sdlc.local.md` is present): if the frontmatter sets `gates.comprehension.enabled: true`, emit:
+
+- **WARN**: `⚠️ gates.comprehension.enabled is true but the comprehension gate is not wired in this release — Gate 4 cannot be satisfied. Disable it in .claude/sdlc.local.md or check out branch gate-2c-comprehension.`
+
 ### 3. Plugin Wiring
 
 The SDLC plugin being loaded is self-evident — if `/sdlc doctor` is running, the plugin is installed and all skills are registered.
