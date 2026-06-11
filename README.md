@@ -31,7 +31,7 @@ claude plugin install speculator@dmokong-plugins --scope project
 /spec doctor --init
 ```
 
-`/spec doctor --init` will create a default `.claude/sdlc.local.md` config, verify prerequisites, and register the pre-commit hook.
+`/spec doctor --init` will create a default `.claude/sdlc.local.md` config and verify prerequisites. The pre-commit gate hook ships with the plugin and registers automatically — no setup step needed.
 
 ## Quick Start
 
@@ -472,13 +472,14 @@ speculator/
 │   ├── eval-quality-scorer/AGENT.md # Gate 2b — scores test suites as detection instruments (7 dims)
 │   ├── code-reviewer/AGENT.md       # Gate 3 — 6-point review + mandatory secrets scan + skill-description eval
 │   └── spec-compactor/AGENT.md      # Folds closed specs into SYSTEM-SPEC.md
-├── rubrics/                         # 8 rubrics
+├── rubrics/                         # 9 rubrics
 │   ├── spec-quality.md              # Gate 1 — 6-dimension rubric (completeness, clarity, testability, intent_verifiability, feasibility, scope)
 │   ├── impact-awareness.md          # Gate 1 sub-validation — impact mismatch decision matrix
 │   ├── eval-intent.md               # Gate 2a — 4-dimension rubric for authored intent evals
 │   ├── acceptance-criteria.md       # Gate 2 sub-rubric for AC traceability
 │   ├── code-quality.md              # Gate 2 — evidence-based rubric (7 checks)
 │   ├── eval-quality.md              # Gate 2b — 7-dimension rubric for test-suite detection quality
+│   ├── comprehension.md             # Gate 2c (draft) — 4-dimension comprehension rubric (gate not yet wired)
 │   ├── review.md                    # Gate 3 — 6-point code review rubric
 │   └── evidence-package.md          # Gate 4 — evidence completeness rubric
 ├── templates/

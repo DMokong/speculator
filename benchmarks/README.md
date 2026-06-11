@@ -115,7 +115,7 @@ benchmarks/
 │       └── calibration.py   # Human-in-the-loop calibration
 ├── templates/
 │   └── report.html.j2      # Jinja2 HTML dashboard template
-├── tests/                  # Unit tests (57 tests, all passing)
+├── tests/                  # Unit tests (67 tests, all passing)
 └── runs/                   # Benchmark run outputs (gitignored)
 ```
 

@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-28  
 **Scope:** Recent changes in `benchmarks/` folder covering spec-bench implementation  
-**Test Status:** 57/57 tests passing ✅  
+**Test Status:** 57/57 tests passing ✅ *(point-in-time snapshot; the suite has since grown to 67 tests)*  
 **Overall Quality:** Excellent (9/10)  
 
 ---

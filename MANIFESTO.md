@@ -180,8 +180,8 @@ We're starting.
 
 The roadmap:
 
-- **Spec drift detection** — measuring divergence between spec and implementation over time
-- **Spec quality benchmark dataset** — the SWE-bench for specifications, community-contributed and openly scored
+- **Spec quality benchmark** — *we started:* the Spec-Bench harness ships in this repo (`benchmarks/`, 67/67 tests, 3-round results published, human-vs-judge calibration protocol). What remains is the community-contributed dataset — more PRDs, openly scored
+- **Spec drift detection** — *first pieces shipped* (impact validation + living-spec compaction, v2.1.0); the full drift-audit tooling that measures spec/code divergence over time is next
 - **Post-implementation quality tracing** — connecting downstream findings back to spec gaps
 - **Specs as living organisms** — continuous evaluation across the full spec corpus
 

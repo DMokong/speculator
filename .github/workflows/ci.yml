@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  structural-tests:
+    name: Structural tests (shell)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Eval-intent structure suite
+        run: bash tests/test-eval-intent-structure.sh
+      - name: Secrets-scan pattern suite
+        run: bash tests/test-secrets-scan.sh
+
+  benchmark-tests:
+    name: Spec-Bench unit tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Run pytest
+        working-directory: benchmarks
+        run: uv run pytest -q
+
+  version-consistency:
+    name: Version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: plugin.json parses and matches CHANGELOG top entry
+        run: |
+          set -euo pipefail
+          PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+          CHANGELOG_VERSION=$(grep -m1 -oE '^## [0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | awk '{print $2}')
+          echo "plugin.json: $PLUGIN_VERSION  |  CHANGELOG: $CHANGELOG_VERSION"
+          if [ "$PLUGIN_VERSION" != "$CHANGELOG_VERSION" ]; then
+            echo "::error::plugin.json version ($PLUGIN_VERSION) does not match CHANGELOG top entry ($CHANGELOG_VERSION)"
+            exit 1
+          fi

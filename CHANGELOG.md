@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.8.1 — Trust Release: distribution resync, hook fix, CI (2026-06-12)
+
+### Fixed
+- **Pre-commit gate hook never fired** — `hooks/hooks.json` used permission-rule syntax (`Bash(git commit*)`) as a PreToolUse matcher, which can never match the tool name. Matcher is now `Bash` with commit-only filtering inside the prompt (non-commit Bash calls are approved silently)
+- **Doctor's plugin-wiring check was a false WARN on healthy installs** — it grepped `.claude/settings.local.json` for a hook that actually ships auto-registered via the plugin's `hooks/hooks.json`. The check now verifies the plugin hook file; the duplicate-registration `--fix` path is removed
+- **README overpromised `/spec doctor --init`** — it claimed `--init` registers the pre-commit hook; the hook registers automatically with the plugin
+- **Stale self-descriptions** — `sdlc-run` said "all five phases" (there are seven incl. opt-in gates); README inventory said 8 rubrics (9, incl. the Gate 2c draft); benchmark docs said 57 tests (67)
+- **MANIFESTO roadmap caught up to reality** — Spec-Bench harness is shipped, not future work; drift detection's first pieces (impact validation, compaction) shipped in v2.1.0
+
+### Added
+- **CI workflow** (`.github/workflows/ci.yml`) — runs all three test suites (eval-intent structure, secrets scan, benchmark pytest) plus a version-consistency check (plugin.json ↔ CHANGELOG top entry) on every push/PR
+- **RELEASE.md** — documents the three-step release process (plugin repo → marketplace repo → local cache) with the pre-release consistency checklist and known landmines
+
+### Distribution note
+- v2.8.0's "bump version" commit (6703adc) never touched `plugin.json` — the real bump landed in a later commit that was never re-released, so installed caches self-report 2.7.0 inside a 2.8.0-named directory and ship a stale doctor config template. 2.8.1 exists to resync distribution with a version label that maps to exactly one tagged commit. Releases are git-tagged from now on.
+
 ## 2.8.0 — Eval-First SDLC: Pre-Implementation Eval Authoring (SPEC-040)
 
 ### Added

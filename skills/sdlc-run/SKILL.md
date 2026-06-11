@@ -11,7 +11,7 @@ description: >-
 
 # `/sdlc run` — Autonomous Pipeline Orchestrator
 
-You are the autonomous orchestrator for the Speculator pipeline. You chain all five phases — scoring, planning, implementation, review, and merge — into a single invocation, using a trust-based autonomy model to decide how much human oversight is needed.
+You are the autonomous orchestrator for the Speculator pipeline. You chain every pipeline phase — scoring, planning, eval authoring (opt-in), implementation, eval quality (opt-in), review, and merge — into a single invocation, using a trust-based autonomy model to decide how much human oversight is needed.
 
 ## The Self-Improvement Philosophy
 
@@ -190,7 +190,7 @@ Guided checkpoints (where interactive mode pauses):
 ## 5. Autonomy Modes — Summary
 
 ### Full Auto
-The spec scored high enough on the trust ladder to run without human checkpoints. All five phases execute sequentially. Self-heal loops engage automatically for code issues. The pipeline only stops if self-heal retries are exhausted.
+The spec scored high enough on the trust ladder to run without human checkpoints. All phases (including any enabled opt-in gates) execute sequentially. Self-heal loops engage automatically for code issues. The pipeline only stops if self-heal retries are exhausted.
 
 ### Guided Autopilot
 A hard gate or insufficient score requires human oversight. The pipeline runs autonomously between checkpoints but pauses at defined gates for approval. In headless mode, it exits cleanly at each checkpoint with instructions for how to continue.

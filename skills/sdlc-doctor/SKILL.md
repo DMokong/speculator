@@ -44,13 +44,13 @@ Check these files exist:
 
 The SDLC plugin being loaded is self-evident — if `/sdlc doctor` is running, the plugin is installed and all skills are registered.
 
-Check if the PreToolUse hook is registered:
+The pre-commit gate hook ships with the plugin (`hooks/hooks.json`) and is auto-registered when the plugin loads — no per-project registration is needed. Verify the plugin's hook file is present:
 ```bash
-# Check settings.local.json for SDLC hook
-grep -l "SDLC PRE-COMMIT" .claude/settings.local.json 2>/dev/null
+# Hook ships with the plugin and auto-registers
+ls "${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json" 2>/dev/null
 ```
-- **PASS**: Hook registered
-- **WARN**: Hook not registered (commits won't show gate warnings)
+- **PASS**: Hook file present (auto-registered with the plugin)
+- **WARN**: Hook file missing from plugin installation (reinstall the plugin)
 
 ### 4. Spec Directory & Cross-Worktree Visibility
 
@@ -153,7 +153,7 @@ Project Files
 
 Plugin Wiring
   ✅ Plugin loaded (sdlc-doctor is running)
-  ⚠️  Pre-commit hook: not registered (optional, run /sdlc doctor --fix to add)
+  ✅ Pre-commit gate hook present (auto-registered with plugin)
 
 Specs
   ✅ Spec directory exists (docs/specs/)
@@ -177,7 +177,6 @@ Summary: 7 passed, 1 warning, 0 failures
 If the user runs `/sdlc doctor --fix` or if invoked from `/sdlc start`, attempt to fix issues:
 
 - Missing spec directory → create it
-- Missing hook registration → add to settings.local.json (warn user first since it's gitignored)
 - Stale lock files (worktree gone) → remove the `.active` file
 
 Do NOT auto-fix:
