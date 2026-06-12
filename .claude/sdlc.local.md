@@ -20,6 +20,10 @@ gates:
     threshold: 6.5
     max_eval_retries: 3
     per_dimension_minimum: 4
+  comprehension:
+    enabled: true   # experimental — dogfooding the anti-dark-code gate; artifacts seed the calibration corpus
+    threshold: 7.0
+    per_dimension_minimum: 5
   review:
     required: true
   evidence-package:

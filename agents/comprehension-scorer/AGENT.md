@@ -156,7 +156,7 @@ blocking flag.
 ### Step B3: Compute overall and apply gate logic
 
 1. Weighted overall = `0.30·AC + 0.30·Accuracy + 0.25·SpecFidelity + 0.15·Scope`,
-   rounded to one decimal.
+   rounded to one decimal, half-up (7.25 → 7.3, 7.24 → 7.2).
 2. Apply gate logic:
    - If any dimension < per-dimension minimum → `result: fail`
    - If any blocking flag exists → `result: fail`
@@ -185,62 +185,20 @@ If `previous_flags` is provided:
 
 ## Output Format
 
-Write the completed artifact to `output_path`. Create the parent directory
-if it doesn't exist.
+Write the completed artifact to `output_path` **exactly per the canonical
+schema in the comprehension rubric** (`rubric_path`, section "Evidence Output
+Format (Canonical Schema)") — do not restate or restructure the schema; the
+rubric is the single source of truth. The schema covers both the Phase A
+artifact body (`comprehension_entries`, `unexplained_behaviors`) and the
+Phase B scoring block (`weights`, `dimensions`, `overall`, `threshold`,
+`per_dimension_minimum`, `result`, `flags`, `reasoning`).
 
-```yaml
-gate: comprehension
-spec_id: SPEC-NNN
-spec_path: docs/specs/{feature}/spec.md
-timestamp: {ISO 8601 UTC}
-scorer: agent
-model: {your model id}
-diff_range: main...HEAD
+Create the parent directory if it doesn't exist.
 
-# Phase A output — the artifact body
-comprehension_entries:
-  - ac_id: AC1
-    ac_text: "<full text from spec>"
-    implementation_summary: >
-      <substantive explanation, not a paraphrase>
-    code_locations:
-      - file: <path>
-        function: <symbol or "module-level">
-        lines: "N-M"  # optional, populate when the span is non-trivial
-    coverage: full | partial | missing
-    gap_notes: ""    # populate when coverage is partial or missing
-    intent_notes: "" # optional — surfaces decisions that protect spec intent
-    rejected_alternatives: []  # optional — for high-fidelity entries
-
-unexplained_behaviors:
-  - description: "<one-sentence behavior description>"
-    file: <path>
-    line_range: "N-M"
-    concern: minor_utility | scope_creep
-    recommendation: ""  # e.g. "promote to AC", "add to out-of-scope", "OK to ship"
-
-# Phase B output — the scoring block
-dimensions:
-  ac_coverage: {1-10}
-  accuracy: {1-10}
-  spec_fidelity: {1-10}
-  scope_containment: {1-10}
-overall: {weighted, 1 decimal}
-threshold: {from config}
-per_dimension_minimum: {from config}
-result: pass | fail
-
-flags:
-  blocking: []
-  recommended: []
-  advisory: []
-
-reasoning:
-  ac_coverage: "<1-2 sentence justification citing specific entries>"
-  accuracy: "<1-2 sentence justification, naming any spot-check failures>"
-  spec_fidelity: "<1-2 sentence justification, citing intent vs letter>"
-  scope_containment: "<1-2 sentence justification>"
-```
+Record the `weights:` block from the rubric's Default Weights and the
+`per_dimension_minimum` you read from config — recording them in the evidence
+is what makes `overall` and `result` mechanically recomputable by
+`scripts/verify-evidence.sh`.
 
 ---
 
@@ -251,7 +209,7 @@ reasoning:
   Describe what you see.
 - **Be objective.** Apply the rubric's bands and calibration examples
   directly — do not invent your own scoring criteria.
-- Scores must be integers 1–10. Overall rounded to one decimal.
+- Scores must be integers 1–10. Overall rounded to one decimal, half-up.
 - **Always include at least one flag**, even on high-scoring artifacts —
   there is always a way to make the explanation more precise.
 - **Any blocking flag forces `result: fail`** regardless of dimension scores.

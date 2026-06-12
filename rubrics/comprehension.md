@@ -2,11 +2,11 @@
 
 You are scoring a **comprehension artifact** — a YAML file produced by the `comprehension-scorer` agent in Phase A of its dispatch. The agent reads the spec and the diff cold (no access to the implementing agent's reasoning), generates per-AC explanations, lists unexplained behaviors, and then runs *this rubric* against what it just generated. The artifact lives at `docs/specs/{feature}/evidence/gate-2c-comprehension.yml` and is not the spec.
 
-> **Status:** DRAFT. Calibration examples below are seed examples derived from the Phase 2 design (see `docs/superpowers/specs/2026-04-15-anti-dark-code-pipeline-design.md` in the parent ClaudeClaw workspace). The rubric is not production-ready until each dimension has 10–15 calibrated examples, with explicit "plausible-but-wrong" cases for the Accuracy dimension.
+> **Status:** EXPERIMENTAL. The gate is wired (opt-in via `gates.comprehension.enabled`, default off), but the calibration examples below are seed examples derived from the Phase 2 design (see `docs/superpowers/specs/2026-04-15-anti-dark-code-pipeline-design.md` in the parent ClaudeClaw workspace). The rubric is not fully calibrated until each dimension has 10–15 calibrated examples, with explicit "plausible-but-wrong" cases for the Accuracy dimension.
 
 ## What the artifact looks like
 
-The shape of what's being scored — repeated from `agents/comprehension-scorer/AGENT.md` so this rubric is self-contained:
+The shape of what's being scored — abridged; the canonical evidence schema lives in the Evidence Output Format section below:
 
 ```yaml
 comprehension_entries:
@@ -344,10 +344,10 @@ unexplained_behaviors:
 |-------------------|--------|
 | AC Coverage        | 0.30   |
 | Accuracy           | 0.30   |
-| Spec Fidelity   | 0.25   |
+| Spec Fidelity      | 0.25   |
 | Scope Containment  | 0.15   |
 
-Round the overall score to one decimal place.
+Round the overall score to one decimal place, half-up (7.25 → 7.3, 7.24 → 7.2).
 
 ### Per-Dimension Minimum
 
@@ -398,6 +398,73 @@ If any condition fails: `result: fail`
 If all pass: `result: pass`
 
 When failing, clearly state which condition(s) caused the failure so the artifact author (the comprehension agent on a re-run, or a human revising) knows exactly what to fix.
+
+---
+
+## Evidence Output Format (Canonical Schema)
+
+This is the **canonical schema** for `gate-2c-comprehension.yml`. Every producer of Gate 2c evidence — the comprehension-scorer agent, manual re-runs — emits exactly this structure. Producers may append producer-specific metadata fields but must never rename, restructure, or omit canonical fields. Do not restate or fork the schema in other files; reference this rubric.
+
+Write evidence to `{spec_dir}/{spec_name}/evidence/gate-2c-comprehension.yml`:
+
+```yaml
+gate: comprehension
+spec_id: SPEC-NNN
+spec_path: docs/specs/{feature}/spec.md
+timestamp: {ISO 8601 UTC}
+scorer: agent
+model: {model that produced this artifact}
+diff_range: main...HEAD
+
+# Phase A output — the artifact body
+comprehension_entries:
+  - ac_id: AC1
+    ac_text: "<full text from spec>"
+    implementation_summary: >
+      <substantive explanation, not a paraphrase>
+    code_locations:
+      - file: <path>
+        function: <symbol or "module-level">
+        lines: "N-M"  # optional, populate when the span is non-trivial
+    coverage: full | partial | missing
+    gap_notes: ""    # populate when coverage is partial or missing
+    intent_notes: "" # optional — surfaces decisions that protect spec intent
+    rejected_alternatives: []  # optional — for high-fidelity entries
+
+unexplained_behaviors:
+  - description: "<one-sentence behavior description>"
+    file: <path>
+    line_range: "N-M"
+    concern: minor_utility | scope_creep
+    recommendation: ""  # e.g. "promote to AC", "add to out-of-scope", "OK to ship"
+
+# Phase B output — the scoring block
+weights:                    # recorded by the scorer from the Default Weights above —
+  ac_coverage: 0.30         # makes `overall` mechanically recomputable by verify-evidence.sh
+  accuracy: 0.30
+  spec_fidelity: 0.25
+  scope_containment: 0.15
+dimensions:
+  ac_coverage: {1-10}
+  accuracy: {1-10}
+  spec_fidelity: {1-10}
+  scope_containment: {1-10}
+overall: {weighted, 1 decimal, half-up}
+threshold: {from config, default 7.0}
+per_dimension_minimum: {from config, default 5}
+result: pass | fail
+
+flags:
+  blocking: []
+  recommended: []
+  advisory: []
+
+reasoning:
+  ac_coverage: "<1-2 sentence justification citing specific entries>"
+  accuracy: "<1-2 sentence justification, naming any spot-check failures>"
+  spec_fidelity: "<1-2 sentence justification, citing intent vs letter>"
+  scope_containment: "<1-2 sentence justification>"
+```
 
 ---
 

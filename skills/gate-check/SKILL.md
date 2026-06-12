@@ -29,6 +29,7 @@ You are helping the user verify or run a quality gate for a specification.
    - `code-quality` (Gate 2) — check test results and coverage evidence
    - `eval-intent` (Gate 2a, opt-in) — check if eval intent scorecard exists with `result: pass` or `result: override-pass`
    - `eval-quality` (Gate 2b, opt-in) — check if eval quality scorecard exists with `result: pass`
+   - `comprehension` (Gate 2c, opt-in, experimental) — check if comprehension artifact exists with `result: pass`
    - `review` (Gate 3) — check if review evidence exists
    - `evidence-package` (Gate 4) — check if all prior gates passed
 
@@ -37,6 +38,7 @@ You are helping the user verify or run a quality gate for a specification.
    - Gate 2: `gate-2-quality.yml` with all required checks passing
    - Gate 2a: `gate-2a-eval-intent.yml` with `result: pass` or `result: override-pass` (only checked if `gates.eval-intent.enabled: true`)
    - Gate 2b: `gate-2b-eval-quality.yml` with `result: pass` (only checked if `gates.eval-quality.enabled: true`)
+   - Gate 2c: `gate-2c-comprehension.yml` with `result: pass` (only checked if `gates.comprehension.enabled: true`)
    - Gate 3: `gate-3-review.yml` with approval recorded
    - Gate 4: `gate-4-summary.yml` with all required gates listed as passed and all enabled opt-in gates (2a/2b/2c per `gates.*.enabled` in `.claude/sdlc.local.md`) passed (disabled opt-in gates report `n/a`)
 
@@ -45,6 +47,7 @@ You are helping the user verify or run a quality gate for a specification.
    - Gate 2 missing → guide the user to run tests and collect evidence, then write `gate-2-quality.yml`
    - Gate 2a missing → dispatch eval-authoring skill with spec path, config path, and worktree base
    - Gate 2b missing → dispatch eval-quality-scorer agent from `${CLAUDE_PLUGIN_ROOT}/agents/eval-quality-scorer/AGENT.md` with spec path, config path, and worktree base
+   - Gate 2c missing → dispatch the comprehension-scorer agent as a fresh subagent (see Gate 2c section below) — never run its logic inline
    - Gate 3 missing → guide the user to run code review, then write `gate-3-review.yml`
    - Gate 4 missing → check all prior gates (required gates plus any enabled opt-in gates), if all pass then write `gate-4-summary.yml`
 
@@ -95,14 +98,32 @@ When running Gate 2b:
    - If passed: suggest proceeding to Gate 3 (review)
    - If failed: explain which dimensions need improvement and how
 
+## Gate 2c: Collecting Comprehension Evidence
+
+This gate is opt-in and experimental. Only run it when `gates.comprehension.enabled: true` in `.claude/sdlc.local.md`.
+
+When running Gate 2c:
+
+1. Read the rubric at `${CLAUDE_PLUGIN_ROOT}/rubrics/comprehension.md`
+2. Read the project config for threshold (default 7.0) and per-dimension minimum (default 5)
+3. Dispatch the `comprehension-scorer` agent from `${CLAUDE_PLUGIN_ROOT}/agents/comprehension-scorer/AGENT.md` following the dispatch contract in `${CLAUDE_PLUGIN_ROOT}/skills/sdlc-run/references/phase-comprehension.md` — precondition checks, diff-range resolution, and the full agent input table live there. Evidence goes to `{spec_dir}/{spec_name}/evidence/gate-2c-comprehension.yml`.
+   - **Cold-read constraint**: the agent reads the spec + diff only — never the implementing session's reasoning, plan, or in-session context. Always dispatch a fresh subagent; never run the agent's logic inline (this matters most when the current session worked on the implementation).
+4. After the agent produces `gate-2c-comprehension.yml`, read it and present results:
+   - Show each dimension score with one-line reasoning
+   - Show overall score and pass/fail against threshold
+   - Show all flags as actionable feedback
+   - If passed: suggest proceeding to Gate 3 (review) — the reviewer reads the artifact as preamble
+   - If failed: route by failing dimension per the phase reference's failure table — artifact-quality dimensions (AC Coverage, Accuracy, Scope Containment) may be re-dispatched **once** with the previous artifact's `flags` block as feedback; a **Spec Fidelity** failure is an implementation problem, not an artifact problem — escalate to the user immediately, do not re-dispatch
+
 ## Gate 3: Collecting Review Evidence
 
 When running Gate 3:
 
-1. **Read the review rubric** at `${CLAUDE_PLUGIN_ROOT}/rubrics/review.md` and evaluate the implementation against each checklist item.
-2. **Run the mandatory secrets scan** described in the rubric's Security section — actively grep for hardcoded secrets before evaluating the security dimension.
-3. For each checklist area, assess the code and record findings.
-4. **Skill description check** (conditional — only when `SKILL.md` or `AGENT.md` files appear in the diff):
+1. **Comprehension preamble** (conditional — only when `evidence/gate-2c-comprehension.yml` exists with `result: pass`): read the artifact before evaluating the checklist. It maps each AC to its implementing code and lists unexplained behaviors with classifications, so the review spends its budget on code-quality concerns rather than re-deriving what the diff does.
+2. **Read the review rubric** at `${CLAUDE_PLUGIN_ROOT}/rubrics/review.md` and evaluate the implementation against each checklist item.
+3. **Run the mandatory secrets scan** described in the rubric's Security section — actively grep for hardcoded secrets before evaluating the security dimension.
+4. For each checklist area, assess the code and record findings.
+5. **Skill description check** (conditional — only when `SKILL.md` or `AGENT.md` files appear in the diff):
    - Run `git diff --name-only` against the base branch to check for modified/added skill files.
    - If **no** skill files are in the diff: set `skill_description: skipped` and continue.
    - If skill files **are** in the diff: for each modified `SKILL.md` or `AGENT.md`:
@@ -113,7 +134,7 @@ When running Gate 3:
      5. Rate as `pass` (triggers reliably, good negative discrimination) or `fail` (undertriggers, overtriggers, or description is vague).
      6. Record any suggested improvements in `observations`.
    - Record the result in `skill_description` in the evidence file.
-5. Write evidence to `{spec_dir}/{spec_name}/evidence/gate-3-review.yml` **exactly per the canonical schema in `${CLAUDE_PLUGIN_ROOT}/rubrics/review.md`** ("Evidence Output Format (Canonical Schema)") — do not restate or restructure the schema here; the rubric is the single source of truth, including the `pass | warn | fail` verdict tiers and the `skill_description` conditional check.
+6. Write evidence to `{spec_dir}/{spec_name}/evidence/gate-3-review.yml` **exactly per the canonical schema in `${CLAUDE_PLUGIN_ROOT}/rubrics/review.md`** ("Evidence Output Format (Canonical Schema)") — do not restate or restructure the schema here; the rubric is the single source of truth, including the `pass | warn | fail` verdict tiers and the `skill_description` conditional check.
 
 > **Note**: A `fail` on `skill_description` is a blocking issue — descriptions that undertrigger render skills useless.
 
@@ -128,7 +149,7 @@ When running Gate 4:
 5. **Verify opt-in gates per the project config** (`.claude/sdlc.local.md`):
    - If `gates.eval-intent.enabled: true` → `gate-2a-eval-intent.yml` must exist with `result: pass` or `result: override-pass`
    - If `gates.eval-quality.enabled: true` → `gate-2b-eval-quality.yml` must exist with `result: pass`
-   - If `gates.comprehension.enabled: true` → `gate-2c-comprehension.yml` must exist with `result: pass`. If the file is missing, do not report a bare missing-evidence failure — report: *"`gates.comprehension.enabled` is true but the gate is not wired in this release — disable it in `.claude/sdlc.local.md` or check out branch `gate-2c-comprehension`."*
+   - If `gates.comprehension.enabled: true` → `gate-2c-comprehension.yml` must exist with `result: pass`
    - Disabled or absent opt-in gates are `n/a` and do not block
    - **Historical-evidence grace**: for an opt-in gate that was enabled AFTER the spec closed, the evidence file may record `result: n/a` with the rationale `"gate enabled post-closure"` instead of being treated as missing — accept it and note the rationale in the summary
 6. **Verify Gate 1 scorecard has no unaddressed blocking flags.** If the scorecard contains blocking flags that were not resolved, the evidence package fails.

@@ -1,0 +1,28 @@
+gate: code-quality
+spec_id: SPEC-002
+timestamp: 2026-06-12T13:05:00+10:00
+checks:
+  tests_pass:
+    commands:
+      - "bash tests/test-gate-wiring.sh"
+      - "bash tests/test-eval-intent-structure.sh"
+      - "bash tests/test-secrets-scan.sh"
+    tests_passed: 141  # 86 gate-wiring + 30 eval-intent-structure + 25 secrets-scan
+    tests_failed: 0
+    result: pass
+  coverage:
+    status: not-applicable
+    rationale: "Prompt-only changeset — markdown skills/rubrics/agent plus one bash structural test; no executable code paths to cover. Per rubrics/code-quality.md 'Prompt-Only Changesets (N/A Rationale)': Gate 2 is satisfied by the structural suites passing plus this documented rationale; no fragile LLM-judged pseudo-tests invented."
+  build:
+    status: not-applicable
+    rationale: "build_required: false in config; nothing to build for markdown"
+  lint:
+    status: not-applicable
+    rationale: "lint_required: false in config"
+  type_check:
+    status: not-applicable
+    rationale: "type_check_required: false in config"
+notes:
+  - "Gate 2c wiring changeset: 14 prompt files + tests/test-gate-wiring.sh extension. The gate-wiring suite grew 79 → 86 assertions, all comprehension touchpoints asserted positively (negative guards removed)."
+  - "Suites executed live in the worktree at evidence time, 141/141 green."
+result: pass

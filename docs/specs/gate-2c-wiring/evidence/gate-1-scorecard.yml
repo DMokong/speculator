@@ -1,0 +1,62 @@
+gate: spec-quality
+spec_id: SPEC-002
+spec_path: docs/specs/gate-2c-wiring/spec.md
+timestamp: 2026-06-12 00:00:00+00:00
+scorer: llm-as-judge
+model: claude-sonnet-4-6
+weights:
+  completeness: 0.2
+  clarity: 0.2
+  testability: 0.2
+  intent_verifiability: 0.15
+  feasibility: 0.15
+  scope: 0.1
+scores:
+  completeness: 8
+  clarity: 8
+  testability: 8
+  intent_verifiability: 9
+  feasibility: 8
+  scope: 8
+  overall: 8.2
+threshold: 7.0
+dimension_minimum: 5
+result: pass
+flags:
+  blocking: []
+  recommended:
+  - "AC cold-read isolation not directly tested: no AC verifies that the comprehension\
+    \ scorer is actually dispatched cold (spec+diff only, not session reasoning).\
+    \ The anti-patterns section states this constraint clearly, but no AC enforces\
+    \ it observably \u2014 consider an AC or test assertion that the scorer agent's\
+    \ dispatch payload excludes session context."
+  - R2 references 'mirroring the 2a/3a retry pattern' without defining what that pattern
+    is inline. A reader unfamiliar with existing pipeline internals cannot reconstruct
+    the expected behavior from this spec alone. Consider adding a brief inline description
+    or a cross-reference to where the pattern is defined.
+  - 'impact_underspecified: R3 and R6 extend the Gate Check Skill domain (adding ''comprehension''
+    as a valid gate identifier) and the Pipeline Gates domain (Gate 4, sdlc-status,
+    close-flow), both of which have entries in SYSTEM-SPEC.md. The spec''s impact_rating
+    is correctly declared as additive, but no ''amends'' field is present and the
+    extended behaviors are not reflected in SYSTEM-SPEC.md. Consider adding an ''amends''
+    field listing the affected SYSTEM-SPEC.md domains so the compactor can update
+    the system spec at close.'
+  advisory:
+  - 'Error handling for scorer dispatch failure is not specified: if the comprehension-scorer
+    agent fails to write the evidence artifact (e.g., due to context window exhaustion
+    on a large diff), the spec does not describe the expected pipeline behavior. Given
+    the ''experimental'' framing this is acceptable for now, but worth capturing as
+    a follow-up.'
+  - AC5 tests the spec_fidelity escalation path but there is no AC covering the re-dispatch-once
+    path for artifact-quality dimension failures (ac_coverage, accuracy, scope_containment).
+    Consider adding an AC for the re-dispatch scenario to achieve parity with the
+    escalation scenario.
+  - "The rubric ships ~16 banded examples, which the spec itself acknowledges is below\
+    \ the 10-15-per-dimension requirement. Since this is called out in Risks (R1 mitigation),\
+    \ no action is needed now \u2014 but the calibration corpus gap should be tracked\
+    \ as an explicit follow-up issue."
+override:
+  overridden: false
+  justification: null
+  overridden_by: null
+  override_date: null

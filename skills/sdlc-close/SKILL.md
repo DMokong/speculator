@@ -135,7 +135,7 @@ Note on executing the merge from a worktree: `git checkout main` **fails inside 
       - Compose a PR description with:
         - **Summary**: spec title and 1-2 sentence problem statement
         - **Spec quality**: overall score from Gate 1
-        - **Evidence**: table with one row per gate that ran — Gates 1, 2, 3, and 4 always; add a Gate 2a (eval-intent) row if `gates.eval-intent.enabled: true` and a Gate 2b (eval-quality) row if `gates.eval-quality.enabled: true`. Do not list disabled opt-in gates.
+        - **Evidence**: table with one row per gate that ran — Gates 1, 2, 3, and 4 always; add a Gate 2a (eval-intent) row if `gates.eval-intent.enabled: true`, a Gate 2b (eval-quality) row if `gates.eval-quality.enabled: true`, and a Gate 2c (comprehension) row if `gates.comprehension.enabled: true`. Do not list disabled opt-in gates.
         - **Acceptance criteria**: list from the spec
         - Footer: `🔬 Quality pipeline: Speculator | Spec: {spec_id} | Score: {overall_score}`
    e. Create the PR:

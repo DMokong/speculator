@@ -1,4 +1,4 @@
-# Phase 3b: Comprehension Gate (Gate 2c)
+# Phase 3b: Comprehension (Gate 2c)
 
 This phase runs when `gates.comprehension.enabled: true` in `.claude/sdlc.local.md`.
 It executes after Gate 2 (Code Quality) and Gate 2b (Eval Quality, if enabled),

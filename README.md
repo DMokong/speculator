@@ -8,9 +8,9 @@
 
 # Speculator
 
-A Claude Code plugin that enforces a 6-stage quality pipeline (4 required + 2 opt-in eval gates) on agentic development workflows with LLM-as-judge spec scoring, git worktree isolation, and in-repo evidence artifacts. *Spec + Evaluator = Speculator.*
+A Claude Code plugin that enforces a 7-stage quality pipeline (4 required + 3 opt-in gates) on agentic development workflows with LLM-as-judge spec scoring, git worktree isolation, and in-repo evidence artifacts. *Spec + Evaluator = Speculator.*
 
-Speculator is being built toward an explicit goal: an **anti-dark-code pipeline** — a workflow that won't ship code unless intent, behavior, and comprehension can all be evidenced. Today it covers spec quality (Gate 1), eval intent (Gate 2a), code quality (Gate 2), eval quality (Gate 2b), code review (Gate 3), and evidence packaging (Gate 4). The next gate on the roadmap — **Gate 2c (Comprehension)** — closes the last gap between *"tests pass"* and *"any human or agent could explain what shipped."* See [ROADMAP.md](ROADMAP.md).
+Speculator is being built toward an explicit goal: an **anti-dark-code pipeline** — a workflow that won't ship code unless intent, behavior, and comprehension can all be evidenced. Today it covers spec quality (Gate 1), eval intent (Gate 2a), code quality (Gate 2), eval quality (Gate 2b), comprehension (Gate 2c, experimental), code review (Gate 3), and evidence packaging (Gate 4). Gate 2c closes the last gap between *"tests pass"* and *"any human or agent could explain what shipped"* — its calibration corpus is the remaining open work. See [ROADMAP.md](ROADMAP.md).
 
 ## Prerequisites
 
@@ -216,15 +216,15 @@ Speculator: Scoring spec...
 ## Gate Pipeline
 
 ```
-Gate 1: Spec        ┌──── Gate 2a: Eval Intent ────┐  Gate 2: Code   ┌──── Gate 2b: Eval Quality ────┐  Gate 3: Code   Gate 4: Evidence
-       Quality       │       (opt-in, v2.8.0)       │      Quality    │       (opt-in, v2.7.0)        │      Review        Package
-  (LLM-as-judge)  ──>│   pre-impl intent capture    │ ──>(tests + ──>│   instrument-quality on       │ ──>(6-point  ──>(all gates pass
-                     │   per AC, scored 4 dims      │    coverage)    │   shipped tests, scored 7d)   │    review +      → merge or PR)
-                     └──────────────────────────────┘                 └───────────────────────────────┘    secrets +
-                                                                                                            skill desc.)
+Gate 1: Spec        ┌──── Gate 2a: Eval Intent ────┐  Gate 2: Code   ┌──── Gate 2b: Eval Quality ────┐  ┌── Gate 2c: Comprehension ──┐  Gate 3: Code   Gate 4: Evidence
+       Quality       │       (opt-in, v2.8.0)       │      Quality    │       (opt-in, v2.7.0)        │  │  (opt-in, experimental)    │      Review        Package
+  (LLM-as-judge)  ──>│   pre-impl intent capture    │ ──>(tests + ──>│   instrument-quality on       │─>│  cold-read per-AC artifact │ ──>(6-point  ──>(all gates pass
+                     │   per AC, scored 4 dims      │    coverage)    │   shipped tests, scored 7d)   │  │  on diff, scored 4 dims    │    review +      → merge or PR)
+                     └──────────────────────────────┘                 └───────────────────────────────┘  └────────────────────────────┘    secrets +
+                                                                                                                                            skill desc.)
 ```
 
-Six gate stages — four always-on, two opt-in:
+Seven gate stages — four always-on, three opt-in:
 
 | Gate | Stage | Default | Evidence file |
 |------|-------|---------|---------------|
@@ -232,6 +232,7 @@ Six gate stages — four always-on, two opt-in:
 | 2a — Eval Intent | between plan and implementation | **opt-in** (`gates.eval-intent.enabled`) | `gate-2a-eval-intent.yml` |
 | 2 — Code Quality | post-implementation | required | `gate-2-quality.yml` |
 | 2b — Eval Quality | between code and review | **opt-in** (`gates.eval-quality.enabled`) | `gate-2b-eval-quality.yml` |
+| 2c — Comprehension | between eval quality and review | **opt-in, experimental** (`gates.comprehension.enabled`) | `gate-2c-comprehension.yml` |
 | 3 — Code Review | post-implementation | required | `gate-3-review.yml` |
 | 4 — Evidence Package | pre-merge | required | `gate-4-summary.yml` |
 
@@ -242,6 +243,12 @@ Each gate produces a YAML evidence artifact in `docs/specs/{feature}/evidence/`.
 Pre-implementation intent capture. For each acceptance criterion, the author writes an *eval* — a markdown artifact in `docs/specs/{feature}/evals/` describing the observable user outcome. The `eval-intent-scorer` agent scores the eval set on 4 dimensions (intent coverage, anti-pattern detection, journey completeness, implementation independence), checks SYSTEM-SPEC.md for behavioral conflicts, and scans prior specs for regression signals. Default threshold: 6.5. Disabled by default; enable with `gates.eval-intent.enabled: true`.
 
 Why pre-implementation? Catching letter-vs-spirit gaming requires measuring intent *before* the implementation creates an attractor. Evals authored after seeing the code tend to ratify whatever the code does.
+
+### Gate 2c: Comprehension (opt-in, experimental)
+
+The anti-dark-code gate. The `comprehension-scorer` agent reads the spec and the diff **cold** — no access to the implementing agent's reasoning, plan, or in-session context (the implementing agent cannot be its own judge) — generates a per-AC explanation artifact naming the implementing code, then scores that artifact on 4 dimensions (AC coverage, accuracy, spec fidelity, scope containment). Spec fidelity is the dark-code detector: an implementation can satisfy every AC literally and still defeat the spec's intent (soft-delete where the spec demanded erasure). Default threshold: 7.0, per-dimension minimum 5. Disabled by default; enable with `gates.comprehension.enabled: true`.
+
+The artifact doubles as durable context: per-AC documentation answering *"why was this written this way?"* that the Gate 3 reviewer consumes as preamble. **Experimental** — the rubric's calibration corpus is still seed-stage, so treat scores as advisory until it's built out from real artifacts.
 
 ### Gate 3: Code Review
 
@@ -260,7 +267,7 @@ Gate 3 runs three checks — all blocking on failure:
 | `/spec score` | Gate 1: LLM-as-judge spec quality scoring (6 dimensions) |
 | `/spec eval` | Gate 2a (opt-in): Pre-implementation eval authoring + intent scoring (4 dimensions) |
 | `/spec implement` | Create implementation plan + beads stories + execute tasks |
-| `/spec gate` | Check or run any specific gate (1, 2, 2a, 2b, 3, 4) |
+| `/spec gate` | Check or run any specific gate (1, 2, 2a, 2b, 2c, 3, 4) |
 | `/spec review` | Gate 3: Automated code review (incl. mandatory secrets scan + skill description eval) |
 | `/spec close` | Gate 4: Evidence package + compact SYSTEM-SPEC.md on feature branch + deliver to main (merge or PR) |
 | `/spec run [args]` | Run the full pipeline autonomously (trust-based oversight) |
@@ -332,6 +339,7 @@ A run's cost is measured in agent dispatches. The retry caps below are derivable
 | Gate 4 — Close | `spec-compactor` ×1 |
 | Gate 2a *(if enabled)* | `eval-intent-scorer` ×1, plus up to 3 improvement re-scores (`max_eval_retries`) |
 | Gate 2b *(if enabled)* | `eval-quality-scorer` ×1, plus 1 re-dispatch after the self-fix cycle |
+| Gate 2c *(if enabled)* | `comprehension-scorer` ×1, plus at most 1 re-dispatch after an artifact-quality failure |
 
 Order of magnitude: a Full Auto run is **tens of agent invocations, not a few**. The shipped defaults — opt-in gates off — *are* the minimal configuration; the four required gates cannot be disabled by design.
 
@@ -443,7 +451,7 @@ run:
 
 ### Opt-in gates
 
-Two additional gates are opt-in. They are disabled by default and have to be turned on explicitly by adding their config blocks under `gates:` in `.claude/sdlc.local.md`:
+Three additional gates are opt-in. They are disabled by default and have to be turned on explicitly by adding their config blocks under `gates:` in `.claude/sdlc.local.md`:
 
 ```yaml
 # Add these blocks under `gates:` to enable
@@ -460,19 +468,24 @@ gates:
     enabled: true                 # default: false. Runs after Gate 2.
     threshold: 6.5
     per_dimension_minimum: 4
+
+  comprehension:                  # Gate 2c — cold-read comprehension gate (experimental)
+    enabled: true                 # default: false. Runs after Gate 2b (or Gate 2), before Gate 3.
+    threshold: 7.0
+    per_dimension_minimum: 5
 ```
 
 When enabled, these gates insert into the pipeline as follows:
 
 ```
-Gate 1 → [Gate 2a if enabled] → Plan → Impl → Gate 2 → [Gate 2b if enabled] → Gate 3 → Gate 4
+Gate 1 → [Gate 2a if enabled] → Plan → Impl → Gate 2 → [Gate 2b if enabled] → [Gate 2c if enabled] → Gate 3 → Gate 4
 ```
 
-You can enable them independently — Gate 2a without 2b, 2b without 2a, or both. See the per-gate sections under [Gate Pipeline](#gate-pipeline) for what each gate evaluates.
+You can enable them independently — any one, any pair, or all three. See the per-gate sections under [Gate Pipeline](#gate-pipeline) for what each gate evaluates.
 
 ### Bootstrapping
 
-Run `/spec doctor --init` in a fresh project to generate a default `.claude/sdlc.local.md`. The default file ships the required-gate blocks only; uncomment or add the opt-in blocks above when you want to turn on Gate 2a / 2b for that project.
+Run `/spec doctor --init` in a fresh project to generate a default `.claude/sdlc.local.md`. The default file ships the required-gate blocks only; uncomment or add the opt-in blocks above when you want to turn on Gate 2a / 2b / 2c for that project.
 
 ## Plugin Structure
 
@@ -490,10 +503,11 @@ speculator/
 │   ├── sdlc-status/SKILL.md         # /spec status   — cross-worktree pipeline view
 │   ├── sdlc-doctor/SKILL.md         # /spec doctor   — diagnostics + auto-fix
 │   └── spec-compact/SKILL.md        # /spec compact  — bootstrap or single-spec compaction
-├── agents/                          # 5 agents
+├── agents/                          # 6 agents
 │   ├── spec-scorer/AGENT.md         # Gate 1 LLM-as-judge for spec quality + impact validation
 │   ├── eval-intent-scorer/AGENT.md  # Gate 2a — scores authored evals (4 dims) + SYSTEM-SPEC conflict + regression check
 │   ├── eval-quality-scorer/AGENT.md # Gate 2b — scores test suites as detection instruments (7 dims)
+│   ├── comprehension-scorer/AGENT.md # Gate 2c — cold-read per-AC artifact generation + scoring (4 dims)
 │   ├── code-reviewer/AGENT.md       # Gate 3 — 6-point review + mandatory secrets scan + skill-description eval
 │   └── spec-compactor/AGENT.md      # Folds closed specs into SYSTEM-SPEC.md
 ├── rubrics/                         # 9 rubrics
@@ -503,7 +517,7 @@ speculator/
 │   ├── acceptance-criteria.md       # Gate 2 sub-rubric for AC traceability
 │   ├── code-quality.md              # Gate 2 — evidence-based rubric (7 checks)
 │   ├── eval-quality.md              # Gate 2b — 7-dimension rubric for test-suite detection quality
-│   ├── comprehension.md             # Gate 2c (draft) — 4-dimension comprehension rubric (gate not yet wired)
+│   ├── comprehension.md             # Gate 2c — 4-dimension cold-read comprehension rubric (experimental)
 │   ├── review.md                    # Gate 3 — 6-point code review rubric
 │   └── evidence-package.md          # Gate 4 — evidence completeness rubric
 ├── templates/
