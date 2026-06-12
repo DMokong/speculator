@@ -136,3 +136,55 @@ def test_run_command_runs_flag_overrides_matrix(tmp_path):
     assert sorted(d.name for d in captured_dirs) == sorted(
         f"{t}-run{n}" for t in ("arm-feedback", "arm-control") for n in (1, 2)
     )
+
+
+def test_run_command_continues_after_chain_failure(tmp_path):
+    """A raising target chain records an error row and the loop continues.
+
+    Regression for bench-2026-06-12-001: one judge TimeoutExpired aborted the
+    remaining 5 chains because the run loop had no per-target exception
+    handling.
+    """
+    bench = _make_bench_dir(tmp_path, runs_per_combination=1)
+
+    def fake_run_target(target, output_dir, **kwargs):
+        return MagicMock(
+            status="completed",
+            tokens_in=None,
+            tokens_out=None,
+            wall_clock_seconds=0.0,
+        )
+
+    def exploding_iterate_spec(target, **kwargs):
+        if target.id == "arm-feedback":
+            raise RuntimeError("judge timed out")
+        return FAKE_ITERATION_LOG
+
+    with patch.object(cli_module, "BENCHMARKS_DIR", bench), \
+         patch.object(cli_module, "run_target", side_effect=fake_run_target), \
+         patch.object(cli_module, "iterate_spec",
+                      side_effect=exploding_iterate_spec) as mock_iter, \
+         patch.object(cli_module, "generate_yaml_report",
+                      return_value={}) as mock_report:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli_module.main,
+            ["run", "--prd", "test-prd", "--matrix", "test.yml"],
+        )
+
+    assert result.exit_code == 0, result.output
+    # The first chain raised, but the second was still attempted.
+    assert mock_iter.call_count == 2
+
+    rows = mock_report.call_args.kwargs["results"]
+    error_rows = [r for r in rows if r["status"] == "error"]
+    assert len(error_rows) == 1
+    err = error_rows[0]
+    assert err["target"] == "arm-feedback"
+    assert err["error"] == "judge timed out"
+    # Same shape as the adapter_failed rows so the report generator treats
+    # both failure kinds uniformly.
+    assert set(err) == {"target", "status", "error", "harness", "model", "process"}
+    assert err["harness"] == "claude-code"
+    assert err["model"] == "sonnet-4-6"
+    assert err["process"] == "vanilla"

@@ -7,6 +7,7 @@ Two public functions:
 
 from __future__ import annotations
 
+import re
 import statistics
 from pathlib import Path
 from typing import Optional
@@ -54,6 +55,10 @@ def compute_axis_analysis(results: list[dict]) -> dict:
       model_effect:    { pairs: [ {held: {harness, process}, models: [a, b], delta: float} ] }
       harness_effect:  { pairs: [ {held: {model, process}, harnesses: [a, b], delta: float} ] }
     """
+    # Aggregate only completed rows — adapter-failure/error rows carry no
+    # outcome_score and must not KeyError (or poison) the means.
+    results = [r for r in results if "outcome_score" in r]
+
     analysis: dict = {}
 
     # --- Process effect: same harness + model, different process ---
@@ -141,6 +146,10 @@ def compute_variance_analysis(results: list[dict]) -> dict:
 
     Also computes clarity_vs_variance_correlation.
     """
+    # Aggregate only completed rows — adapter-failure/error rows carry no
+    # outcome_score and must not KeyError (or poison) the means.
+    results = [r for r in results if "outcome_score" in r]
+
     # Group by combination key (target without run suffix)
     combos: dict[str, list[float]] = {}
     for r in results:
@@ -239,17 +248,19 @@ def _generate_insights(
             f"(held: harness={largest['held']['harness']}, process={largest['held']['process']})."
         )
 
-    # Ranking insight
-    if rankings:
+    # Ranking insight (failed entries are unranked — never crown one)
+    if rankings and rankings[0]["rank"] is not None:
         winner = rankings[0]
         insights.append(
             f"Top performer: {winner['target']} ({winner['spec_version']} spec) "
             f"with outcome score {winner['outcome_score']:.1f}."
         )
 
-    # Spec version delta insight
-    original_outcomes = [r["outcome_score"] for r in rankings if r["spec_version"] == "original"]
-    improved_outcomes = [r["outcome_score"] for r in rankings if r["spec_version"] == "improved"]
+    # Spec version delta insight — only ranked entries; failed rows carry a
+    # placeholder 0.0 outcome that would skew the means
+    ranked = [r for r in rankings if r["rank"] is not None]
+    original_outcomes = [r["outcome_score"] for r in ranked if r["spec_version"] == "original"]
+    improved_outcomes = [r["outcome_score"] for r in ranked if r["spec_version"] == "improved"]
     if original_outcomes and improved_outcomes:
         mean_orig = statistics.mean(original_outcomes)
         mean_impr = statistics.mean(improved_outcomes)
@@ -310,8 +321,23 @@ def _load_results_from_disk(run_dir: Path) -> list[dict]:
         if spec_version not in ("original", "improved"):
             continue
 
-        # Read speculator score from the spec directory
+        # Live runs record the BASE target id; multi-run layouts suffix the
+        # on-disk directories with -runN. Strip the suffix into run_number so
+        # disk-regenerated reports group by base id exactly like live runs,
+        # while keeping the run available for per-run drill-down. A config id
+        # that genuinely ends in -runN is never stripped.
+        run_number = None
+        base_target_id = target_id
+        run_match = re.fullmatch(r"(.+)-run(\d+)", target_id)
+        if run_match and target_id not in targets_by_id:
+            base_target_id = run_match.group(1)
+            run_number = int(run_match.group(2))
+
+        # Read speculator score from the spec directory (specs are keyed by
+        # the suffixed id in multi-run layouts; fall back to the base id)
         spec_dir = specs_dir / target_id if specs_dir.exists() else None
+        if spec_dir is not None and not spec_dir.exists():
+            spec_dir = specs_dir / base_target_id
         speculator_score = 0.0
         iterations_to_pass = 0
         improvement_mode = None
@@ -365,8 +391,8 @@ def _load_results_from_disk(run_dir: Path) -> list[dict]:
             total_tokens = sum(measured) if measured else None
             total_time_seconds = metrics.get("wall_clock_seconds", 0.0)
 
-        # Target metadata
-        t_meta = targets_by_id.get(target_id, {})
+        # Target metadata (config targets carry base ids)
+        t_meta = targets_by_id.get(base_target_id, {})
         harness = t_meta.get("harness", "unknown")
         model = t_meta.get("model", "unknown")
         process = t_meta.get("process", "unknown")
@@ -378,8 +404,9 @@ def _load_results_from_disk(run_dir: Path) -> list[dict]:
             status = status_path.read_text().strip()
 
         results.append({
-            "target": target_id,
+            "target": base_target_id,
             "spec_version": spec_version,
+            "run_number": run_number,
             "speculator_score": speculator_score,
             "outcome_score": outcome_score,
             "functional_pass_rate": functional_pass_rate,
@@ -413,6 +440,8 @@ def _build_rankings(results: list[dict]) -> list[dict]:
             "rank": rank,
             "target": r["target"],
             "spec_version": r["spec_version"],
+            # Per-run drill-down for multi-run disk layouts — None on live rows
+            "run_number": r.get("run_number"),
             "speculator_score": r.get("speculator_score", 0.0),
             "outcome_score": r["outcome_score"],
             "functional_pass_rate": r.get("functional_pass_rate", "0/0"),
@@ -430,6 +459,7 @@ def _build_rankings(results: list[dict]) -> list[dict]:
             "rank": None,
             "target": r.get("target", "unknown"),
             "spec_version": r.get("spec_version", "n/a"),
+            "run_number": r.get("run_number"),
             "speculator_score": 0.0,
             "outcome_score": 0.0,
             "functional_pass_rate": "0/0",
@@ -477,6 +507,7 @@ def generate_yaml_report(
     if not results:
         report = {
             "rankings": [],
+            "failed_targets": [],
             "correlations": {"speculator_score_vs_outcome": 0.0},
             "axis_analysis": {},
             "insights": ["No results found in run directory."],
@@ -486,24 +517,43 @@ def generate_yaml_report(
             output_path.write_text(yaml.dump(report, default_flow_style=False, sort_keys=False))
         return report
 
+    # Partition completed vs failed rows once — adapter-failure/error rows
+    # carry no outcome_score and would KeyError (or skew) every aggregation
+    completed = [r for r in results if "outcome_score" in r]
+    failed = [r for r in results if "outcome_score" not in r]
+
     # Rankings
     rankings = _build_rankings(results)
 
+    # Surface failed rows explicitly — never drop them silently
+    failed_targets = [
+        {
+            "target": r.get("target", "unknown"),
+            "spec_version": r.get("spec_version", "n/a"),
+            "status": r.get("status", "adapter_failed"),
+            "error": r.get("error"),
+            "harness": r.get("harness", "unknown"),
+            "model": r.get("model", "unknown"),
+            "process": r.get("process", "unknown"),
+        }
+        for r in failed
+    ]
+
     # Correlations
-    spec_scores = [r.get("speculator_score", 0.0) for r in results]
-    outcome_scores = [r["outcome_score"] for r in results]
+    spec_scores = [r.get("speculator_score", 0.0) for r in completed]
+    outcome_scores = [r["outcome_score"] for r in completed]
     correlations = compute_correlations(spec_scores, outcome_scores)
 
     # Also compute original_vs_improved_delta
-    original_scores = [r["outcome_score"] for r in results if r.get("spec_version") == "original"]
-    improved_scores = [r["outcome_score"] for r in results if r.get("spec_version") == "improved"]
+    original_scores = [r["outcome_score"] for r in completed if r.get("spec_version") == "original"]
+    improved_scores = [r["outcome_score"] for r in completed if r.get("spec_version") == "improved"]
     if original_scores and improved_scores:
         correlations["original_vs_improved_delta"] = round(
             statistics.mean(improved_scores) - statistics.mean(original_scores), 4
         )
 
     # Iteration count vs outcome correlation
-    iter_counts = [r.get("iterations_to_pass", 0) for r in results]
+    iter_counts = [r.get("iterations_to_pass", 0) for r in completed]
     if len(set(iter_counts)) > 1:
         from scipy.stats import pearsonr
         r_val, _ = pearsonr(iter_counts, outcome_scores)
@@ -512,19 +562,24 @@ def generate_yaml_report(
         correlations["iteration_count_vs_outcome"] = 0.0
 
     # Axis analysis
-    axis_analysis = compute_axis_analysis(results)
+    axis_analysis = compute_axis_analysis(completed)
 
     # Variance analysis (only when multiple runs per combination)
     variance_analysis: Optional[dict] = None
     if runs_per_combination > 1:
-        variance_analysis = compute_variance_analysis(results)
+        variance_analysis = compute_variance_analysis(completed)
 
     # Auto-generated insights
     insights = _generate_insights(rankings, correlations, axis_analysis)
+    if failed_targets:
+        insights.append(
+            f"{len(failed_targets)} target(s) failed before judging — see failed_targets."
+        )
 
     # Assemble report
     report: dict = {
         "rankings": rankings,
+        "failed_targets": failed_targets,
         "correlations": correlations,
         "axis_analysis": axis_analysis,
         "insights": insights,

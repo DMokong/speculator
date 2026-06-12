@@ -12,6 +12,7 @@ import time
 import urllib.request
 import urllib.error
 
+from .config import DEFAULT_JUDGE_TIMEOUT_SECONDS
 from .scoring import _resolve_claude_bin, _map_claude_model
 from pathlib import Path
 
@@ -203,13 +204,17 @@ def _merge_results(
             })
         elif tid in llm_verdicts:
             v = llm_verdicts[tid]
-            merged.append({
+            row = {
                 "id": tid,
                 "requirement": t["requirement"],
                 "passed": v["passed"],
                 "evidence": v["evidence"],
                 "source": "llm-judge",
-            })
+            }
+            # Surface judge failures (e.g. judge_timeout) in the results file
+            if "status" in v:
+                row["status"] = v["status"]
+            merged.append(row)
         else:
             merged.append({
                 "id": tid,
@@ -227,6 +232,7 @@ def run_functional_tests(
     output_dir: Path,
     port: int = _DEFAULT_DEV_PORT,
     judge_model: str = "sonnet",
+    judge_timeout_seconds: int = DEFAULT_JUDGE_TIMEOUT_SECONDS,
 ) -> dict:
     """Run hybrid functional tests (programmatic + LLM vision judge) against a Vite dev app.
 
@@ -246,6 +252,7 @@ def run_functional_tests(
         output_dir: Directory to write functional-results.yml into.
         port: Ignored (kept for API compat); a free port is always chosen.
         judge_model: Claude model name for the LLM vision judge.
+        judge_timeout_seconds: Subprocess timeout for the vision judge call.
 
     Returns:
         Dict with 'results' list and 'summary' dict.
@@ -305,7 +312,11 @@ def run_functional_tests(
 
             browser.close()
 
-        llm_verdicts = run_vision_judge(tests, states, judge_model=judge_model)
+        llm_verdicts = run_vision_judge(
+            tests, states,
+            judge_model=judge_model,
+            timeout_seconds=judge_timeout_seconds,
+        )
         check_results = _merge_results(tests, llm_verdicts, programmatic_results)
 
     finally:
@@ -346,6 +357,7 @@ def run_judge(
     rubric_path: Path,
     output_dir: Path,
     judge_model: str = "opus-4-6",
+    timeout_seconds: int = DEFAULT_JUDGE_TIMEOUT_SECONDS,
 ) -> dict:
     """Run the LLM-as-judge qualitative review of an implementation.
 
@@ -365,6 +377,7 @@ def run_judge(
         rubric_path: Path to the outcome rubric markdown.
         output_dir: Directory to write judge-scorecard.yml into.
         judge_model: Claude model name to use as the judge.
+        timeout_seconds: Subprocess timeout for the judge call.
 
     Returns:
         Parsed scorecard dict with 'scores' and 'reasoning' keys.
@@ -395,7 +408,7 @@ def run_judge(
         ],
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=timeout_seconds,
     )
 
     if result.returncode != 0:

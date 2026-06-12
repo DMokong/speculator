@@ -12,6 +12,7 @@ from pathlib import Path
 
 import yaml
 
+from .config import DEFAULT_JUDGE_TIMEOUT_SECONDS
 from .scoring import _resolve_claude_bin, _map_claude_model
 
 
@@ -115,6 +116,7 @@ def run_vision_judge(
     tests: list[dict],
     states: list,
     judge_model: str = "sonnet",
+    timeout_seconds: int = DEFAULT_JUDGE_TIMEOUT_SECONDS,
 ) -> dict:
     """Run the LLM vision judge on captured app states.
 
@@ -122,9 +124,14 @@ def run_vision_judge(
         tests: List of test dicts with id, requirement, test keys.
         states: List of AppState objects from app_navigator.
         judge_model: Claude model to use for judging.
+        timeout_seconds: Subprocess timeout for the judge call (from
+            judge.timeout_seconds in the matrix config).
 
     Returns:
         Dict mapping test IDs to {"passed": bool, "evidence": str}.
+        On judge timeout, every test gets a failure verdict with
+        "status": "judge_timeout" — one slow judge call must not kill
+        the rest of the benchmark run.
     """
     evidence_text = _format_evidence(states)
     requirements_yaml = _format_requirements(tests)
@@ -135,19 +142,28 @@ def run_vision_judge(
         count=len(tests),
     )
 
-    result = subprocess.run(
-        [
-            _resolve_claude_bin(),
-            "-p",
-            prompt,
-            "--dangerously-skip-permissions",
-            "--model",
-            _map_claude_model(judge_model),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    try:
+        result = subprocess.run(
+            [
+                _resolve_claude_bin(),
+                "-p",
+                prompt,
+                "--dangerously-skip-permissions",
+                "--model",
+                _map_claude_model(judge_model),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        evidence = (
+            f"Vision judge timed out after {timeout_seconds}s — no verdict produced"
+        )
+        return {
+            t["id"]: {"passed": False, "evidence": evidence, "status": "judge_timeout"}
+            for t in tests
+        }
 
     if result.returncode != 0:
         raise RuntimeError(f"Vision judge failed (exit {result.returncode}): {result.stderr[:500]}")

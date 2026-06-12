@@ -286,5 +286,104 @@ def test_load_results_from_disk_reads_improvement_mode(tmp_path):
 
     assert len(results) == 1
     assert results[0]["target"] == "arm-feedback"
+    assert results[0]["run_number"] is None  # single-run layout — no -runN suffix
     assert results[0]["improvement_mode"] == "feedback"
     assert results[0]["speculator_score"] == 8.0
+
+
+def test_generate_yaml_report_mixed_completed_and_failed(tmp_path):
+    """An adapter-failure row (no outcome_score) must not KeyError report
+    generation; it surfaces in failed_targets instead of being dropped silently."""
+    run_dir = tmp_path / "bench-mixed-failure"
+    run_dir.mkdir()
+    (run_dir / "config.yml").write_text("benchmark:\n  prd: test\n  runs_per_combination: 1")
+
+    # Shape matches the live runner's adapter_failed rows: no outcome_score,
+    # no spec_version, no speculator_score.
+    failed_row = {
+        "target": "cc-vanilla-haiku",
+        "status": "adapter_failed",
+        "error": "adapter exited 1",
+        "harness": "claude-code",
+        "model": "haiku-4-5",
+        "process": "vanilla",
+    }
+
+    report = generate_yaml_report(run_dir=run_dir, results=[*SAMPLE_RESULTS, failed_row])
+
+    # Aggregations cover only the completed rows
+    ranked = [r for r in report["rankings"] if r["rank"] is not None]
+    assert len(ranked) == len(SAMPLE_RESULTS)
+    assert report["correlations"]["speculator_score_vs_outcome"] > 0.8
+
+    # The failed target is surfaced, not dropped
+    assert report["failed_targets"] == [{
+        "target": "cc-vanilla-haiku",
+        "spec_version": "n/a",
+        "status": "adapter_failed",
+        "error": "adapter exited 1",
+        "harness": "claude-code",
+        "model": "haiku-4-5",
+        "process": "vanilla",
+    }]
+    assert any("failed before judging" in i for i in report["insights"])
+
+    # Failed rows still appear (unranked) at the tail of rankings
+    assert report["rankings"][-1]["rank"] is None
+    assert report["rankings"][-1]["target"] == "cc-vanilla-haiku"
+
+
+def test_generate_yaml_report_failed_targets_empty_when_all_completed(tmp_path):
+    """failed_targets is always present (empty list on a clean run) so report
+    shape is stable for downstream analysis."""
+    run_dir = tmp_path / "bench-no-failures"
+    run_dir.mkdir()
+    (run_dir / "config.yml").write_text("benchmark:\n  prd: test\n  runs_per_combination: 1")
+
+    report = generate_yaml_report(run_dir=run_dir, results=SAMPLE_RESULTS)
+
+    assert report["failed_targets"] == []
+
+
+def test_load_results_from_disk_strips_run_suffix(tmp_path):
+    """Disk-regenerated results group by BASE target id (matching live runs),
+    with the -runN suffix preserved as run_number for per-run drill-down."""
+    from spec_bench.report import _load_results_from_disk
+
+    run_dir = tmp_path / "bench-disk-runs"
+    impl_dir = run_dir / "implementations" / "cc-vanilla-sonnet-run2-improved"
+    impl_dir.mkdir(parents=True)
+    # Multi-run layouts key spec dirs by the suffixed id
+    spec_dir = run_dir / "specs" / "cc-vanilla-sonnet-run2"
+    spec_dir.mkdir(parents=True)
+    (spec_dir / "iteration-log.yml").write_text(yaml.dump({
+        "summary": {
+            "iterations_needed": 1,
+            "original_score": 6.0,
+            "final_score": 7.5,
+            "improvement_mode": "feedback",
+        },
+    }))
+    (run_dir / "config.yml").write_text(yaml.dump({
+        "benchmark": {
+            "prd": "test",
+            "runs_per_combination": 3,
+            "targets": [
+                {"id": "cc-vanilla-sonnet", "harness": "claude-code",
+                 "model": "sonnet-4-6", "process": "vanilla"},
+            ],
+        },
+    }))
+
+    results = _load_results_from_disk(run_dir)
+
+    assert len(results) == 1
+    assert results[0]["target"] == "cc-vanilla-sonnet"  # base id, like live runs
+    assert results[0]["run_number"] == 2  # suffix preserved for drill-down
+    assert results[0]["spec_version"] == "improved"
+    # Config metadata resolves against the base id
+    assert results[0]["model"] == "sonnet-4-6"
+    assert results[0]["process"] == "vanilla"
+    # Spec artifacts resolve against the suffixed dir
+    assert results[0]["speculator_score"] == 7.5
+    assert results[0]["improvement_mode"] == "feedback"

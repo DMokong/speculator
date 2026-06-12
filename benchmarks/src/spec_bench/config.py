@@ -15,6 +15,12 @@ VALID_RUBRIC_SOURCES = {"inline", "production"}
 # recorded scorer_model unverifiable.
 DEFAULT_SCORER_MODEL = "claude-sonnet-4-6"
 
+# Default judge subprocess timeout in seconds. The opus judge reviewing
+# functional-test evidence routinely exceeded the old 120s limit and killed
+# entire runs (bench-2026-06-12-001) — 600s gives headroom while still
+# bounding a hung judge.
+DEFAULT_JUDGE_TIMEOUT_SECONDS = 600
+
 
 @dataclass
 class Target:
@@ -64,6 +70,9 @@ class MatrixConfig:
     judge_model: str
     targets: list[Target]
     scorer: ScorerConfig = field(default_factory=ScorerConfig)
+    # Optional judge.timeout_seconds in the matrix — bounds each judge
+    # subprocess call (vision judge + outcome judge).
+    judge_timeout_seconds: int = DEFAULT_JUDGE_TIMEOUT_SECONDS
 
 
 @dataclass
@@ -91,12 +100,18 @@ def load_matrix(path: Path) -> MatrixConfig:
 
     bench = raw["benchmark"]
     ci = bench["constant_implementer"]
-    judge_model = bench["judge"]["model"]
+    judge = bench["judge"]
+    judge_model = judge["model"]
+    judge_timeout_seconds = int(judge.get("timeout_seconds", DEFAULT_JUDGE_TIMEOUT_SECONDS))
 
     if judge_model == ci["model"]:
         raise ValueError(
             f"judge.model must differ from constant_implementer.model "
             f"(both are '{judge_model}')"
+        )
+    if judge_timeout_seconds <= 0:
+        raise ValueError(
+            f"judge.timeout_seconds must be positive (got {judge_timeout_seconds})"
         )
 
     # Scorer block is optional — defaults pin the model and preserve the
@@ -151,6 +166,7 @@ def load_matrix(path: Path) -> MatrixConfig:
         judge_model=judge_model,
         targets=targets,
         scorer=scorer,
+        judge_timeout_seconds=judge_timeout_seconds,
     )
 
 
