@@ -1,0 +1,32 @@
+evidence_type: evidence-package
+spec_id: SPEC-003
+timestamp: 2026-06-12T18:05:00+10:00
+gates:
+  spec-quality:
+    evidence_file: gate-1-scorecard.yml
+    result: pass            # 8.0 → improvement round → 8.4; Full Auto under the sigma-raised 8.3 bar
+  code-quality:
+    evidence_file: gate-2-quality.yml
+    result: pass            # prompt-only: 148/148 structural + documented N/A rationale
+  eval-intent:
+    evidence_file: gate-2a-eval-intent.yml
+    result: pass            # 8.1 first round (anti-patterns covered at authoring time)
+  eval-quality:
+    evidence_file: gate-2b-eval-quality.yml
+    result: n/a             # gates.eval-quality not enabled in this repo's config
+  comprehension:
+    evidence_file: gate-2c-comprehension.yml
+    result: pass            # 7.8/7.0 — second live run; its recommended flag (lib single-source drift) fixed in a3758e0 pre-review
+  review:
+    evidence_file: gate-3-review.yml
+    result: pass
+    warnings: 0             # 4 advisory observations recorded in gate-3 evidence
+blocking_flags_resolved: true
+spec_status: approved       # compactor sets complete; close sets closed at delivery
+beads_epic: null            # tracked externally as claudeclaw claw-1ff1
+beads_stories_closed: n/a
+pipeline_result: pass
+notes:
+  - "Mechanical verification run at evidence time — see command output recorded below in close commit."
+  - "Trust context: scored 8.4 under the sigma-informed thresholds (full_auto 8.3) — first spec to clear Full Auto on the raised bar, via one self-improvement round (8.0 → 8.4)."
+  - "Gate 2c → Gate 3 preamble flow exercised end-to-end for the second time; the cold reader's drift finding was fixed before review and the reviewer verified the fix rather than re-deriving it."

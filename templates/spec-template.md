@@ -7,6 +7,9 @@ epic:
 worktree:
 risk_level: medium
 impact_rating: none          # none | low | moderate | high
+domain:                      # optional — SYSTEM-SPEC domain for compaction routing (e.g. memory).
+                             # Required at close time in split-layout projects (index + SYSTEM-SPEC-<domain>.md
+                             # files — see lib/system-spec-layout.md); ignorable in single-file projects.
 amends: []                   # list of {section, behavior, change, reason} objects
 # amends example:
 #   - section: "Auth"

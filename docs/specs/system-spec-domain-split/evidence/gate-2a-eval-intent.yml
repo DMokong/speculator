@@ -1,0 +1,104 @@
+gate: eval-intent
+spec_id: SPEC-003
+timestamp: 2026-06-12T00:00:00Z
+eval_files_evaluated:
+  - docs/specs/system-spec-domain-split/evals/ac-1.md
+  - docs/specs/system-spec-domain-split/evals/ac-2.md
+  - docs/specs/system-spec-domain-split/evals/ac-3.md
+  - docs/specs/system-spec-domain-split/evals/ac-4.md
+  - docs/specs/system-spec-domain-split/evals/ac-5.md
+  - docs/specs/system-spec-domain-split/evals/ac-6.md
+  - docs/specs/system-spec-domain-split/evals/ac-7.md
+  - docs/specs/system-spec-domain-split/evals/ac-8.md
+ac_count: 8
+dimensions:
+  intent_coverage: 8
+  anti_pattern_detection: 9
+  journey_completeness: 8
+  implementation_independence: 7
+overall: 8.1
+threshold: 6.5
+per_dimension_minimum: 4
+result: pass
+system_spec_conflicts: []
+regression_signals:
+  - spec_id: SPEC-002
+    eval_file: docs/specs/gate-2c-wiring/evals/ac-6.md
+    behavior_tested: "Close flow conditionally includes Gate 2c in Gate 4 summary and PR evidence table"
+    note: >
+      SPEC-003 R6 makes Gate 2a (the eval-authoring conflict check) split-aware, touching the
+      Conditional Gate Surfaces domain. The Gate 2c surface behavior itself is unchanged, but
+      any implementation of SPEC-003's split-aware conflict check should verify it does not alter
+      how Gate 2c evidence is recorded or presented at close. Not blocking — the new spec adds
+      behavior to a different sub-system than what AC6 tests.
+flags:
+  blocking: []
+  recommended:
+    - >
+      ac-5.md covers both the scorer impact validation (R5) and the Gate 2a conflict check (R6) in
+      a single eval. These are distinct consumers with distinct triggering surfaces. Splitting into
+      two evals would make failures more attributable and would eliminate the risk that one
+      sub-behavior masks a gap in the other.
+    - >
+      ac-3.md (new domain born complete) has no "would fail if" statement for the scenario where
+      the index update and the domain-file creation happen in separate steps (e.g., file created
+      on one run, index row added on a later run). The eval asserts atomicity but doesn't name
+      partial-success as a distinct failure mode.
+  advisory:
+    - >
+      ac-1.md's "would fail if" section checks that two markers each independently trigger split
+      mode, but does not address the edge case where a SYSTEM-SPEC.md exists with a malformed
+      Domains table (no File column) alongside domain sibling files — the spec (R1) says the
+      sibling-file marker alone is sufficient. An advisory check here would strengthen coverage
+      of the degradation guarantee.
+    - >
+      ac-7.md asserts no new file or prompt appears and no fold-in format changes, but does not
+      specify what the observable signal is when a user runs the lifecycle in single-file mode —
+      "looks exactly like the previous version" is slightly underspecified for a tester without
+      v2.10.0 reference behavior handy.
+reasoning:
+  intent_coverage: >
+    All eight evals are framed in terms of what a maintainer observes after running a command —
+    "finds the new behavior lines in the domain file," "the index shows the same navigation content,"
+    "compaction stops and the escalation lists the domains." No eval references a function name,
+    file path (beyond the user-visible SYSTEM-SPEC file names that are themselves the spec's
+    vocabulary), or internal data structure. ac-5.md comes closest to an implementation anchor
+    by naming "index plus that one domain file" as what gets consulted, but this is a
+    user-observable scope constraint stated in the spec itself, not an internal detail.
+    Score withheld from 9 because ac-5.md bundles two distinct AC surfaces and ac-8.md's
+    observable outcome ("sees an optional domain field…with a short note") slightly underspecifies
+    the tester's verification action.
+  anti_pattern_detection: >
+    All four named anti-patterns from the spec are covered by at least one eval with an explicit
+    "would fail if" statement naming the anti-pattern: (1) guessing a domain — ac-4.md names it
+    and gives two variants (content-based guess, default/misc domain); (2) writing behavior
+    entries to the index — ac-2.md names it and adds the index-as-navigation framing; (3) forcing
+    migration — ac-7.md names it ("the split is an opt-in scaling tool, not a new default") and
+    covers the prompt-appearing variant; (4) duplicating cross-domain behaviors — ac-2.md names
+    it and ties it to the audit double-count consequence. The anti-pattern labels are cited by
+    effect rather than number, which is slightly less precise than naming them verbatim, keeping
+    the score at 9 rather than 10.
+  journey_completeness: >
+    The spec's critical user journey has two paths — happy (domain declared, behaviors land in
+    domain file, index unchanged) and failure (domain undeclared, autonomous halt with escalation).
+    ac-2.md covers the happy path end-to-end from close trigger to observable result. ac-4.md
+    covers the failure path end-to-end including the observable escalation content. ac-3.md
+    covers the sub-journey of first-ever domain creation. ac-7.md covers the single-file upgrade
+    journey. The one partial gap: no eval traces the "resume after fixing the missing domain field"
+    completion of the failure path — the spec describes this in the failure narrative ("One
+    frontmatter line later, resume completes") but no eval checks that the resumed close succeeds
+    with no additional ceremony.
+  implementation_independence: >
+    The evals are largely implementation-independent: they name user-visible artifacts
+    (the domain file, the index, the escalation message) rather than internal agent variables or
+    prompt structures. The primary coupling risk is ac-6.md's "would fail if" check that
+    "`--all` on a split project emits a single file" — the `--all` flag name is a CLI surface
+    detail, but it is explicitly named in the spec (R7/AC6) as a user-visible affordance, so
+    this is boundary-acceptable. ac-5.md implicitly assumes the two gates (Gate 1 impact
+    validation and Gate 2a conflict check) are separately observable, which is architecturally
+    true but could be satisfied differently. Score held at 7 rather than 8 because two evals
+    (ac-5.md, ac-8.md) contain phrases ("reads the index plus that one domain file," "sees an
+    optional domain field in the frontmatter") that are observable outcomes framed partly in
+    terms of the mechanism — a different valid implementation achieving the same user outcome
+    via a different internal reading strategy would still satisfy the behavior, but the framing
+    invites a tester to look at the mechanism rather than the outcome.

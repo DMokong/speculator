@@ -80,7 +80,8 @@ Note on executing the merge from a worktree: `git checkout main` **fails inside 
    - Invoke the `spec-compactor` agent (from `${CLAUDE_PLUGIN_ROOT}/agents/spec-compactor/AGENT.md`) with:
      - `spec_path`: path to the closing spec
      - `system_spec_path`: `{spec_dir}/SYSTEM-SPEC.md`
-   - The agent produces an updated SYSTEM-SPEC.md (or creates it if this is the first compaction)
+   - The agent produces an updated SYSTEM-SPEC.md (or creates it if this is the first compaction). In split-layout projects (detected per `${CLAUDE_PLUGIN_ROOT}/lib/system-spec-layout.md`) it instead routes behaviors to `SYSTEM-SPEC-<domain>.md` from the closing spec's `domain:` frontmatter and maintains the index's Domains-table row; single-file projects are unchanged.
+   - **Split layout with no `domain:` declared — halt, never guess.** This close workflow is the autonomous surface: compaction HALTS with nothing written, and you escalate listing the existing domains from the index's Domains table: *"Compaction halted: no `domain:` declared in spec frontmatter — existing domains: {list}. Add `domain: <name>` to the spec and re-run compaction with `/spec compact {spec-name}`."* Treat the halt as a compaction failure per the next bullet — the spec stays at `status: closed` and the delivered merge is not rolled back.
    - If the agent fails or SYSTEM-SPEC.md cannot be written, log the failure and leave the spec at `status: closed` — do not block the close flow
 
 7. **Mark spec as compacted** (only if step 6 succeeded):
@@ -90,7 +91,7 @@ Note on executing the merge from a worktree: `git checkout main` **fails inside 
      - `compacted_date: {today's date in YYYY-MM-DD}`
 
 8. **Commit compaction changes** (only if step 6 succeeded):
-   - Stage SYSTEM-SPEC.md and the spec's updated frontmatter
+   - Stage SYSTEM-SPEC.md (and, in split layout, any modified or created SYSTEM-SPEC-*.md domain files) and the spec's updated frontmatter
    - Commit with message: `chore(sdlc): compact {spec_id} into SYSTEM-SPEC.md`
    - Tell the user: "Two commits created: merge commit + compaction commit. This is by design — compaction only runs for validated, shipped specs."
 
@@ -102,7 +103,8 @@ Note on executing the merge from a worktree: `git checkout main` **fails inside 
    - Invoke the `spec-compactor` agent (from `${CLAUDE_PLUGIN_ROOT}/agents/spec-compactor/AGENT.md`) with:
      - `spec_path`: path to the closing spec
      - `system_spec_path`: `{spec_dir}/SYSTEM-SPEC.md`
-   - The agent produces an updated SYSTEM-SPEC.md (or creates it if this is the first compaction)
+   - The agent produces an updated SYSTEM-SPEC.md (or creates it if this is the first compaction). In split-layout projects (detected per `${CLAUDE_PLUGIN_ROOT}/lib/system-spec-layout.md`) it instead routes behaviors to `SYSTEM-SPEC-<domain>.md` from the closing spec's `domain:` frontmatter and maintains the index's Domains-table row; single-file projects are unchanged.
+   - **Split layout with no `domain:` declared — halt, never guess.** This close workflow is the autonomous surface: compaction HALTS with nothing written, and you escalate listing the existing domains from the index's Domains table: *"Compaction halted: no `domain:` declared in spec frontmatter — existing domains: {list}. Add `domain: <name>` to the spec and re-run compaction with `/spec compact {spec-name}`."* Treat the halt as a compaction failure per the next bullet — the spec stays at `status: closed` and the PR flow continues.
    - If the agent fails or SYSTEM-SPEC.md cannot be written, log the failure and leave the spec at `status: closed` — do not block the close flow
 
 6. **Mark spec as compacted** (only if step 5 succeeded):
@@ -112,7 +114,7 @@ Note on executing the merge from a worktree: `git checkout main` **fails inside 
      - `compacted_date: {today's date in YYYY-MM-DD}`
 
 7. **Commit compaction changes** (only if step 5 succeeded):
-   - Stage SYSTEM-SPEC.md and the spec's updated frontmatter
+   - Stage SYSTEM-SPEC.md (and, in split layout, any modified or created SYSTEM-SPEC-*.md domain files) and the spec's updated frontmatter
    - Commit with message: `chore(sdlc): compact {spec_id} into SYSTEM-SPEC.md`
 
 8. **Create a pull request**:

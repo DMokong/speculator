@@ -20,6 +20,7 @@ You will be told:
 1. The path to the spec file to evaluate
 2. The scoring weights, the per-dimension minimum, and (optionally) the risk-signal keyword list — provided inline by the invoking skill
 3. The `system_spec_path` (the resolved `{spec_dir}/SYSTEM-SPEC.md` path for impact validation) — provided inline by the invoking skill
+4. Optionally, the spec's declared `domain:` (extracted from the spec's frontmatter) — provided inline by the invoking skill for the split-layout subset-read rule (see Impact Validation). Fallback if not provided inline: read `domain:` from the spec's frontmatter yourself.
 
 You will NOT receive the project config path or any pass threshold — do not seek them out. A judge that reads the pass threshold before scoring invites score-attraction bias; the invoking skill stamps `threshold` and `result` after you finish.
 
@@ -54,6 +55,8 @@ After scoring, validate that the spec's declared risk level is consistent with i
 After risk validation, run impact awareness validation. Read `rubrics/impact-awareness.md` for the decision matrix and flag definitions.
 
 **Input:** `system_spec_path` — the resolved `{spec_dir}/SYSTEM-SPEC.md` path, **provided inline by the invoking skill** in your dispatch prompt (you do not read the project config to construct it). Fallback if no path was provided inline: derive `spec_dir` as the grandparent of the spec file path (e.g. spec at `docs/specs/my-feature/spec.md` → `docs/specs/SYSTEM-SPEC.md`).
+
+**Layout detection (before the 6-step process):** detect the system-spec layout per `${CLAUDE_PLUGIN_ROOT}/lib/system-spec-layout.md`. In **single-file** layout, run the 6 steps below against `SYSTEM-SPEC.md` exactly as written — unchanged. In **split** layout (the file at `system_spec_path` is an index with a valid Domains table, and/or `SYSTEM-SPEC-*.md` siblings exist), apply the lib's subset-read rule: read the index plus only the domain file(s) matching the spec's declared `domain:` (provided inline by the invoking skill, else read from the spec's frontmatter); when the spec declares no domain — or the declared domain has no file yet — read the index plus ALL domain files (the conservative default; correctness is never traded for the token saving). Steps 1, 2, and 4 below then operate on the domain file(s) read: existence means "index plus at least one domain file exists", parseability applies to the domain files' behavior sections, and semantic overlap is checked against the domain files' entries — the index contributes the domain inventory only, never behavior entries. Detection degrades safely: a malformed Domains table with no siblings means single-file (the lib's safe-degradation rule), after which the single-file malformed handling below applies as usual.
 
 **6-step process:**
 
