@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.12.0 — Validation Campaign: calibration corpus, controlled ablation results, noise-safe defaults (2026-06-12)
+
+### Added
+- **Gate 2c calibration corpus** (`rubrics/comprehension-calibration/`) — 47 band-verified examples (~12/dimension across all four bands), fulfilling the rubric's own Calibration Set Requirements. Generated from the gate's two real artifacts + domain-varied synthetic scenarios; every example adversarially band-verified by a blind judge (2 of 49 rejected wrong-band). Plausible-but-wrong Accuracy cases and letter-vs-spirit Spec Fidelity cases deliberately over-represented. README documents the three uses: judge calibration runs, anchor rotation, post-edit regression checks
+- **Feedback-vs-control ablation results** (`benchmarks/results/feedback-vs-control-ablation.yml`) — first controlled evidence for the feedback claim: feedback arm +2.23 mean lift, 3/3 passed in 1 iteration; control arm (generic revision) +0.63, 0/3 passed in 3. Scorer feedback content, not revision compute, drives the lift. Methodology addendum added to the historical 3-round results
+- **Real adapter token accounting** — claude-code.sh parses the CLI json envelope (incl. cache components, 99.97% of the previous undercount); null over fake zeros; stdout/spec-extraction contract preserved
+- **Benchmark resilience** — judge timeouts 600s configurable (`judge.timeout_seconds`), TimeoutExpired → structured `judge_timeout` verdict, per-target error isolation (one failed chain no longer kills a run — validated live when a session limit failed all 6 chains gracefully); report.py partitions failed targets into a `failed_targets` section and groups disk-loaded `-runN` dirs under base target ids
+
+### Changed
+- **Consumer trust-ladder defaults raised to 8.3 / 8.5** (doctor `--init` template) — sized to measured scorer test-retest sigma (0.18–0.24 on polished specs; the old 7.8/8.0 put full-auto grants within judge noise of guided). Template comment cites the data
+- ROADMAP: validation-campaign section records the sigma study, ablation results, and the in-flight outcome matrix
+
 ## 2.11.0 — SYSTEM-SPEC Domain Split: native split-layout support (SPEC-003) (2026-06-12)
 
 Closes SPEC-042 Phase 2. The plugin's SYSTEM-SPEC consumers now natively handle the split layout (index + per-domain `SYSTEM-SPEC-<domain>.md` files) that ClaudeClaw has run since Phase 1 — the index's manual "Routing Note" bridge becomes documentation of automatic behavior. Dogfooded as SPEC-003: Gate 1 8.0→8.4 via one improvement round (first spec to clear the sigma-raised 8.3 Full Auto bar), Gate 2a 8.1 first round, Gate 2c's second live run (7.8 — caught a lib single-source drift, fixed pre-review), Gate 3 pass ×6, Gate 4 26/26 mechanical.

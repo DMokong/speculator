@@ -470,6 +470,8 @@ reasoning:
 
 ## Calibration Set Requirements
 
+**Status (2026-06-12): the corpus exists** — see `rubrics/comprehension-calibration/` (47 band-verified examples, README documents usage: calibration runs, anchor rotation, regression checks). The requirements it was built against:
+
 Before this rubric is production-ready, build a calibration set with at least:
 
 - **10–15 examples per dimension** at each scoring band (1-3, 4-6, 7-8, 9-10).
