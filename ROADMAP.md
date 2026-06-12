@@ -115,6 +115,14 @@ The agent code was mostly mechanical, as predicted. **Calibration is the remaini
 
 ## Active priorities (next 1–2 minor releases, after Gate 2c)
 
+### 1½. Validation campaign — first results landed (2026-06-12)
+
+The "does this actually work?" question now has its first controlled data:
+
+- **Test-retest sigma study** (`benchmarks/results/test-retest-sigma.yml`): scorer sigma 0.18–0.24 on polished specs, 0.86 on a rough draft. The trust ladder's old 0.2 full-auto band gap was inside noise — this repo's config moved to `full_auto_threshold: 8.3` / `self_improvement_trigger: 8.5`. **Open decision:** the consumer-facing doctor template still ships 7.8/8.0 defaults.
+- **Feedback-vs-control ablation** (`benchmarks/results/feedback-vs-control-ablation.yml`): paired arms, n=3, pinned scorer, production rubric. Feedback: mean lift +2.23, 3/3 passed in one iteration. Control (generic revision): +0.63, 0/3 passed in three. **Scorer feedback content — not revision compute — drives the lift.** This replaces the uncontrolled 18-point claim as the citable evidence.
+- **Outcome matrix** (spec score → implementation quality): in flight on the repaired harness (configurable judge timeouts, per-target error isolation, real token accounting). This is the thesis's remaining open link.
+
 ### 2. Spec-Bench × mutation testing validation
 
 **Goal:** test the predictive validity of Gate 2b (and eventually 2c) scores against an independent ground truth.

@@ -26,9 +26,10 @@ class RunResult:
 def _token_count(value) -> Optional[int]:
     """Coerce an adapter-reported token count to a real measurement or None.
 
-    The claude-code adapter scrapes its session log for token counts and
-    writes 0 when the scrape finds nothing — so 0 means "not measured",
-    not "zero tokens were used."
+    Historical metrics files (and the copilot adapter, which has no usage
+    envelope to parse) may record 0 when nothing was measured — so 0 means
+    "not measured", not "zero tokens were used." The claude-code adapter now
+    parses the CLI's json envelope and writes real counts or null.
     """
     if isinstance(value, (int, float)) and value > 0:
         return int(value)
