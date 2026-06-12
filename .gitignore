@@ -37,3 +37,7 @@ docs/specs/**/.active
 .vscode/
 *.swp
 *.swo
+
+# Local beads tracker retired 2026-06-12 — active speculator work tracked in the
+# claudeclaw workspace. Dolt migration internals never belong in git.
+.beads/
