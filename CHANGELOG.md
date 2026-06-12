@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.11.0 — SYSTEM-SPEC Domain Split: native split-layout support (SPEC-003) (2026-06-12)
+
+Closes SPEC-042 Phase 2. The plugin's SYSTEM-SPEC consumers now natively handle the split layout (index + per-domain `SYSTEM-SPEC-<domain>.md` files) that ClaudeClaw has run since Phase 1 — the index's manual "Routing Note" bridge becomes documentation of automatic behavior. Dogfooded as SPEC-003: Gate 1 8.0→8.4 via one improvement round (first spec to clear the sigma-raised 8.3 Full Auto bar), Gate 2a 8.1 first round, Gate 2c's second live run (7.8 — caught a lib single-source drift, fixed pre-review), Gate 3 pass ×6, Gate 4 26/26 mechanical.
+
+### Added
+- **`lib/system-spec-layout.md`** — single canonical statement of layout detection (Domains table with `Domain`+`File` header columns OR `SYSTEM-SPEC-*.md` siblings; malformed/absent markers degrade safely to single-file), the subset-read rule, and six routing rules (route by `domain:` frontmatter; new domain = file + index row in one step; index is navigation never storage + repair clause; halt-never-guess on missing domain; cross-domain single ownership; amendments follow the behavior's owner)
+- **Six consumers updated** to cite the lib rule: spec-compactor (domain routing, new-domain index rows, autonomous halt), spec-scorer + eval-intent-scorer (index + declared-domain subset reads), eval-authoring, spec-compact (single-spec routing + `--all` split regeneration), sdlc-close (autonomous halt surface)
+- **`spec-score`** passes the spec's `domain:` inline to the scorer (blinding contract intact)
+- **`templates/spec-template.md`** — optional `domain:` frontmatter field
+- **Structural enforcement** — `test-gate-wiring.sh` 86→93 assertions: lib exists + all six consumers reference it by name
+
+### Changed
+- Single-file projects: byte-for-byte unchanged behavior (validated live — SPEC-003's own compaction ran the new compactor against this repo's single-file SYSTEM-SPEC and behaved classically)
+- Trust ladder (repo config, from v2.10.0's sigma study): first Full Auto grant under the raised 8.3 bar
+
 ## 2.10.0 — Gate 2c: Comprehension Gate, wired (SPEC-002) (2026-06-12)
 
 The anti-dark-code gate is live: opt-in, experimental, default off. Shipped through Speculator's own pipeline — Gate 1 (8.2, blinded scorer), Gate 2a (failed 6.3 → revised evals → passed 8.0, the feedback loop working as designed), Gate 2 (prompt-only N/A rationale, 141/141 structural), **Gate 2c's first-ever live run (passed 7.8/7.0** — and the cold reader found a real verifier gap on run #1), Gate 3 (review with the comprehension artifact as preamble), Gate 4 (26/26 mechanical verification). SPEC-002 compacted into SYSTEM-SPEC.md (22 behaviors).
