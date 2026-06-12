@@ -1,0 +1,437 @@
+{
+  "summary": "Adversarial verification of the consolidation changes before the 2.9.0 release",
+  "agentCount": 6,
+  "logs": [],
+  "result": {
+    "verdicts": [
+      {
+        "lens": "orchestrator-sim",
+        "verdict": "issues-found",
+        "count": 12
+      },
+      {
+        "lens": "close-flow-parity",
+        "verdict": "issues-found",
+        "count": 5
+      },
+      {
+        "lens": "schema-consistency",
+        "verdict": "issues-found",
+        "count": 13
+      },
+      {
+        "lens": "blinding-coherence",
+        "verdict": "issues-found",
+        "count": 9
+      },
+      {
+        "lens": "docs-accuracy",
+        "verdict": "issues-found",
+        "count": 8
+      },
+      {
+        "lens": "harness-code",
+        "verdict": "issues-found",
+        "count": 9
+      }
+    ],
+    "blocking": [
+      {
+        "lens": "orchestrator-sim",
+        "severity": "blocking",
+        "title": "gate-check invokes verify-evidence.sh by relative path — the new mechanical verifier silently never runs in consumer projects",
+        "detail": "skills/gate-check/SKILL.md:125: \"Run the mechanical verifier if the script exists: `bash scripts/verify-evidence.sh {spec_dir}/{spec_name}`... If the script does not exist, skip this step.\" Every other plugin artifact in the same file is referenced via `${CLAUDE_PLUGIN_ROOT}/...` (rubrics at lines 57, 85, 102, 124; agents at 47, 87). The script ships inside the plugin at scripts/verify-evidence.sh, but at runtime cwd is the consumer project (e.g. claudeclaw), where `scripts/verify-evidence.sh` does not exist — so the headline mechanical-verification behavior of this release is silently skipped everywhere except the speculator repo itself. The 'skip if missing' clause guarantees no error surfaces.",
+        "fix": "Change skills/gate-check/SKILL.md:125 to `bash \"${CLAUDE_PLUGIN_ROOT}/scripts/verify-evidence.sh\" {spec_dir}/{spec_name}` (keep the skip-if-missing fallback for plugin distributions that strip scripts/)."
+      },
+      {
+        "lens": "orchestrator-sim",
+        "severity": "blocking",
+        "title": "sdlc-close ordering deadlock: Gate 4 fails on open beads stories, but stories are only closed in the step AFTER Gate 4, and Gate 4 failure is a hard stop",
+        "detail": "skills/sdlc-close/SKILL.md:30 (new file): step 1 runs Gate 4 and says \"If Gate 4 fails, stop and report the failing checks — do not proceed to delivery.\" Step 2 (lines 32-38) then closes the beads stories and epic. But Gate 4 itself requires stories already closed: rubrics/evidence-package.md:87-95 check 9 says \"If an epic exists, run `bd show <epic_id>` and verify all child stories have status `closed`... fail if any are open\", and skills/gate-check/SKILL.md:134 step 7 repeats it. Nothing earlier in the pipeline closes stories (skills/sdlc-run/references/phase-implementation.md and phase-review.md never mention beads closure; sdlc-implement only creates stories). A Full Auto run followed literally dead-ends at Phase 5: Gate 4 fail (open stories) → hard stop → the very next step that would have closed them never executes. The ordering existed before, but this change set added the explicit hard-stop sentence and the mechanical framing that make the deadlock binding; sdlc-close step 2 (\"if any are open, warn the user\") even contradicts step 1's gate, which already failed on open stories.",
+        "fix": "Reorder sdlc-close: close completed beads stories/epic (current step 2) BEFORE running Gate 4 (current step 1), keeping lock release after both — or change rubric check 9 / gate-check step 7 to accept 'stories verified complete (closure pending in close workflow)' when invoked from sdlc-close, re-verifying closure before the evidence commit."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "blocking",
+        "title": "verify-evidence.sh result-consistency check false-fails legitimately overridden Gate-1 scorecards",
+        "detail": "/Users/dustincheng/projects/speculator/scripts/verify-evidence.sh:239-245 computes expected result only from `overall >= threshold` and per-dimension minimums. But /Users/dustincheng/projects/speculator/skills/spec-score/SKILL.md:43 stamps `result: pass` only if overall >= threshold AND dims >= minimum AND `flags.blocking` is empty. Reproduced: a scorecard with overall 8.0/threshold 7.0, one blocking flag, `result: fail`, and a recorded override block — check_common accepts it ('result fail overridden', 'blocking flag(s) resolved by recorded override') but check_scorecard then emits '❌ recorded result fail inconsistent — expected pass (overall 8.0 vs threshold 7.0)' and the script exits 1. Since gate-check SKILL.md:125 treats non-zero exit as a blocking Gate-4 finding, any spec whose Gate 1 failed on blocking flags and was properly overridden can never pass Gate 4's mechanical verifier. The override branch at line 245 only excuses expected==fail mismatches, not the reverse.",
+        "fix": "In check_scorecard, fold the blocking-flag term into `expected` (unresolved `flags.blocking` => expected fail; resolved-by-override => treat recorded `fail` as consistent), e.g. accept `result == 'fail'` whenever override_justification(data) is present, mirroring check_common."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "blocking",
+        "title": "gate-check invokes the verifier via a project-relative path — it silently never runs for installed-plugin consumers",
+        "detail": "/Users/dustincheng/projects/speculator/skills/gate-check/SKILL.md:125: 'Run the mechanical verifier if the script exists: `bash scripts/verify-evidence.sh {spec_dir}/{spec_name}` ... If the script does not exist, skip this step.' Every other resource in the same file uses `${CLAUDE_PLUGIN_ROOT}/...` (lines 102, 116, 124). The script ships inside the plugin (repo root scripts/, no manifest exclusion), so in a consumer project (e.g. claudeclaw via speculator@dmokong-plugins) it lives at ${CLAUDE_PLUGIN_ROOT}/scripts/verify-evidence.sh, not at project-relative scripts/. The 'if exists' clause makes the entire new mechanical-verification layer silently inert everywhere except the speculator dev repo — the headline behavior of commit 36474fa is lost in the primary deployment mode.",
+        "fix": "Change the invocation to `bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-evidence.sh {spec_dir}/{spec_name}` (keep a project-local fallback if project-side copies are intended), and drop or narrow the silent-skip clause so absence is reported."
+      },
+      {
+        "lens": "blinding-coherence",
+        "severity": "blocking",
+        "title": "Impact validation needs `spec_dir` from the config the scorer is now forbidden to read — and no dispatch site supplies it",
+        "detail": "agents/spec-scorer/AGENT.md:23 says \"You will NOT receive the project config path... do not seek them out\", but AGENT.md:54 instructs the scorer to locate SYSTEM-SPEC.md at a path \"constructed from the project's `spec_dir` config as `{spec_dir}/SYSTEM-SPEC.md`\" (and the output path at AGENT.md:85 also uses `{spec_dir}`). The only dispatch site, skills/spec-score/SKILL.md:28-36, extracts weights, dimension_minimum, and risk_signals — it never extracts `spec_dir` or passes a SYSTEM-SPEC.md path inline. Pre-change (git show 4abe66f:agents/spec-scorer/AGENT.md) the scorer had the config path and could resolve spec_dir; this change removed that without replacing the input. A literal scorer either skips impact validation entirely (silently losing the impact_mismatch/impact_underspecified gate behavior) or reads the forbidden config (breaking blinding).",
+        "fix": "In skills/spec-score/SKILL.md step 2, also extract `spec_dir` (bias-safe — contains no thresholds) and pass the resolved `{spec_dir}/SYSTEM-SPEC.md` path inline in the dispatch prompt; update agents/spec-scorer/AGENT.md:54 to say the system_spec_path is provided inline by the invoking skill (with fallback: derive spec_dir as the grandparent of the spec file path)."
+      },
+      {
+        "lens": "harness-code",
+        "severity": "blocking",
+        "title": "feedback-ablation.yml promises 3 runs/arm; the CLI silently delivers 1 — n=1 ablation",
+        "detail": "/Users/dustincheng/projects/speculator/benchmarks/matrix/feedback-ablation.yml:3 sets `runs_per_combination: 3`, but the `run` command's pipeline at /Users/dustincheng/projects/speculator/benchmarks/src/spec_bench/cli.py:69 loops only `for target in config.targets:` — `config.runs_per_combination` is used solely for the echo math at cli.py:44-46 (which will print 'Runs per combination: 3' and 'Total spec generations: 6' and then do 2). The only code that loops runs is `run_benchmark` at /Users/dustincheng/projects/speculator/benchmarks/src/spec_bench/orchestrator.py:156, which has zero callers (verified by grep across src and tests). The paired feedback-vs-control experiment will run n=1 per arm, which given LLM scoring variance cannot support the conclusion the matrix file's comment (lines 14-17) promises, and the operator gets no warning.",
+        "fix": "Either wire the runs loop into cli.py's run command (wrap the per-target pipeline in `for run_num in range(config.runs_per_combination):` with `-runN` suffixed spec/impl dirs, matching run_benchmark's convention), or — minimum for release — make cli.py error/warn when runs_per_combination > 1, and drop `runs_per_combination: 3` from feedback-ablation.yml so the config doesn't promise what the harness can't deliver."
+      }
+    ],
+    "shouldFix": [
+      {
+        "lens": "orchestrator-sim",
+        "severity": "should-fix",
+        "title": "Router preamble skip-list omits the new /sdlc create alias",
+        "detail": "skills/sdlc/SKILL.md:26: \"Skip this preamble for commands that don't need a spec: `/sdlc start`, `/sdlc doctor`.\" Line 36 (new in this range) adds `/sdlc create` as an alias for start. An orchestrator following the preamble literally will run the worktree-redirect scan for `/sdlc create` and may ask the user to pick an existing worktree before creating a brand-new spec — exactly what the skip-list exists to prevent for `/sdlc start`.",
+        "fix": "Add `/sdlc create` to the skip list at skills/sdlc/SKILL.md:26: \"...`/sdlc start`, `/sdlc create`, `/sdlc doctor`.\""
+      },
+      {
+        "lens": "orchestrator-sim",
+        "severity": "should-fix",
+        "title": "Double worktree resolution: gate-check step 0 lacks the 'router already resolved' clause the other extracted skills got",
+        "detail": "This change set added \"If the `sdlc` router or `sdlc-run` orchestrator already resolved a worktree base path, use it\" to sdlc-close (skills/sdlc-close/SKILL.md:26) and sdlc-implement (skills/sdlc-implement/SKILL.md:24), but skills/gate-check/SKILL.md:18 step 0 still unconditionally re-runs the Worktree Redirect Check and \"ask[s] the user which worktree to target\". gate-check is reached through three delegations that already resolved the worktree: router `/sdlc gate` and `/sdlc review` (preamble step 5 \"Pass the resolved base path to whichever sub-skill handles the command\", skills/sdlc/SKILL.md:24), and sdlc-close step 1 / sdlc-run Phase 5. Result: the user can be asked the same worktree question twice in one command, or an autonomous run can stall on a redundant question.",
+        "fix": "Add to gate-check step 0 (skills/gate-check/SKILL.md:18): \"If the sdlc router, sdlc-run orchestrator, or sdlc-close already resolved a worktree base path, use it and skip this check.\""
+      },
+      {
+        "lens": "orchestrator-sim",
+        "severity": "should-fix",
+        "title": "Full Auto delivery lost its execution instructions: delegated sdlc-close merge flow is written as interactive guidance only",
+        "detail": "skills/sdlc-run/references/phase-evidence.md:44 promises \"Full Auto mode → Proceed with delivery automatically (merge or PR based on strategy), no approval pause\", and line 48 says to execute the close workflow \"exactly as defined in the `sdlc-close` skill\". But sdlc-close's merge strategy (skills/sdlc-close/SKILL.md:57-64) is phrased for a human: \"**Guide the merge**... Explain: ... Guide: `git checkout main && git merge {worktree-branch}`\", plus \"Tell the user\" at line 82. The pre-change phase-evidence.md step 8 explicitly had the orchestrator run the merge commands; that imperative was dropped in the delegation, so a literal Full Auto orchestrator may stop and 'guide' a human who isn't there. Additionally, `git checkout main` fails when executed inside the feature worktree (main is checked out in the main worktree), so even an orchestrator that does execute it gets an error with no recovery instructions.",
+        "fix": "In sdlc-close, add an autonomy note to step 5: in Full Auto / sdlc-run context, perform the merge directly (e.g. run `git -C {main-worktree-path} merge {worktree-branch}` from the main worktree path obtained via `git worktree list`), and only 'guide' when invoked interactively. Mirror a one-line pointer in phase-evidence.md step 4."
+      },
+      {
+        "lens": "orchestrator-sim",
+        "severity": "should-fix",
+        "title": "Guided+headless Phase 5 claims 'All gates passed. Evidence committed.' before Gate 4 runs, and the merge-strategy instruction bypasses the entire close workflow",
+        "detail": "skills/sdlc-run/references/phase-evidence.md:31-37: the headless checkpoint exits with \"All gates passed. Evidence committed. To merge: git checkout main && git merge {branch}\" — but the new structure (line 9 heading: \"Autonomy checkpoints (run BEFORE the close workflow)\") means Gate 4 has not run and no gate-4-summary.yml exists at that point. A user following the printed `git merge` instruction delivers to main with no Gate 4 evidence, open beads stories, an unreleased .active lock, and no compaction. The pr-strategy branch of the same step correctly routes to `/sdlc close`; the merge branch does not.",
+        "fix": "Reword the headless merge-strategy message to: \"Gates 1-3 passed. Run /sdlc close (interactive) to run Gate 4 and deliver, or /sdlc run to resume\" — matching the pr-strategy text and never printing a raw git merge command that skips the close workflow."
+      },
+      {
+        "lens": "orchestrator-sim",
+        "severity": "should-fix",
+        "title": "verify-evidence.sh field expectations are misaligned with real and documented evidence schemas — empirically fails a real, previously-passed evidence package",
+        "detail": "Ran `bash scripts/verify-evidence.sh docs/specs/system-spec-domain-split` against claudeclaw's real SPEC-042 evidence: 3 failures. (1) `gate-2-quality.yml: no non-empty test command/rationale field` — scripts/verify-evidence.sh:259 only checks TOP-LEVEL keys (test_command/commands/command/rationale/notes), but real Gate 2 evidence nests `command` under `checks.tests_pass.command`, and rubrics/code-quality.md only documents per-check blocks (line 41-48) — no combined gate-2-quality.yml schema exists anywhere. (2) `gate-2a-eval-intent.yml: result is 'n/a' (expected pass; no recorded override)` — scripts/verify-evidence.sh:310 verifies any PRESENT opt-in evidence file via check_common, which rejects `result: n/a`, even though `n/a` is a legitimate recorded value per rubrics/evidence-package.md:122-128. Since gate-check step 2 says \"A non-zero exit is a blocking finding — the gate fails\" (skills/gate-check/SKILL.md:125), re-running Gate 4 on such specs hard-fails. Today this is masked in consumer projects by the relative-path bug (finding 1); fixing that bug exposes this one.",
+        "fix": "In check_gate2, search `checks.*` recursively (or any nested mapping) for command/rationale fields; in the opt-in loop, accept `result: n/a` for a present opt-in file (optionally WARN when the gate is currently enabled). Also define a canonical combined gate-2-quality.yml schema (top-level gate/result/checks) in rubrics/code-quality.md so producers and the verifier agree."
+      },
+      {
+        "lens": "orchestrator-sim",
+        "severity": "should-fix",
+        "title": "Scorecard template records no weights, so the verifier's headline 'recompute overall from recorded weights' check is dead on arrival — contradicting the new spec-quality rubric claim",
+        "detail": "templates/scorecard-template.yml (updated in this range) has scores/threshold/dimension_minimum/result but no `weights:` block, and skills/spec-score/SKILL.md step 4 stamps only `threshold` and `result`. scripts/verify-evidence.sh:217-218 skips overall recomputation \"when the file records no weights\", so every template-conformant gate-1 scorecard (and gate-2a/2b scorecards, which also record no weights) silently skips the check — confirmed in the live run: \"SKIP gate-1-scorecard.yml: no weights recorded\". Meanwhile rubrics/spec-quality.md:288 (new text) asserts \"it is mechanically recomputable from the dimension scores... a scorecard whose `overall` does not match that recomputation is invalid\" — an invariant nothing can mechanically enforce.",
+        "fix": "Add a `weights:` block to templates/scorecard-template.yml and instruct spec-score (step 3 dispatch or step 4 stamping) to record the weights used; same for the eval-intent/eval-quality scorecard formats in their AGENT.md output sections."
+      },
+      {
+        "lens": "orchestrator-sim",
+        "severity": "should-fix",
+        "title": "Pipeline position detection has no row for failed opt-in gate evidence — resume after a 2a/2b failure dead-ends",
+        "detail": "skills/sdlc-run/SKILL.md:72-75: row 2a fires only when \"no evidence/gate-2a-eval-intent.yml\"; row 3 fires only when \"gate 2a satisfied (or disabled)\", where line 79 defines satisfied as result pass/override-pass. A gate-2a-eval-intent.yml with `result: fail` (the normal artifact after eval-authoring exhausts retries and escalates, per references/phase-eval-authoring.md:19-25) matches NO row — the file exists, but the gate isn't satisfied. Same gap for row 3a/4 with a failed gate-2b file. An orchestrator resuming `/sdlc run` after fixing evals cannot determine the phase from the table. (Pre-existing — sdlc-run/SKILL.md wasn't edited in this range — but it directly contradicts the phase references being shipped.)",
+        "fix": "Change row 2a's condition to \"no gate-2a evidence OR evidence exists without result pass/override-pass\" (and row 3a analogously for gate-2b), so failed evidence re-enters the authoring/quality phase."
+      },
+      {
+        "lens": "orchestrator-sim",
+        "severity": "should-fix",
+        "title": "Phase 2a mode is derived from trust score instead of recorded autonomy_mode — hard-gated Guided specs skip the eval review checkpoint",
+        "detail": "skills/sdlc-run/references/phase-eval-authoring.md:12: dispatch eval-authoring with \"Mode: `full_auto` if trust score ≥ full_auto_threshold, else `interactive`\". The trust ladder (skills/sdlc-run/SKILL.md:95-110) forces Guided via hard gates regardless of score (risk_level high/critical, intent_verifiability below min, risk_mismatch flag), and phase-scoring.md:36-41 records the decision as `autonomy_mode` in spec frontmatter. A spec scoring 8.5 with risk_level: high is Guided, yet this reference dispatches eval authoring as full_auto — skipping the guided eval-review checkpoint (eval-authoring step 8) that the hard gate exists to enforce. (Pre-existing file, but contradicts the SKILL.md it now sits beside.)",
+        "fix": "Change phase-eval-authoring.md step 2 to: \"Mode: `full_auto` if the spec frontmatter's `autonomy_mode` is full_auto, else `interactive`.\""
+      },
+      {
+        "lens": "close-flow-parity",
+        "severity": "should-fix",
+        "title": "Full-auto merge lost its imperative form — only guided-voice merge survives",
+        "detail": "Old /Users/dustincheng/projects/speculator/skills/sdlc-run/references/phase-evidence.md (4abe66f, step 8) gave the autonomous pipeline an imperative merge: \"**Merge** the worktree branch to main: git checkout main / git merge {worktree-branch}\". The new phase-evidence.md:44 says Full Auto \"Proceed with delivery automatically\" and :48 delegates to sdlc-close — but the only merge instruction left anywhere is skills/sdlc-close/SKILL.md:57-64, written in interactive voice: \"**Guide the merge**... Explain: 'Ready to merge back to main...' Guide: git checkout main && git merge {worktree-branch}\". In a headless full-auto run there is no user to guide; an orchestrator following the close skill literally could stop and print instructions instead of executing the merge. The imperative variant that guaranteed autonomous merge execution no longer exists in any committed file.",
+        "fix": "Add a mode-awareness line to sdlc-close step 5 (e.g., \"If invoked from sdlc-run in Full Auto mode, execute these commands directly — do not pause to guide\"), or restore an explicit imperative merge instruction in phase-evidence.md's step 4 delegation paragraph."
+      },
+      {
+        "lens": "close-flow-parity",
+        "severity": "should-fix",
+        "title": "/sdlc create alias not added to the worktree-preamble skip list",
+        "detail": "skills/sdlc/SKILL.md:36 adds the new routing row \"/sdlc create or /spec create | Alias for start — invoke spec-create skill\", but line 26 still reads \"**Skip this preamble** for commands that don't need a spec: /sdlc start, /sdlc doctor.\" Since create is an alias for start (which is exempt), a literal-minded orchestrator handling /sdlc create will run the worktree-redirect scan first and may prompt the user to pick an EXISTING worktree before creating a brand-new spec — behavior /sdlc start explicitly avoids.",
+        "fix": "Update skills/sdlc/SKILL.md:26 to: \"Skip this preamble for commands that don't need a spec: /sdlc start, /sdlc create, /sdlc doctor.\""
+      },
+      {
+        "lens": "close-flow-parity",
+        "severity": "should-fix",
+        "title": "Gate registry touchpoint checklist omits the two close-flow files this change itself had to edit",
+        "detail": "lib/gates.md \"Touchpoints when adding a gate\" (items 1-11) claims to enumerate every file needing edits for a new gate, and the registry's stated purpose is preventing the v2.7-v2.9 incomplete-wiring failures. But it omits skills/sdlc-close/SKILL.md (PR-body evidence table — lines 121-125 gained conditional Gate 2a/2b rows in this very change) and skills/sdlc-run/references/phase-evidence.md (pipeline-summary rows at lines 15-23 and the delegation paragraph at line 48, both also edited for 2a/2b here). Item 6 only covers sdlc-run/SKILL.md plus the new gate's own phase-<name>.md. A future gate added by following the checklist would be verified by Gate 4 yet invisible in the PR body and pipeline summary — exactly the class of incomplete wiring the registry exists to prevent. tests/test-gate-wiring.sh does not assert these surfaces either.",
+        "fix": "Add two entries to the touchpoint list in lib/gates.md: skills/sdlc-close/SKILL.md (PR-body evidence table conditional rows) and skills/sdlc-run/references/phase-evidence.md (pipeline summary rows + delegation paragraph). Optionally extend test-gate-wiring.sh Layer A to assert enabled opt-in gates appear in both."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "should-fix",
+        "title": "Warn-count field is named inconsistently and dropped by two consumers (review_warnings vs gates.review.warnings)",
+        "detail": "rubrics/evidence-package.md:66 (check 6 step 4) says warns 'must be surfaced in the gate-4 summary (`review_warnings`)' but the Evidence Output Format at line 132 names the field `gates.review.warnings`. Grep confirms `review_warnings` appears nowhere else — an LLM following step 4 literally would invent a top-level `review_warnings:` field that no schema defines. Compounding: gate-check SKILL.md:135-141 (Gate 4 step 8) restates the gate-4-summary contents as a bullet list that omits the warn count entirely, and skills/sdlc-close/SKILL.md:117-127 (PR-body composition) never surfaces it either — despite rubrics/review.md:175 promising warns 'are surfaced in the Gate 4 evidence-package summary so they remain visible at merge time.'",
+        "fix": "In evidence-package.md:66 change `(review_warnings)` to `(gates.review.warnings in the output schema below)`; add the warn count to gate-check step 8's summary list (or delete that restatement and point at the rubric schema); optionally add a 'Review warnings: N' line to the sdlc-close PR body."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "should-fix",
+        "title": "spec-scorer AGENT.md Rules still command the agent to set `result`, contradicting the new stamping split",
+        "detail": "agents/spec-scorer/AGENT.md:33 (Process step 7) says 'Leave the scorecard's `threshold` and `result` fields unset — the invoking skill stamps them post-dispatch' (new in this range). But the untouched Rules section still says: line 95 'If any dimension scores below the minimum, result is fail regardless of overall score'; line 97 'If any blocking flags exist, result is fail regardless of score'; lines 98-99 'the result must be `fail`'. An agent obeying the Rules literally will stamp `result: fail` itself, double-writing the field spec-score SKILL.md:40-43 owns and defeating the bias-hygiene design.",
+        "fix": "Rewrite Rules 95-99 as flag-emission rules, e.g. 'emit the blocking flag — the invoking skill will stamp result: fail for any blocking flag or below-minimum dimension' and remove the imperative 'result is/must be fail' phrasing."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "should-fix",
+        "title": "dimension_minimum ownership is unassigned in the stamping split — recorded value can diverge from the value the skill judged against",
+        "detail": "templates/scorecard-template.yml:22 hardcodes `dimension_minimum: 5` and the new header comment (lines 2-3) assigns 'scores + flags' to the agent and 'threshold + result' to the skill — dimension_minimum belongs to neither. spec-score SKILL.md:30 reads `scoring.dimension_minimum` from config and step 4 (line 43) judges against it, but is never told to write it into the scorecard; the agent receives it inline but isn't told to record it. If a project overrides the minimum (e.g. 6), the evidence file can keep the template's literal 5 while result was stamped against 6 — and verify-evidence.sh:234 then runs its result-consistency check against the wrong recorded minimum, producing a false ❌ (correct `fail` judged 'inconsistent — expected pass') or false ✅.",
+        "fix": "Make spec-score step 4 stamp `dimension_minimum:` alongside `threshold:` (it owns both config-sourced values), and update the template header comment to say so."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "should-fix",
+        "title": "Scorecard weights are never recorded, so the verifier's overall-recomputation check is permanently dead for new scorecards",
+        "detail": "rubrics/spec-quality.md:288 (new this range) declares 'a scorecard whose `overall` does not match that recomputation is invalid', and verify-evidence.sh:215-230 implements the recomputation — but only 'from weights RECORDED IN THE EVIDENCE FILE' and SKIPs otherwise (line 218). templates/scorecard-template.yml has no `weights:` field, and neither agents/spec-scorer/AGENT.md nor skills/spec-score/SKILL.md instructs anyone to record the weights used. Result: every scorecard the pipeline can currently produce skips the marquee integrity check — confirmed on the dogfood run: '⏭️ SKIP gate-1-scorecard.yml: no weights recorded in evidence file'. The rubric's 'invalid' claim has no enforcer.",
+        "fix": "Add a `weights:` block to scorecard-template.yml and instruct the spec-scorer agent (Output/Rules section) to record the inline-provided weights it used; same for the 2a/2b scorecard formats if they should be recomputable."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "should-fix",
+        "title": "code-reviewer AGENT.md gate decision omits the blocking_issues condition from the canonical Gate Decision",
+        "detail": "rubrics/review.md:116-123 (canonical): result is `fail` if any check fails OR `blocking_issues` is non-empty. agents/code-reviewer/AGENT.md:35 (Process step 8) says 'Determine the overall result: `fail` if any checklist item is `fail`, otherwise `pass`' and Rules line 159 repeats '`fail` on any checklist item means the overall `result` is `fail`' — neither mentions blocking_issues. Nothing requires every blocking issue to be paired with a check `fail` (the rubric only requires the converse), so an agent can emit non-empty `blocking_issues` with all-pass checks and stamp `result: pass`, violating the canonical decision; the contradiction only surfaces later when verify-evidence.sh check_common (line 191-198) fails the file at Gate 4.",
+        "fix": "In AGENT.md step 8 and the Rules bullet, restate both conditions: 'result is fail if any check verdict is fail OR blocking_issues is non-empty' — matching rubrics/review.md Gate Decision."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "should-fix",
+        "title": "Dogfood gate-3-review.yml and gate-4-summary.yml no longer match the schemas this range declares canonical",
+        "detail": "docs/specs/eval-quality-scoring/evidence/gate-3-review.yml uses the pre-change flat shape (`checks: {correctness: pass, ...}`, no per-check `verdict`/`notes` nesting, no warn tier) while rubrics/review.md:133 now says every producer 'MUST emit exactly this structure'. Likewise gate-4-summary.yml lacks the new `eval-intent`/`eval-quality`/`comprehension` entries and the `gates.review.warnings` field required by evidence-package.md:110-138. Mechanically the files still pass verify-evidence.sh (it only reads top-level result/blocking_issues), but they are the ONLY in-repo examples of gate evidence — the natural few-shot reference an LLM producer will copy, and it contradicts the canonical schema.",
+        "fix": "Regenerate the dogfood evidence in the canonical shapes, or add a one-line `# legacy schema (pre-v2.9 canonical format — see rubrics/review.md)` comment at the top of each file so they can't be mistaken for current exemplars."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "should-fix",
+        "title": "Repo's own config (eval-intent enabled) retroactively fails the dogfood spec under the rubric checklist — the WARN grace exists only in the script",
+        "detail": ".claude/sdlc.local.md:18-19 sets `gates.eval-intent.enabled: true`; docs/specs/eval-quality-scoring has no gate-2a-eval-intent.yml. verify-evidence.sh deliberately downgrades this to WARN (header lines 6-9, run output confirms exit 0) and documents 'the stricter rubric result governs'. But the rubric side has no temporal carve-out: evidence-package.md:32-34 (check 3: enabled + missing file => `missing`, and line 104: any `missing` => pipeline fail) and gate-check SKILL.md:128-132 (step 5) would FAIL the dogfood spec's evidence package if Gate 4 were re-run today. So the only shipped dogfood evidence does NOT satisfy the rubric-checklist consumer, only the lenient script.",
+        "fix": "Either backfill gate-2a evidence for eval-quality-scoring (or record an override), or add the same 'gate enabled after the spec closed' policy note to evidence-package.md checks 3-5 so the rubric and script agree on the grace condition."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "should-fix",
+        "title": "code-quality rubric never defines the combined gate-2-quality.yml schema the verifier parses",
+        "detail": "rubrics/code-quality.md only defines per-check fragments (`evidence_type: test-run` at line 41, `coverage` at line 59, etc.) and the new N/A block (lines 129-145); the Gate Decision (line 147) never specifies a top-level file shape or a top-level `result:` field. verify-evidence.sh requires the YAML root to be a mapping with a top-level `result` (check_common, lines 169-185) plus one non-empty field among test_command/test_commands/commands/command/rationale/notes (check_gate2, lines 257-265). A producer following only the rubric could emit a list of evidence blocks (root-not-mapping => ❌) or nest commands inside per-check blocks (=> ❌ 'no non-empty test command/rationale field'). The dogfood file passes only because it improvised top-level `notes:` and `result:`. Also the new N/A block uses `status: not-applicable` while the coverage block uses `result: pass | fail` — two different per-check outcome field names in the same rubric.",
+        "fix": "Add a combined 'Evidence Output Format' section to code-quality.md (mirroring review.md): mapping root, top-level `result:`, where per-check blocks nest, and which top-level field records the command/rationale; unify the per-check outcome field name (`result` vs `status`)."
+      },
+      {
+        "lens": "blinding-coherence",
+        "severity": "should-fix",
+        "title": "spec-scorer AGENT.md Rules section still instructs the scorer to determine `result`, contradicting the new \"leave result unset\" step",
+        "detail": "agents/spec-scorer/AGENT.md:33 (step 7) says \"Leave the scorecard's `threshold` and `result` fields unset — the invoking skill stamps them post-dispatch\". But the Rules section was not updated: line 95 \"If any dimension scores below the minimum, result is fail regardless of overall score\", line 97 \"If any blocking flags exist, result is fail regardless of score\", lines 98-99 \"If a `risk_mismatch`/`impact_mismatch` blocking flag is emitted, the result must be `fail`\". These read as direct instructions to the scorer to set result — an LLM following the Rules section will stamp `result: fail` itself, defeating the contract (the invoker's stamp at skills/spec-score/SKILL.md:43 already encodes all three conditions).",
+        "fix": "Rewrite AGENT.md lines 95-99 as descriptive flag semantics rather than result instructions, e.g. \"Note: a dimension below the minimum, or any blocking flag (including risk_mismatch/impact_mismatch), forces the invoker's stamped result to fail — you still leave `result` unset.\""
+      },
+      {
+        "lens": "blinding-coherence",
+        "severity": "should-fix",
+        "title": "Rubric the scorer must read still contains the Gate Decision pass/fail procedure and the threshold value — and test-gate-wiring.sh enforces the leak",
+        "detail": "AGENT.md:28 requires the scorer to read rubrics/spec-quality.md in full. That rubric's Gate Decision section (rubrics/spec-quality.md:334-346) instructs the reader: \"Overall score >= threshold (from project config, e.g. 7.0)\" ... \"If any condition fails: `result: fail` / If all conditions pass: `result: pass`\". So the blinded scorer is handed the default pass threshold (7.0 — exactly the default per lib/gates.md:16) and an instruction to compute the result, contradicting AGENT.md:23/:33. Worse, tests/test-gate-wiring.sh:88-89 asserts the threshold literal appears in the rubric (`check \"[$id] threshold $threshold appears in rubric\" \"grep -qF '$threshold' '$ROOT/$rubric'\"`), so removing the leak from the rubric breaks the new structural test — the test cements the very leak the blinding change is trying to eliminate.",
+        "fix": "Move the Gate Decision section's threshold mention and result-stamping language into invoker-facing docs (lib/gates.md / spec-score SKILL.md), or mark the section \"Invoker-only — not part of the scorer's reading\" and have AGENT.md tell the scorer to skip it; correspondingly repoint test-gate-wiring.sh's threshold check at lib/gates.md and the sdlc-doctor --init template instead of the rubric."
+      },
+      {
+        "lens": "blinding-coherence",
+        "severity": "should-fix",
+        "title": "phase-scoring.md's hygiene rule contradicts the risk_signals forwarding that the risk_mismatch hard gate depends on",
+        "detail": "skills/sdlc-run/references/phase-scoring.md:23 says the spec-score skill dispatches \"with ONLY the scoring weights and dimension minimum (`scoring.weights`, `scoring.dimension_minimum`)\" and \"The `run:` block read above is for THIS orchestrator's trust decision only — do not forward it to any scoring agent.\" But `run.risk_signals` IS part of the `run:` block, and skills/spec-score/SKILL.md:31 deliberately forwards it to the scorer — risk validation (AGENT.md:43) skips entirely without it, which would silently disarm the `risk_mismatch` hard gate in the trust ladder (skills/sdlc-run/SKILL.md:99). An orchestrator obeying phase-scoring.md literally could suppress risk signals on dispatch. Also inconsistent within the same reference set: phase-eval-authoring.md:10 and phase-eval-quality.md:7 instruct passing the full \"Project config path\" (which contains the run: block and all thresholds) to scoring agents.",
+        "fix": "Amend phase-scoring.md:23 to \"ONLY the scoring weights, dimension minimum, and `run.risk_signals` keywords — never the config path, any threshold, or the rest of the `run:` block\", and either scope the \"do not forward to any scoring agent\" sentence to Gate 1 or reconcile it with the eval-phase config-path handoffs."
+      },
+      {
+        "lens": "blinding-coherence",
+        "severity": "should-fix",
+        "title": "verify-evidence.sh result-consistency model omits the blocking-flag clause of the new stamp rule — overridden blocking-flag scorecards hard-fail Gate 4",
+        "detail": "skills/spec-score/SKILL.md:43 stamps `result: fail` when `flags.blocking` is non-empty even if overall >= threshold and all dimensions clear the minimum. scripts/verify-evidence.sh:239-244 computes `expected = \"pass\" if overall >= threshold` adjusted only for dimension minimums — blocking flags are not considered. Scenario: overall 8.0, threshold 7.0, one blocking flag → correctly stamped `fail` → human records an override (template lines 33-38) → check_common passes both the result and blocking-flag checks via the override (verify-evidence.sh:181-196), but check_scorecard then fails: result 'fail' != expected 'pass', and the override branch at line 245 only applies when expected == 'fail'. Per skills/gate-check/SKILL.md:125, the verifier's non-zero exit is a blocking finding, so the legitimate override path dies at Gate 4.",
+        "fix": "In scripts/verify-evidence.sh check_scorecard, set expected = \"fail\" when flags.blocking (or blocking_issues) is non-empty, mirroring the full stamp rule from spec-score SKILL.md step 4."
+      },
+      {
+        "lens": "blinding-coherence",
+        "severity": "should-fix",
+        "title": "Overall-recomputation check is dead code: nothing ever records weights in the scorecard",
+        "detail": "scripts/verify-evidence.sh:211-218 recomputes the weighted overall \"only from weights recorded in the evidence file itself\" and skips otherwise. But templates/scorecard-template.yml has no `weights:` field, and neither agents/spec-scorer/AGENT.md nor skills/spec-score/SKILL.md instructs recording the weights used. So the check always emits the skip branch, and the new validity claim in rubrics/spec-quality.md:288 (\"a scorecard whose `overall` does not match that recomputation is invalid\") is unenforceable on every scorecard the pipeline produces.",
+        "fix": "Add a `weights:` block to templates/scorecard-template.yml and add a step to agents/spec-scorer/AGENT.md (the weights arrive inline in the dispatch prompt) to record them in the scorecard, so verify-evidence.sh's recomputation actually runs."
+      },
+      {
+        "lens": "docs-accuracy",
+        "severity": "should-fix",
+        "title": "README Plugin Structure tree is stale: says \"9 skills\" (11 exist) and omits 6 new artifacts",
+        "detail": "/Users/dustincheng/projects/speculator/README.md:480 says \"├── skills/  # 9 skills\" but skills/ now contains 11 (sdlc-close and sdlc-implement added in 4d83c96 are missing from the tree). The tree is byte-identical to the pre-change version (git show 4abe66f:README.md). Also missing: lib/gates.md (tree at README.md:511-512 shows only spec-resolution.md, yet gates.md tells contributors to \"add the registry row FIRST\"), scripts/verify-evidence.sh (no scripts/ entry at all), tests/test-gate-wiring.sh (README.md:513-516 lists only the two old suites), and .github/workflows/ci.yml (shipped in 2.8.1). The docs/specs comment (README.md:518-519) doesn't note that SYSTEM-SPEC.md now lives there after the move from repo root. This is a recurrence of the exact drift flagged in docs/REVIEW-2026-04-28.md item 2.",
+        "fix": "Update the tree: change \"# 9 skills\" to \"# 11 skills\"; add sdlc-implement/SKILL.md and sdlc-close/SKILL.md rows; add lib/gates.md under lib/; add a scripts/ block with verify-evidence.sh; add tests/test-gate-wiring.sh; add .github/workflows/ci.yml; note SYSTEM-SPEC.md under docs/specs/. Consider extending test-gate-wiring.sh (or a sibling) to assert the README skill count equals `ls skills | wc -l` so this can't drift a third time."
+      },
+      {
+        "lens": "docs-accuracy",
+        "severity": "should-fix",
+        "title": "ROADMAP backlog lists four items that have already shipped — three shipped in this very range",
+        "detail": "/Users/dustincheng/projects/speculator/ROADMAP.md (re-dated \"Last updated: 2026-06-12\" in this range) keeps stale backlog entries: line 179 \"Promote /sdlc implement to its own skill file\" — skills/sdlc-implement/SKILL.md shipped in 4d83c96; line 181 \"RELEASE.md documenting the three-step release dance\" — RELEASE.md exists since 4abe66f (v2.8.1); line 184 \"CI workflow. No .github/workflows/*.yml exists today.\" — factually false, ci.yml exists since 4abe66f and was extended in 36474fa (also says \"three test suites\"; CI now runs four plus verify-evidence checks); line 185 \"N/A rationale paragraph in rubrics/code-quality.md ... currently informal practice\" — the section was added in 4d83c96 (rubrics/code-quality.md:129-145). An agent or contributor reading the backlog would re-do shipped work.",
+        "fix": "Delete the four shipped entries from the Backlog (or move them to a \"Shipped from backlog\" note with version refs), and correct the CI sentence if any residual CI work remains."
+      },
+      {
+        "lens": "docs-accuracy",
+        "severity": "should-fix",
+        "title": "README Commands table omits the /spec create alias that the router defines and the quickstart uses",
+        "detail": "skills/sdlc/SKILL.md routing table has a dedicated row: \"`/sdlc create` or `/spec create` | Alias for start — invoke spec-create skill (the README quickstart uses /spec create...)\". The README quickstart uses it at README.md:53 (\"/spec create  # Speculator turns your brainstormed plan into a formal spec.md\"), and spec-create/SKILL.md:6 lists \"/spec create\" as a trigger. But the Commands table (README.md:256-268) has no create row — only `/spec start`. A reader treating the table as the command inventory would conclude `/spec create` in the quickstart is a typo.",
+        "fix": "Add a row to the Commands table: \"| `/spec create` | Alias for `/spec start` — formalize a brainstormed plan into spec.md |\" (or fold it into the start row as \"`/spec start` / `/spec create`\")."
+      },
+      {
+        "lens": "harness-code",
+        "severity": "should-fix",
+        "title": "Scorer token provenance undercounts input by ~3 orders of magnitude (cache tokens ignored)",
+        "detail": "/Users/dustincheng/projects/speculator/benchmarks/src/spec_bench/scoring.py:288-295 (`_parse_claude_json_envelope`) reads only `usage.input_tokens` and `usage.output_tokens`. Empirically verified against the live CLI: `claude -p \"say OK\" --output-format json` returned `input_tokens: 10` with `cache_creation_input_tokens: 30591` and `cache_read_input_tokens: 17302` — almost the entire prompt lands in the cache fields. The scorer prompt (spec + production rubric) will be recorded as ~single-digit tokens_in, so the scorecard 'scorer' provenance block (scoring.py:350-355) and `total_iteration_tokens` (scoring.py:701-702) report essentially output-only cost while claiming to record 'what they cost'.",
+        "fix": "In `_parse_claude_json_envelope`, compute tokens_in as input_tokens + cache_creation_input_tokens + cache_read_input_tokens (or record the three fields separately in the provenance block so cost can be computed with per-tier pricing). Add a test with a realistic envelope containing cache fields."
+      },
+      {
+        "lens": "harness-code",
+        "severity": "should-fix",
+        "title": "Scorer model provenance can record an ID the CLI never ran: _map_claude_model maps to floating aliases but provenance records the pre-map value",
+        "detail": "/Users/dustincheng/projects/speculator/benchmarks/src/spec_bench/scoring.py:332 passes `_map_claude_model(model)` to the CLI, while scoring.py:350-351 records the unmapped `model` in the scorecard's provenance and scoring.py:705 records it as `scorer_model` in iteration-log.yml. The map (scoring.py:31-36) sends `sonnet-4-6` → `sonnet` (a floating alias). Target models throughout every matrix use the `sonnet-4-6`/`opus-4-6` form, so an operator writing `scorer.model: sonnet-4-6` (the obvious form) gets the floating `sonnet` alias at runtime while provenance asserts 'sonnet-4-6' — exactly the 'recorded scorer_model unverifiable' problem the pin (config.py:143-147) claims to solve. Shipped matrices dodge it only because they use the full `claude-sonnet-4-6` name, which falls through the map unchanged.",
+        "fix": "Record `_map_claude_model(model)` (the value actually passed to --model) in the provenance block, or validate in load_matrix that scorer.model is a full `claude-*` name and reject alias-mapping forms for the scorer."
+      },
+      {
+        "lens": "harness-code",
+        "severity": "should-fix",
+        "title": "improvement_mode is recorded in cli.py results but never reaches any report artifact",
+        "detail": "/Users/dustincheng/projects/speculator/benchmarks/src/spec_bench/cli.py:224 adds `improvement_mode` to each results row, but report.yml only contains rankings/correlations/axis_analysis/insights (report.py:520-528), and `_build_rankings` (/Users/dustincheng/projects/speculator/benchmarks/src/spec_bench/report.py:409-421) drops the key from rankings rows. The regeneration path `_load_results_from_disk` (report.py:320-327) reads iteration-log.yml's summary but never picks up the new `summary.improvement_mode` field either. Net effect: the field added for the ablation is dead in every output; arms are distinguishable only by the target-id naming convention ('-feedback'/'-control'), which nothing enforces.",
+        "fix": "Add `improvement_mode` to the rankings dict in `_build_rankings` (with a 'unknown'/None default for the failed branch) and read `summary.get(\"improvement_mode\")` from iteration-log.yml in `_load_results_from_disk` so live and regenerated reports both carry the arm label."
+      }
+    ],
+    "nits": [
+      {
+        "lens": "orchestrator-sim",
+        "severity": "nit",
+        "title": "gate-check Gate 4 ends by suggesting /sdlc close — circular when invoked FROM sdlc-close",
+        "detail": "skills/gate-check/SKILL.md:142: \"If all gates pass and we're in a worktree, suggest running `/sdlc close`\". The primary Gate 4 invocation path is now sdlc-close step 1 (skills/sdlc-close/SKILL.md:30) — the suggestion points back into the skill currently executing, which a literal orchestrator could re-enter.",
+        "fix": "Qualify it: \"If running Gate 4 standalone (not already inside /sdlc close), suggest running /sdlc close.\""
+      },
+      {
+        "lens": "orchestrator-sim",
+        "severity": "nit",
+        "title": "Enabling gates.comprehension.enabled bricks Gate 4 with no producer and no doctor warning",
+        "detail": "lib/gates.md:20,34 marks comprehension NOT WIRED, yet gate-check Gate 4 step 5 (skills/gate-check/SKILL.md:131) requires gate-2c-comprehension.yml with result: pass when enabled, and gate-check's missing-evidence dispatch list (lines 43-49) has no Gate 2c entry — nothing committed can produce the evidence. A user who hand-enables the key gets a permanently failing Gate 4 with no remediation path; sdlc-doctor's config lint (skills/sdlc-doctor/SKILL.md:43-52) doesn't flag it (mitigated: the --init template at lines 229-238 doesn't include a comprehension block).",
+        "fix": "Add a doctor WARN when gates.comprehension.enabled is true (\"gate not wired in this release\"), or have gate-check's Gate 4 opt-in verification emit an explicit 'enabled but unwired — disable gates.comprehension' error instead of a bare evidence-missing failure."
+      },
+      {
+        "lens": "close-flow-parity",
+        "severity": "nit",
+        "title": "Gate 2c asymmetry: verified by Gate 4 and shown in status, but silently dropped from PR body and pipeline summary",
+        "detail": "This change wires gates.comprehension.enabled into Gate 4 verification (skills/gate-check/SKILL.md Gate 4 step 5; rubrics/evidence-package.md check 5) and the status display (skills/sdlc-status/SKILL.md step 5 renders a Gate 2c row), but skills/sdlc-close/SKILL.md:125 instructs only Gate 2a/2b rows in the PR evidence table and phase-evidence.md:23 only 2a/2b rows in the pipeline summary. If a user sets gates.comprehension.enabled: true (the config key is forward-compatible and documented), Gate 4 verifies gate-2c-comprehension.yml but the PR body has no instruction to show it — verified evidence silently omitted at merge time. The lib/gates.md \"NOT wired\" carve-out names sdlc-status and gate-check/evidence-package as the only allowed 2c references, so this is arguably deliberate, but the asymmetry between \"display row allowed in status\" and \"row forbidden in PR body\" is undocumented and inconsistent.",
+        "fix": "Either add a conditional Gate 2c row instruction (mirroring 2a/2b) to sdlc-close SKILL.md:125 and phase-evidence.md:23, or extend the lib/gates.md 2c carve-out note to state explicitly that the PR body and pipeline summary intentionally exclude 2c until wiring."
+      },
+      {
+        "lens": "close-flow-parity",
+        "severity": "nit",
+        "title": "sdlc-run SKILL.md Phase 5 summary still describes inline close mechanics, not the sdlc-close delegation",
+        "detail": "/Users/dustincheng/projects/speculator/skills/sdlc-run/SKILL.md:162-164 (untouched in this range) summarizes Phase 5 as \"invoke gate-check for evidence package, close beads issues, merge to main, compact into SYSTEM-SPEC.md\" — no mention of lock release, the PR strategy, or that sdlc-close is now the declared single source of truth (phase-evidence.md:3). An orchestrator skimming the SKILL without opening references/phase-evidence.md could execute this stale 4-item summary directly and skip lock release, the evidence commit, and PR-strategy delivery. The redesign added a second indirection hop (SKILL → phase-evidence → sdlc-close) without updating the first hop's summary.",
+        "fix": "Update skills/sdlc-run/SKILL.md:162-164 to: \"Present pipeline summary and autonomy checkpoint, then execute the close workflow via the sdlc-close skill (Gate 4, beads closure, lock release, merge/PR delivery, compaction). → Read references/phase-evidence.md for checkpoint details.\""
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "nit",
+        "title": "reviewer field: rubric says 'use a name, not a role' but code-reviewer is told to emit `reviewer: agent`",
+        "detail": "rubrics/review.md:184: 'reviewer: The person or agent who performed the review. Use a name, not a role.' agents/code-reviewer/AGENT.md:152 instructs `reviewer: agent` — a role. Lines 150-154 also label `reviewer` and `review_method` as 'Agent-specific additions (additive metadata only)' although both are canonical schema fields (only `model` is additive per review.md:133).",
+        "fix": "Change AGENT.md to `reviewer: code-reviewer` (or the model name) and move reviewer/review_method out of the 'additive metadata' list, leaving only `model` there."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "nit",
+        "title": "gate-check step 3 Gate 4 phrasing allows an enabled opt-in gate to read as 'n/a'",
+        "detail": "skills/gate-check/SKILL.md:41: 'gate-4-summary.yml with all required gates listed as passed and all enabled opt-in gates (2a/2b/2c per gates.*.enabled ...) passed or `n/a`'. Per evidence-package.md, an ENABLED gate can never legitimately be n/a (n/a is the disabled case, lines 32, 42, 53). An LLM checker following this sentence could accept a summary where an enabled gate is recorded n/a.",
+        "fix": "Reword to '... all enabled opt-in gates passed (disabled opt-in gates report n/a)'."
+      },
+      {
+        "lens": "schema-consistency",
+        "severity": "nit",
+        "title": "Disabled-opt-in display conventions disagree across surfaces, and the PR table has no Gate 2c row",
+        "detail": "sdlc-status SKILL.md:39 renders `enabled: false` as a SKIPPED row; sdlc-run/references/phase-evidence.md:22 says 'Omit the rows for disabled opt-in gates — do not show them as skipped'; sdlc-close SKILL.md:125 says 'Do not list disabled opt-in gates' and conditionally adds only 2a/2b rows — no comprehension row even when `gates.comprehension.enabled: true`, although gate-check step 5 and evidence-package check 5 verify 2c when enabled. Three display surfaces, three conventions; and an enabled 2c would appear in gate-4-summary but vanish from the PR evidence table.",
+        "fix": "Pick one convention for disabled opt-ins across display surfaces (omit vs SKIPPED) and note the chosen rule in lib/gates.md; add a conditional Gate 2c row to the sdlc-close PR table (consistent with the rubric's forward-compatible Gate 4 verification) or explicitly note 2c is excluded until wired."
+      },
+      {
+        "lens": "blinding-coherence",
+        "severity": "nit",
+        "title": "Scorecard template's `threshold:` comment still points the filler at the project config",
+        "detail": "templates/scorecard-template.yml:21 — `threshold:                  # from project config (e.g. 7.0)`. The scorer reads this template (AGENT.md:29); the inline comment both names the typical threshold value and suggests sourcing it from the config, undercutting the header (lines 2-3) that says the invoker stamps it.",
+        "fix": "Change the comment to `# leave unset — stamped post-dispatch by the invoking skill` (and similarly annotate `result:` on line 23)."
+      },
+      {
+        "lens": "blinding-coherence",
+        "severity": "nit",
+        "title": "Blinding applied only to spec-scorer; eval-intent and eval-quality judges still read their own pass thresholds pre-score",
+        "detail": "agents/eval-intent-scorer/AGENT.md:26,38 and agents/eval-quality-scorer/AGENT.md:23,30 still receive the config path and read `gates.*.threshold` before scoring, and skills/gate-check/SKILL.md:46-47,86-89 still dispatches them with the config path. The score-attraction-bias rationale stated in spec-score SKILL.md:38 applies identically to these judges. If the narrower scope is intentional for this release, the asymmetry is undocumented.",
+        "fix": "Either file a follow-up to extend invoker-stamping to gates 2a/2b, or add a one-line note in lib/gates.md recording that Gate 1 is currently the only blinded judge and why."
+      },
+      {
+        "lens": "blinding-coherence",
+        "severity": "nit",
+        "title": "Self-improvement re-score leaves the previous stamped threshold/result in the file the scorer overwrites",
+        "detail": "skills/sdlc-run/SKILL.md:124 re-invokes spec-score, whose agent writes to the same `evidence/gate-1-scorecard.yml` that now contains the prior round's stamped `threshold:` and `result:` (stamped at spec-score SKILL.md:40-43). The scorer has the Read tool and nothing forbids it from reading the existing scorecard before overwriting — a plausible blinding leak on every re-score round (the exact rounds where score-attraction pressure is highest). Re-dispatch itself works fine: the orchestrator keeps prior flags for the reviser, and the fresh scorer dispatch carries no prior context.",
+        "fix": "Have spec-score (or the agent prompt) state that any existing gate-1-scorecard.yml must not be read — or have the invoking skill delete/blank the file before re-dispatch."
+      },
+      {
+        "lens": "docs-accuracy",
+        "severity": "nit",
+        "title": "Cost-table lead-in \"Every count below is derivable from config\" overclaims",
+        "detail": "README.md:324 says every count is derivable from `.claude/sdlc.local.md`, but three counts are not config-backed: Gate 3's \"plus 1 re-dispatch\" and Gate 2b's \"plus 1 re-dispatch\" are hardcoded single self-fix cycles in skills/sdlc-run/references/phase-review.md (step 2) and phase-eval-quality.md (step 2) — there is no max_review_retries-style key; and \"one implementation subagent per plan task\" derives from the plan, not config. An orchestrator might hunt for nonexistent config keys.",
+        "fix": "Soften to \"The retry caps below are derivable from config; the ×1 dispatches and single re-dispatches are fixed by the phase design.\""
+      },
+      {
+        "lens": "docs-accuracy",
+        "severity": "nit",
+        "title": "Resume claim \"re-derived purely from which evidence files exist\" is slightly inaccurate",
+        "detail": "README.md:341 — Pipeline Position Detection (skills/sdlc-run/SKILL.md section 2) also keys off non-evidence inputs: check 2 requires \"no plan in docs/plans/ matching this spec\" (a plan file, not an evidence file), and checks 2a/3a consult `gates.eval-intent.enabled` / `gates.eval-quality.enabled` in sdlc.local.md. The substantive claim (no separate state file) holds.",
+        "fix": "Reword to \"re-derived from which artifacts exist (evidence files and the plan) plus gate config — there is no separate state file to lose or corrupt.\""
+      },
+      {
+        "lens": "docs-accuracy",
+        "severity": "nit",
+        "title": "CHANGELOG has no entry for the two unreleased feature commits (expected — release pending)",
+        "detail": "CHANGELOG.md top entry is 2.8.1 (matching plugin.json), but commits 4d83c96 and 36474fa ship substantial surface: lib/gates.md registry, tests/test-gate-wiring.sh, scripts/verify-evidence.sh, sdlc-close + sdlc-implement skills, code-quality N/A-rationale section, doctor scoring-weights lint, SYSTEM-SPEC.md move to docs/specs/, CI extension, ROADMAP Spec-Bench deferral. CI's version-consistency check means the release bump will fail if the CHANGELOG entry is forgotten, so the guard exists — flagging only so the entry's scope is complete at release time.",
+        "fix": "Before tagging the next release, add a CHANGELOG entry enumerating the items above and bump plugin.json in the same commit."
+      },
+      {
+        "lens": "docs-accuracy",
+        "severity": "nit",
+        "title": "rubrics/impact-awareness.md still allows SYSTEM-SPEC.md \"in the project root\"",
+        "detail": "rubrics/impact-awareness.md:17: \"only when `SYSTEM-SPEC.md` is present and parseable in the project root or spec directory.\" Every other skill (spec-create/SKILL.md:33, sdlc-close/SKILL.md:69, eval-authoring/SKILL.md:40) uses `{spec_dir}/SYSTEM-SPEC.md` exclusively, and the repo's own file just moved from root to docs/specs/. Pre-existing text (unchanged in range), still functional via the \"or\", but it's the last residual root-location reference and could send the scorer looking in the wrong place first.",
+        "fix": "Change to \"present and parseable at `{spec_dir}/SYSTEM-SPEC.md`\" for consistency with the rest of the plugin."
+      },
+      {
+        "lens": "docs-accuracy",
+        "severity": "nit",
+        "title": "lib/gates.md references \"v2.9.x\" which doesn't exist yet",
+        "detail": "lib/gates.md (intro blockquote): \"Every gate shipped between v2.7.0 and v2.9.x was incompletely wired\". Current version is 2.8.1 with no 2.9.x tagged; the phrasing presupposes the next release's version number. A reader cross-checking against CHANGELOG/plugin.json finds no 2.9.x.",
+        "fix": "Say \"between v2.7.0 and v2.8.1\" (the actually-shipped range where the failure mode occurred), or \"v2.7.0 onward\"."
+      },
+      {
+        "lens": "harness-code",
+        "severity": "nit",
+        "title": "'Identical revision-pass budgets' claim only holds for max budget — early-stop on pass makes actual pass counts arm-dependent",
+        "detail": "/Users/dustincheng/projects/speculator/benchmarks/matrix/feedback-ablation.yml:14-15 says 'Both arms run identical revision-pass budgets; only the revision prompt differs.' But iterate_spec breaks the loop when `overall >= pass_threshold` (scoring.py:627-628) in both modes, so the arm that crosses 7.8 first does fewer revision passes — actual compute spent differs between arms whenever either passes before max_iterations. The max budget (3) is identical; the realized budget is score-dependent.",
+        "fix": "Either soften the matrix comment to 'identical max revision budgets (early-stop on pass in both arms)', or add a fixed-passes mode if strict compute parity is wanted. At minimum, note that `iterations_needed` in iteration-log.yml must be compared across arms when analyzing results."
+      },
+      {
+        "lens": "harness-code",
+        "severity": "nit",
+        "title": "_scorecard_tokens lacks the `> 0` guard every other token reader uses",
+        "detail": "/Users/dustincheng/projects/speculator/benchmarks/src/spec_bench/scoring.py:436-439 filters only on `isinstance(v, (int, float))`, while `_adapter_tokens` (scoring.py:456-459), `_token_count` (orchestrator.py:33), and `_load_results_from_disk` (report.py:359-361) all also require `v > 0`. An envelope-reported 0 counts as a measurement here. Possibly deliberate (envelope zeros are real measurements, unlike adapter-scrape zeros), but it contradicts the file's repeated 'zeros masquerade as measurements' comments and is an inconsistency an orchestrator could trip on.",
+        "fix": "Either add the `> 0` guard for symmetry, or add a one-line comment at _scorecard_tokens explaining why envelope-sourced zeros are intentionally treated as measurements while adapter-sourced zeros are not."
+      },
+      {
+        "lens": "harness-code",
+        "severity": "nit",
+        "title": "HTML dashboard renders unmeasured tokens as '0', re-introducing zeros-as-measurements in the user-facing artifact",
+        "detail": "/Users/dustincheng/projects/speculator/benchmarks/src/spec_bench/report.py:560-565 coerces `total_tokens: None` to 0 for the template's `{:,}` formatting. The canonical null in report.yml is preserved, but the dashboard a human actually reads shows '0' for unmeasured runs — the exact masquerade the rest of the diff eliminates. The test (test_report.py test_generate_html_report_renders_null_tokens) only asserts the file exists, so the displayed value is unchecked.",
+        "fix": "Handle null in the template instead (e.g. `{{ '{:,}'.format(r.total_tokens) if r.total_tokens is not none else 'n/a' }}`) and assert 'n/a' appears in the rendered HTML in the test."
+      },
+      {
+        "lens": "harness-code",
+        "severity": "nit",
+        "title": "Production-rubric walk-up can be shadowed by benchmarks/rubrics/",
+        "detail": "/Users/dustincheng/projects/speculator/benchmarks/src/spec_bench/scoring.py:158-163 returns the first `<parent>/rubrics/spec-quality.md` found walking up from scoring.py. `benchmarks/rubrics/` already exists (it holds outcome-rubric.md) and is a closer parent than the repo root — if anyone ever drops a benchmark-local spec-quality.md there, rubric_source='production' silently stops meaning the shipped judge rubric at <repo-root>/rubrics/spec-quality.md. Cwd-independence is otherwise fine (__file__-based), and a non-editable site-packages install correctly raises FileNotFoundError with searched paths.",
+        "fix": "Anchor the search to a repo-root marker (e.g. require a sibling `.git` or `plugin.json` before accepting the candidate), or skip the benchmarks dir explicitly in the walk-up."
+      },
+      {
+        "lens": "harness-code",
+        "severity": "nit",
+        "title": "No direct unit tests for _parse_claude_json_envelope edge paths",
+        "detail": "The 23 new tests are substantive overall (they assert CLI argv contents, negative prompt-content assertions for the control arm, persisted scorecard provenance, and null-vs-0 in logs — not just smoke). Gaps: there is no test for an envelope that parses as JSON but lacks the 'result' key (scoring.py:285-286 returns the raw JSON text into parse_scorecard_yaml — the resulting ValueError message would be a confusing JSON blob), nor for a 'result'-bearing envelope missing 'usage' entirely (scoring.py:288). Only the plain-text fallback is covered (test_scoring.py:1229-1239).",
+        "fix": "Add two small direct tests on _parse_claude_json_envelope: dict-without-result returns (raw stdout, None, None); dict-with-result-but-no-usage returns (result, None, None)."
+      }
+    ]
+  }
+}
