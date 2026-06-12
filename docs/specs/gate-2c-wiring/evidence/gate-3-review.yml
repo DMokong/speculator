@@ -1,0 +1,202 @@
+gate: review
+spec_id: SPEC-002
+spec_path: docs/specs/gate-2c-wiring/spec.md
+timestamp: 2026-06-12T04:38:00Z
+reviewer: claude-sonnet-4-6
+review_method: agent-assisted
+model: claude-sonnet-4-6
+
+checks:
+  correctness:
+    verdict: pass
+    notes: >
+      All 8 ACs are correctly implemented. AC1/R2: sdlc-run/SKILL.md lines 77-85
+      add position-detection rows 3b and 3b-retry with the exact three-part condition
+      from the spec (Gate 2b satisfied-or-disabled, comprehension enabled, no evidence
+      file), and row 4 is updated to "2b/2c each satisfied if enabled." AC2/R1:
+      disabled-flag skip is enforced at three surfaces — position-detection row 3b
+      requires enabled:true, Phase 3b section opens with a run-only-when guard
+      (phase-comprehension.md:1-3), and gate-check:41 scopes the 2c evidence check
+      conditionally. AC3/R3: gate-check/SKILL.md:32 adds comprehension to the
+      valid-gate list; line 50 dispatches the scorer as a fresh subagent (never inline);
+      lines 101-116 detail the Gate 2c collection section with cold-read constraint
+      restated. AC4/R5: rubrics/comprehension.md lines 404-467 define the canonical
+      schema with weights, per_dimension_minimum, threshold, and result fields; the
+      AGENT.md output section (lines 186-201) points at the rubric by name rather than
+      duplicating it. AC5/R8: phase-comprehension.md §5 lines 82-122 implement the
+      four-row failure table; lines 103-104 make the escalation-only path for
+      spec_fidelity explicit; the 1-re-dispatch cap is stated at line 121. The mixed-case
+      (artifact-quality AND spec_fidelity) also escalates (lines 106-109). AC6/R6:
+      sdlc-close/SKILL.md:138 adds the Gate 2c PR-body row; gate-check:152 adds the
+      Gate 4 step-5 comprehension check; phase-evidence.md:18,24,51 wire the pipeline
+      summary row. AC7/R7: tests/test-gate-wiring.sh removes the comprehension skip
+      and negative-assertion blocks; lib/gates.md:20 flips the registry row; 86/86 tests
+      pass with 13 Layer-A assertions for the comprehension row. AC8/R9: README.md:11
+      has the exact "4 required + 3 opt-in" phrase; lines 219-251 have the pipeline
+      diagram, gate table, and the Gate 2c enablement subsection labeled experimental.
+      One narrow correctness observation: the sdlc-run row 3b condition reads "Gate 2b
+      satisfied (or disabled)" but the line-85 definition already makes "satisfied"
+      subsume "disabled" — functionally identical but slightly redundant phrasing;
+      no behavioral gap.
+
+  error_handling:
+    verdict: pass
+    notes: >
+      This is a prompt-only changeset (markdown skills, rubrics, agent prompt, one bash
+      test). Error handling is expressed as LLM instructions rather than executable code.
+      All failure modes are explicitly addressed:
+      (1) Empty diff: agents/comprehension-scorer/AGENT.md lines 239-240 emit blocking
+      flag empty_diff and write a fail scorecard.
+      (2) No ACs in spec: AGENT.md line 241 emits spec_missing_acs and writes fail.
+      (3) Malformed SYSTEM-SPEC.md: AGENT.md line 243 continues scoring and emits advisory.
+      (4) Interrupted/malformed evidence file: phase-comprehension.md lines 160-163
+      treats it as absent and re-dispatches with a warning.
+      (5) Missing preconditions (Gate 2 or 2b not passed): phase-comprehension.md lines
+      24-35 halt dispatch and surface the missing gate.
+      (6) Unresolvable diff range: phase-comprehension.md §3 escalates to asking the user.
+      (7) Spec Fidelity failure: escalates to human immediately, no re-dispatch.
+      (8) Re-dispatch cap of 1 prevents infinite loops on artifact-quality failures.
+      The bash test (tests/test-gate-wiring.sh) uses set -euo pipefail and exits 1 on
+      failure, with color-coded output that distinguishes pass from fail.
+
+  readability:
+    verdict: pass
+    notes: >
+      The changeset is a markdown-native skill system — readability is evaluated on
+      clarity of instruction to an LLM orchestrator and internal structural consistency.
+      Structure is excellent throughout: phase-comprehension.md uses numbered sections
+      with clear heading semantics (§1 check existing, §2 preconditions, §3 diff
+      resolution, §4 dispatch, §5 result routing, §6 commit). The AGENT.md is organized
+      into Phase A (generate) and Phase B (score) with step-numbered subsections.
+      Naming is consistent: "comprehension-scorer", "gate-2c-comprehension.yml",
+      "Phase 3b: Comprehension (Gate 2c)" are used identically across all touched files.
+      The four-row failure table in phase-comprehension.md §5 is especially clear —
+      each row names the dimension, its class, and the action, with the rationale for
+      the asymmetric routing stated inline ("Re-dispatch will NOT help"). The test
+      script's Layer A/B structure is self-documented in the header comments. One minor
+      readability observation: the AGENT.md cold-read principle section (lines 30-39)
+      is stated in two sentences that are substantive; the identical constraint is
+      restated in three other files. This redundancy is intentional (spec Risk 3
+      mitigation — defense in depth) and is documented. No naming inconsistencies or
+      magic numbers found.
+
+  security:
+    verdict: pass
+    notes: >
+      Mandatory secrets scan completed. Searched for: high-entropy secret assignments,
+      known API key formats (AWS AKIA*, GitHub ghp_*/gho_*, Slack xox*, OpenAI/Stripe
+      sk-*, Anthropic sk-ant-*, Google AIza*), private key headers, connection strings
+      with credentials, inline bearer tokens, and base64-encoded secrets. Results:
+      (1) tests/fixtures/fake-secrets.js: all matches are deliberate test fixtures
+      containing clearly labeled fake values ("AKIAFAKEACCESSKEY1234", "fake-test-api-key",
+      "P@ssw0rd_FAKE_testing", etc.) used to test the secrets scanner; not real credentials.
+      (2) tests/fixtures/clean-code.js lines 5-6,11,20-21: all use process.env.*, config
+      getSecret(), or vault functions — proper patterns, no literal values.
+      (3) rubrics/review.md lines 74-77: documentation examples, not real values.
+      (4) No matches in agents/, skills/, rubrics/ (except rubric documentation), lib/,
+      or .claude/sdlc.local.md.
+      This changeset introduces no shell injection risks — the bash test runs only
+      grep/awk/cat operations on static file paths with no user-supplied input. The
+      comprehension-scorer agent's Bash tool usage is limited to git diff commands on
+      resolved paths. No auth gaps, no new endpoints, no credential exposure.
+
+  performance:
+    verdict: pass
+    notes: >
+      Prompt-only changeset with one bash test file. No runtime code is introduced.
+      The bash test (tests/test-gate-wiring.sh) uses grep against static files with
+      no unbounded loops — it iterates over a fixed set of 7 registry rows. No N+1
+      patterns, no resource leaks, no blocking operations. The comprehension gate's
+      latency cost (cold-read agent dispatch) is acknowledged in the spec's Anti-Patterns
+      section and is addressed by the opt-in default-off constraint — a deliberate
+      design decision. The verify-evidence.sh working-tree change adds one branch
+      (dimensions: key fallback) to an existing Python function at line 218, with
+      no performance impact.
+
+  spec_alignment:
+    verdict: pass
+    notes: >
+      All 9 requirements and all 8 ACs are traceable to the implementation:
+      R1 (global enabled flag, default false): .claude/sdlc.local.md adds comprehension
+      block with enabled:true for dogfooding (spec Constraints); doctor template at
+      sdlc-doctor/SKILL.md:239-242 ships fully commented (consumer default-off).
+      R2 (sdlc-run position detection rows): rows 3b and 3b-retry added at
+      sdlc-run/SKILL.md:77-78; satisfied definition at line 85.
+      R3 (gate-check valid gate + cold dispatch): gate-check/SKILL.md:32,50,101-116.
+      R4 (doctor template + WARN removal): sdlc-doctor/SKILL.md adds commented block
+      at lines 239-242; WARN block deleted (pre-diff lines 55-58).
+      R5 (rubrics/comprehension.md canonical schema): lines 404-467 added with weights,
+      per_dimension_minimum, threshold, result, flags, and recomputability comment.
+      R6 (Gate 4, sdlc-status, close-flow, pipeline summary): sdlc-close:138,
+      gate-check:152, phase-evidence.md:18,24,51, evidence-package.md:47-49.
+      sdlc-status needed no diff (pre-existing forward-compatible surfaces confirmed).
+      R7 (lib/gates.md wired-experimental + test): lib/gates.md:20,32-34;
+      tests/test-gate-wiring.sh removes skip + negative-assertion blocks.
+      R8 (dimension-aware failure routing): phase-comprehension.md §5; gate-check:116;
+      AGENT.md:168-183.
+      R9 (README + ROADMAP): README.md:11,219-251,459-480; ROADMAP.md updated.
+      Out-of-scope items (risk-level binding, calibration corpus, blinding) are correctly
+      absent from the implementation. No gold-plating observed beyond the five
+      unexplained behaviors identified by Gate 2c itself — all are minor_utility or
+      spec-sanctioned (ROADMAP updates, dogfood config, blinding-scope docs, Gate 3
+      preamble, WARN removal). The Gate 3 preamble behavior (gate-check:122) is
+      demanded by the spec's Critical User Journey ("the artifact becomes the Gate 3
+      reviewer's preamble") and is implemented correctly; the gap is only in the AC
+      list (no AC asserts it), which the Gate 2c artifact correctly flagged as
+      recommended. The verify-evidence.sh fix (uncommitted working-tree change) directly
+      addresses the Gate 2c recommended flag about the recomputability gap — it flips
+      gate-2c-comprehension.yml from kind "plain" to "scorecard" and adds a
+      dimensions: key fallback in check_scorecard(), making the rubric's recomputability
+      claim accurate.
+
+  skill_description:
+    verdict: pass
+    notes: >
+      The comprehension-scorer/AGENT.md is a new file with a new description frontmatter
+      field — the skill_description check applies. Evaluated description:
+      "Generates a per-AC comprehension artifact by reading the spec and the diff cold
+      (no access to the implementing agent's reasoning), then scores the artifact against
+      the comprehension rubric — 4 dimensions (AC Coverage, Accuracy, Spec Fidelity,
+      Scope Containment) — and writes the Gate 2c evidence file. Invoked by /sdlc gate
+      comprehension and by the sdlc-run pipeline Phase 3b."
+      Should-trigger queries tested (5): (1) "run the comprehension gate", (2) "score
+      the comprehension artifact for my spec", (3) "generate a cold-read explanation of
+      the diff", (4) "/sdlc gate comprehension", (5) "cold-read this implementation
+      against the spec" — all trigger correctly on "Gate 2c", "comprehension artifact",
+      "cold", "per-AC", and the invocation paths.
+      Should-not-trigger queries tested (5): (1) "review my code for correctness" —
+      routes to code-reviewer (Gate 3), not this agent; (2) "score my spec" — routes to
+      spec-scorer; (3) "check eval quality" — routes to eval-quality-scorer; (4) "run
+      the full pipeline" — routes to sdlc-run; (5) "check if my tests are good" —
+      routes to eval-quality-scorer. No false-trigger risk on adjacent agents.
+      The explicit "Invoked by /sdlc gate comprehension and by the sdlc-run pipeline
+      Phase 3b" clause correctly scopes the agent as a dispatcher-invoked subagent
+      rather than a user-facing skill, reducing overtrigger risk.
+      The four existing SKILL.md files (sdlc-run, gate-check, sdlc-close, sdlc-doctor)
+      had no description field changes — no skill_description check required for them.
+
+observations:
+  - >
+    verify-evidence.sh recomputability gap is addressed by the uncommitted working-tree
+    change (scripts/verify-evidence.sh diff: kind "plain" → "scorecard" + dimensions:
+    key fallback in check_scorecard at line 218). This fix directly resolves the
+    recommended flag from Gate 2c. The fix should be committed as part of this changeset
+    before merge so the rubric's recomputability claim (rubrics/comprehension.md:443)
+    is accurate at merge time.
+  - >
+    Two spec-sanctioned behaviors have no AC regression guard: (1) R4's WARN removal
+    (sdlc-doctor:55-58 deleted) is only covered indirectly via Layer-A assertions on
+    the doctor template block — nothing would catch a future re-introduction of the
+    WARN; (2) the Gate 3 comprehension preamble (gate-check:122, demanded by the
+    Critical User Journey) has no AC asserting it. Both were correctly flagged by Gate 2c
+    as recommended items for future spec amendment.
+  - >
+    Spec Risk 3 mitigation states the asymmetric failure routing is "stated identically
+    in phase reference, gate-check dispatch section, and rubric." The implementation
+    states it in phase-comprehension.md §5, gate-check:116, and AGENT.md:168-183 — the
+    third surface is the agent prompt rather than the rubric. Behavior is unaffected;
+    the discrepancy is advisory only (consistent with Gate 2c's advisory flag).
+
+blocking_issues: []
+
+result: pass

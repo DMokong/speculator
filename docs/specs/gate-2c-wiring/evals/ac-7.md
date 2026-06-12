@@ -1,12 +1,12 @@
 # Eval: AC7 — The wiring is structurally enforced, not promised
 
 **Observable success (without source code access)**:
-A contributor runs `bash tests/test-gate-wiring.sh` and sees the comprehension gate asserted across every touchpoint (registry row, rubric, agent, gate-check, status, doctor template, evidence-package, position detection) with the suite green. Deleting any single comprehension touchpoint makes the suite fail and name the missing site.
+A contributor runs the project's structural test suite and sees it pass with the comprehension gate fully asserted. If they then remove any single piece of the gate's integration — wherever it lives — the suite fails and names the site that went missing. The gate cannot silently regress to half-wired.
 
 **Anti-patterns this eval would catch**:
 - The gate ships half-wired with the test still green (would fail — the exact failure mode that stranded Gate 2c for 45 days)
-- Negative guards still forbidding comprehension references (would fail — the guards must flip to positive assertions)
+- Leftover guards that forbid referencing the gate (would fail — a wired gate cannot also be forbidden)
 
 **Would fail if**:
-- test-gate-wiring.sh passes with a comprehension touchpoint removed
-- The comprehension row is still exempted from Layer-A assertions
+- The structural suite passes after deleting any single integration point of the gate
+- The suite still treats comprehension as an unwired exception

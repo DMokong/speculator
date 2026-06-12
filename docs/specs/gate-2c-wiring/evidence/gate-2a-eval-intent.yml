@@ -1,0 +1,39 @@
+gate: eval-intent
+spec_id: SPEC-002
+timestamp: 2026-06-12T10:00:00Z
+retry: 1
+eval_files_evaluated:
+  - docs/specs/gate-2c-wiring/evals/ac-1.md
+  - docs/specs/gate-2c-wiring/evals/ac-2.md
+  - docs/specs/gate-2c-wiring/evals/ac-3.md
+  - docs/specs/gate-2c-wiring/evals/ac-4.md
+  - docs/specs/gate-2c-wiring/evals/ac-5.md
+  - docs/specs/gate-2c-wiring/evals/ac-6.md
+  - docs/specs/gate-2c-wiring/evals/ac-7.md
+  - docs/specs/gate-2c-wiring/evals/ac-8.md
+ac_count: 8
+dimensions:
+  intent_coverage: 8
+  anti_pattern_detection: 9
+  journey_completeness: 7
+  implementation_independence: 8
+overall: 8.0
+threshold: 6.5
+per_dimension_minimum: 4
+result: pass
+system_spec_conflicts: []
+regression_signals:
+  - "eval-quality-scoring (SPEC-001) has no evals directory — predates Gate 2a; no regression scan possible. Noted, not flagged."
+flags:
+  blocking: []
+  recommended:
+    - "The critical user journey's long-term provenance element ('months later, the artifact answers why was this written this way?') has no eval coverage. This was a recommended gap in round 1 and remains unaddressed. Low urgency — it is a stretch outcome of the journey, not the primary value proposition — but worth a 'would fail if' in a future revision."
+  advisory:
+    - "ac-4.md references 'the mechanical evidence verifier' as the acceptance oracle. This is user-observable and acceptable, but if the verifier itself is not shipped, this eval becomes unverifiable. Consider adding a fallback: 'or, a developer can manually recompute the overall and confirm it matches within rounding tolerance.'"
+    - "ac-3.md's freshness signal ('the artifact references decisions only visible in the implementing session, not in the diff') is the correct observable, but in practice distinguishing session-leaked reasoning from diff-derivable reasoning requires careful reading. The eval would benefit from a concrete example of what session-leaked reasoning looks like versus diff-derivable reasoning."
+    - "ac-6.md still does not specify what 'passing evidence' means as a trigger condition for the close flow. A minor tightening — e.g., 'evidence file exists with result: pass' — would eliminate ambiguity without adding implementation coupling."
+reasoning:
+  intent_coverage: "All eight revised evals describe outcomes a tester could verify without source code. The round-1 coupling in ac-4.md (named YAML fields, named verify script) has been replaced with 'an auditor can reproduce the bottom-line score using only what the file records' — user-observable and implementation-independent. ac-7.md's enumerated internal touchpoints have been replaced with 'remove any single piece of the gate's integration, wherever it lives, and the suite names the missing site' — structural outcome, not implementation inventory. The remaining minor coupling (ac-4's 'mechanical evidence verifier', ac-1/ac-3's evidence file name) is either a user-observable system component or a spec-declared artifact name, both acceptable per rubric. Score 8: evals would survive implementation context loss, but stop short of 9 because two evals still reference the evidence file artifact name as a pass condition."
+  anti_pattern_detection: "All three named spec anti-patterns now have explicit 'would fail if' coverage. Anti-pattern #1 (implementing agent grading its own work) is caught in ac-3.md with specific signal — artifact echoing implementation-session reasoning. Anti-pattern #2 (fluent-but-wrong explanation passing accuracy) was the blocking gap in round 1; ac-5.md now names it precisely: 'an explanation that contradicts what the diff actually does must score below the minimum on accuracy and route to failure, no matter how fluent and assured its prose reads.' The rubric language ties it explicitly to the dark-code failure mode the gate was built to prevent. Anti-pattern #3 (default-on) is caught in ac-2.md. With all three named anti-patterns covered and each 'would fail if' citing the anti-pattern by character rather than by category, score 9 — the set would catch every documented failure mode. Not 10 because the 'would fail if' language in ac-5.md, while precise, embeds the reasoning inline rather than citing the anti-pattern label from the spec."
+  journey_completeness: "The critical user journey is now traced across its primary path: flag-enabled trigger (ac-1), cold-read dispatch and freshness verification (ac-3), evidence schema auditability (ac-4), spec-fidelity escalation vs. artifact-quality re-dispatch (ac-5), close-flow artifact surfacing (ac-6), structural regression prevention (ac-7), user discoverability (ac-8). The key gap from round 1 — the pass-path end state where the artifact becomes the Gate 3 reviewer's preamble — is now explicitly covered in ac-1's observable success and fourth 'would fail if.' The one remaining uncovered element is the long-term provenance dimension of the journey ('months later, the artifact answers why was this written this way?'), which has no eval in the set. Score 7: each primary journey segment is covered, edge cases on the main failure paths are handled, but one named journey end state remains without coverage."
+  implementation_independence: "The two evals cited in round 1 for implementation coupling have been revised effectively. ac-4.md is now stated entirely in terms of arithmetic reproducibility and verifier acceptance — no field names, no script paths. ac-7.md is now stated as a structural property ('removing any single integration point causes the suite to name it') with no enumeration of what those points are. The remaining references to 'gate-2c-comprehension.yml' in ac-1 and ac-3 are coupling to a spec-declared artifact name (AC3 literally prescribes the output path) rather than to an implementation choice, which the rubric treats as acceptable. Score 8: evals pass the 'would a different internal architecture satisfy these?' test; the artifact file name coupling is spec-prescribed, not implementation-prescribed."
