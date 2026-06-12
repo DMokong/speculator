@@ -30,6 +30,15 @@
 # The data below is unmodified.
 # ============================================================================
 
+# ADDENDUM 2026-06-12 (evening): the controlled re-run's SPEC-SIDE half has landed —
+# see results/feedback-vs-control-ablation.yml. Paired arms (n=3 each, pinned
+# claude-sonnet-4-6 scorer, production rubric, same PRD): feedback arm mean lift
+# +2.23 (3/3 passed in 1 iteration); control arm (generic revision, no scorer
+# flags) mean lift +0.63 (0/3 passed in 3 iterations; one chain lifted 0.0).
+# This supports the FEEDBACK-CONTENT claim under control — it does NOT yet
+# validate that spec scores predict implementation outcomes (outcome matrix
+# pending).
+
 benchmark:
   prd: weather-transport
   rounds: 3

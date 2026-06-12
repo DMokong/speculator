@@ -1,0 +1,74 @@
+experiment: spec-only feedback-vs-control ablation
+scorer_model: claude-sonnet-4-6
+rubric_source: production
+caveat: "Spec-score lift only \u2014 implementation-outcome link measured separately.\
+  \ Lift is judged by the same scorer in both arms; the control arm isolates feedback\
+  \ content from revision-pass compute."
+arms:
+  feedback:
+    n: 3
+    mean_lift: 2.233
+    lifts:
+    - 2.7
+    - 1.8
+    - 2.2
+    mean_final: 8.333
+    mean_iterations: 1
+  control:
+    n: 3
+    mean_lift: 0.633
+    lifts:
+    - 1.5
+    - 0.4
+    - 0.0
+    mean_final: 6.767
+    mean_iterations: 3
+rows:
+- target: cc-vanilla-sonnet-feedback-run1
+  arm: feedback
+  status: ok
+  original_score: 5.3
+  final_score: 8.0
+  lift: 2.7
+  iterations_needed: 1
+  passed: true
+- target: cc-vanilla-sonnet-control-run1
+  arm: control
+  status: ok
+  original_score: 4.8
+  final_score: 6.3
+  lift: 1.5
+  iterations_needed: 3
+  passed: false
+- target: cc-vanilla-sonnet-feedback-run2
+  arm: feedback
+  status: ok
+  original_score: 6.9
+  final_score: 8.7
+  lift: 1.8
+  iterations_needed: 1
+  passed: true
+- target: cc-vanilla-sonnet-control-run2
+  arm: control
+  status: ok
+  original_score: 7.0
+  final_score: 7.4
+  lift: 0.4
+  iterations_needed: 3
+  passed: false
+- target: cc-vanilla-sonnet-feedback-run3
+  arm: feedback
+  status: ok
+  original_score: 6.1
+  final_score: 8.3
+  lift: 2.2
+  iterations_needed: 1
+  passed: true
+- target: cc-vanilla-sonnet-control-run3
+  arm: control
+  status: ok
+  original_score: 6.6
+  final_score: 6.6
+  lift: 0.0
+  iterations_needed: 3
+  passed: false
