@@ -257,9 +257,12 @@ close:
   strategy: merge          # "merge" (direct merge to main) or "pr" (open a pull request)
 
 # /spec run autonomy thresholds
+# Sized to measured scorer noise: test-retest sigma is 0.18-0.24 on polished
+# specs (benchmarks/results/test-retest-sigma.yml), so full-auto sits well
+# clear of the guided threshold rather than within judge noise of it.
 run:
-  self_improvement_trigger: 8.0   # score below this triggers refinement loop
-  full_auto_threshold: 7.8        # minimum score for autonomous execution
+  self_improvement_trigger: 8.5   # score below this triggers refinement loop
+  full_auto_threshold: 8.3        # minimum score for autonomous execution
   guided_threshold: 7.0           # minimum score for guided mode (below = stop)
   max_spec_retries: 3
   max_code_retries: 3
