@@ -20,7 +20,7 @@ Jones proposed three fixes. Speculator's pipeline maps to all three:
 | Jones's fix | Speculator gate | Status |
 |-------------|------------------|--------|
 | **Spec-driven dev** — comprehension lives in the spec | Gate 1 (Spec Quality) + Gate 2a (Eval Intent) | ✅ Shipped |
-| **Comprehension gates** — PRs blocked unless human can explain what the code does | **Gate 2c (Comprehension Gate)** | 🚧 **Components on branch `gate-2c-comprehension`, wiring pending — top priority** |
+| **Comprehension gates** — PRs blocked unless human can explain what the code does | **Gate 2c (Comprehension Gate)** | ✅ **Shipped experimental (2026-06-12), opt-in, default off — calibration corpus is the open work** |
 | **Context engineering** — failure modes + why-wired-this-way on high-risk modules | Gate 2c artifact (durable per-AC explanation, not just a gate) | 🚧 Same artifact, dual purpose |
 
 Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass while testing the wrong thing — and was always **Phase 1 of a two-phase anti-dark-code expansion**. Gate 2c is **Phase 2**.
@@ -42,7 +42,7 @@ Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass whi
 | Required 4-gate pipeline (Spec / Code / Review / Evidence) | ✅ Shipped, dogfooded on Speculator's own SPECs |
 | Gate 2a — Eval Intent (pre-implementation) | ✅ Shipped v2.8.0, opt-in |
 | Gate 2b — Eval Quality (post-implementation) — *Anti-dark-code Phase 1* | ✅ Shipped v2.7.0, opt-in |
-| **Gate 2c — Comprehension Gate** — *Anti-dark-code Phase 2* | 🚧 Components rescued to branch `gate-2c-comprehension` (2026-06-12), wiring pending |
+| **Gate 2c — Comprehension Gate** — *Anti-dark-code Phase 2* | ✅ Shipped 2026-06-12, opt-in + experimental (calibration corpus pending) |
 | Gate 3 — Mandatory secrets scan | ✅ Shipped v2.5.0, 25/25 fixture tests passing |
 | Gate 3 — Skill description eval | ✅ Shipped v2.6.0 |
 | `/sdlc run` autonomous orchestrator with trust ladder | ✅ Shipped v1.3.0, refined through v2.x |
@@ -55,15 +55,17 @@ Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass whi
 
 ---
 
-## #1 Priority — Gate 2c: Comprehension Gate
+## Gate 2c: Comprehension Gate — shipped experimental (calibration corpus open)
 
 **Goal:** close the dark-code pathway between "tests pass" and "code ships." The comprehension agent reads the spec + diff *cold* (no access to the implementing agent's reasoning — the implementing agent cannot be its own judge), generates a per-AC explanation artifact, then scores it.
+
+**Status:** wired and shipped 2026-06-12 as an opt-in experimental gate (`gates.comprehension.enabled: true`, default off, global flag — risk-level binding deferred to v3, see backlog). **The remaining open item is the calibration corpus** — the rubric ships with seed examples only; it needs 10–15 calibrated examples per dimension, seeded from real artifacts, before the gate's scores graduate from advisory-quality.
 
 The artifact has dual value:
 - **As a gate** — catches dark code (implementations that satisfy tests while missing spec intent).
 - **As context** — durable per-AC documentation answering *"why was this written this way?"* for future developers and agents months later. This is Jones's "context engineering" layer operationalized.
 
-### Architecture (already designed)
+### Architecture (as shipped)
 
 | Element | Specification |
 |---------|---------------|
@@ -73,7 +75,7 @@ The artifact has dual value:
 | Evidence | `evidence/gate-2c-comprehension.yml` |
 | Threshold | Overall ≥ 7.0, every dimension ≥ 5, no blocking flags |
 | Config | `gates.comprehension.enabled: true` in `sdlc.local.md` (default off) |
-| Phase detection | New row in `sdlc-run/SKILL.md` between rows 3a (eval-quality) and 4 (review) |
+| Phase detection | Row 3b in `sdlc-run/SKILL.md` between rows 3a (eval-quality) and 4 (review) |
 
 ### Scoring rubric — 4 dimensions
 
@@ -81,7 +83,7 @@ The artifact has dual value:
 |-----------|--------|-----------------|
 | AC Coverage | 0.30 | Every AC mapped with a substantive, non-trivial entry |
 | Accuracy | 0.30 | Does the explanation actually match the code? (judge sees diff + artifact) |
-| Intent Alignment | 0.25 | Does the described behavior match the spec's intent, not just letter? — **this is the dark-code detector** |
+| Spec Fidelity | 0.25 | Does the described behavior match the spec's intent, not just letter? — **this is the dark-code detector** |
 | Scope Containment | 0.15 | Unexplained behaviors = scope creep or dark-code pockets |
 
 **Critical judge instruction:** *"You are evaluating whether this explanation is accurate and whether the implementation does what the spec intended. Do not evaluate code quality — that is Gate 3's job."*
@@ -90,23 +92,23 @@ The artifact has dual value:
 
 The Gate 3 reviewer reads the comprehension artifact as preamble before running the 6-point review. The reviewer doesn't have to re-derive *"what does this code do"* from scratch — they enter review already knowing which ACs are fully/partially covered, where the code lives, and which behaviors are unexplained. Review becomes richer and faster.
 
-### Build cost
+### Build status
 
-| Workstream | Effort |
+| Workstream | Status |
 |------------|--------|
-| `rubrics/comprehension.md` with calibration examples (10–15 per dimension) | Medium — calibration is the critical path |
-| `agents/comprehension-scorer/AGENT.md` | Small — pattern matches existing scorer agents |
-| `gate-check` skill update + `sdlc-run` phase detection | Small — copy Gate 2a/2b shape |
-| Gate 3 preamble update (read comprehension artifact) | Small |
-| Schema update in `sdlc.local.md` template | Trivial |
-| Dogfooded SPEC + Gate 1–4 evidence | Required (the pipeline ships its own changes) |
+| `rubrics/comprehension.md` with calibration examples (10–15 per dimension) | 🚧 **Open** — seed examples shipped; the calibrated corpus (from real artifacts) is the critical path |
+| `agents/comprehension-scorer/AGENT.md` | ✅ Shipped |
+| `gate-check` skill update + `sdlc-run` phase detection | ✅ Shipped (row 3b + `references/phase-comprehension.md`) |
+| Gate 3 preamble update (read comprehension artifact) | ✅ Shipped (gate-check reads the artifact before the Gate 3 checklist) |
+| Schema update in `sdlc.local.md` template | ✅ Shipped (`/sdlc doctor --init` commented block) |
+| Dogfooded SPEC + Gate 1–4 evidence | 🚧 Open — first real run should dogfood the gate on its own changes |
 
-The agent code is mostly mechanical. **Calibration is the build.** A confidently wrong explanation is worse than no explanation (false confidence) — the calibration set must include cases where the explanation looks plausible but contradicts the diff. Without a strong calibration set, the Accuracy dimension drifts and the gate becomes performative.
+The agent code was mostly mechanical, as predicted. **Calibration is the remaining build.** A confidently wrong explanation is worse than no explanation (false confidence) — the calibration set must include cases where the explanation looks plausible but contradicts the diff, seeded from real artifacts the wired gate now produces. Without a strong calibration set, the Accuracy dimension drifts and the gate becomes performative — which is why the gate stays labeled experimental until the corpus exists.
 
 ### Risks
 
 1. **Accuracy drift.** The Accuracy dimension carries 0.30 weight; getting it wrong undermines the whole gate. Mitigation: build calibration explicitly around "plausible-but-wrong" examples.
-2. **Gaming.** Teams aware of the rubric might add explanation language without substance. Mitigation: Intent Alignment is hard to game by adding text — it requires the implementation to actually match the spec's intent. Calibration examples should explicitly identify gaming patterns.
+2. **Gaming.** Teams aware of the rubric might add explanation language without substance. Mitigation: Spec Fidelity is hard to game by adding text — it requires the implementation to actually match the spec's intent. Calibration examples should explicitly identify gaming patterns.
 3. **Latency.** Cold-read of spec + diff + generation + scoring is the most expensive gate by far. The cost is acceptable for high-stakes specs (`risk_level: high`) and may be too high for trivial changes. Suggestion: bind enablement to `risk_level` rather than a global flag, in v3.
 
 ---
@@ -205,7 +207,7 @@ These have come up in discussion and we've consciously *not* picked them up:
 
 The most valuable contributions today are:
 
-1. **Calibration examples for Gate 2c.** This is the build's critical path. If you can articulate "this comprehension entry looks plausible but contradicts the diff" with a real example, you're directly unblocking Phase 2.
+1. **Calibration examples for Gate 2c.** The gate shipped experimental — calibration is what remains. If you can articulate "this comprehension entry looks plausible but contradicts the diff" with a real example, you're directly graduating the gate out of experimental status.
 2. **PRDs for Spec-Bench.** Drop a PRD + functional tests in `benchmarks/prds/` and run the harness. Submit the results. We need diversity of domains.
 3. **Mutation testing baselines.** If you have an open-source project with Stryker/Pitest baselines, point us at it — it's the validation move for Gate 2b.
 4. **Calibration data.** Run `spec-bench calibrate` against your own runs and contribute the calibration artifacts. They're how we tune the LLM-as-judge over time.

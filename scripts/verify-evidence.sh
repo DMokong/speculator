@@ -210,8 +210,13 @@ def check_common(name, path, allow_na=False, na_note=""):
 
 def check_scorecard(name, data):
     """Recompute weighted overall from weights recorded in the evidence file,
-    and check recorded result against recorded threshold + dimension minimums."""
+    and check recorded result against recorded threshold + dimension minimums.
+
+    Dimension scores live under `scores:` (gate-1 scorecards) or `dimensions:`
+    (gate-2a/2b/2c evidence) — accept either flat numeric map."""
     scores = data.get("scores") if isinstance(data.get("scores"), dict) else {}
+    if not scores and isinstance(data.get("dimensions"), dict):
+        scores = data["dimensions"]
     dims = {k: v for k, v in scores.items()
             if is_num(v) and k not in ("overall", "overall_score")}
     overall = scores.get("overall", data.get("overall", data.get("overall_score")))
@@ -347,7 +352,7 @@ if not os.path.isfile(config_path):
     skip(f"opt-in gate checks: {config_path} not found")
 for gate_name, fname, kind in (("eval-intent", "gate-2a-eval-intent.yml", "scorecard"),
                                ("eval-quality", "gate-2b-eval-quality.yml", "scorecard"),
-                               ("comprehension", "gate-2c-comprehension.yml", "plain")):
+                               ("comprehension", "gate-2c-comprehension.yml", "scorecard")):
     g = gates_cfg.get(gate_name)
     enabled = isinstance(g, dict) and bool(g.get("enabled"))
     path = os.path.join(ev_dir, fname)

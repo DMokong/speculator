@@ -53,10 +53,6 @@ If the file's indentation deviates from the default layout, read the frontmatter
 - **WARN**: weights sum to anything else — report the actual sum: `⚠️ scoring weights sum to {sum} (expected 1.0) — Gate 1 overall scores will be skewed; fix scoring.weights in .claude/sdlc.local.md`
 - If `scoring.weights` is absent entirely, the plugin defaults apply — no warning.
 
-**Config lint — unwired comprehension gate** (run when `sdlc.local.md` is present): if the frontmatter sets `gates.comprehension.enabled: true`, emit:
-
-- **WARN**: `⚠️ gates.comprehension.enabled is true but the comprehension gate is not wired in this release — Gate 4 cannot be satisfied. Disable it in .claude/sdlc.local.md or check out branch gate-2c-comprehension.`
-
 ### 3. Plugin Wiring
 
 The SDLC plugin being loaded is self-evident — if `/sdlc doctor` is running, the plugin is installed and all skills are registered.
@@ -240,6 +236,10 @@ gates:
   #   enabled: true
   #   threshold: 6.5
   #   per_dimension_minimum: 4
+  # comprehension:              # Gate 2c: experimental — anti-dark-code comprehension gate
+  #   enabled: true
+  #   threshold: 7.0
+  #   per_dimension_minimum: 5
 
 # Spec quality scoring (Gate 1) — weights must sum to 1.0
 scoring:
@@ -278,7 +278,7 @@ frontmatter above to adjust thresholds, weights, and which gates run.
 
 ## Enabling opt-in gates
 
-Two gates ship disabled by default and are turned on by uncommenting their
+Three gates ship disabled by default and are turned on by uncommenting their
 blocks under `gates:`:
 
 - **Gate 2a — Eval Intent** (`eval-intent`): pre-implementation intent
@@ -289,9 +289,13 @@ blocks under `gates:`:
   test-suite quality scoring. The `eval-quality-scorer` agent scores
   whether tests are good detection instruments for the spec's ACs across
   7 dimensions, between Gate 2 and Gate 3.
+- **Gate 2c — Comprehension** (`comprehension`, experimental):
+  anti-dark-code comprehension gate. The `comprehension-scorer` agent
+  cold-reads the spec + diff, generates a per-AC explanation artifact, and
+  scores it on 4 dimensions, between Gate 2b and Gate 3.
 
-You can enable either independently. See the project README's Configuration
-section for details.
+You can enable any of them independently. See the project README's
+Configuration section for details.
 ```
 
 2. Create the spec directory: `mkdir -p docs/specs`

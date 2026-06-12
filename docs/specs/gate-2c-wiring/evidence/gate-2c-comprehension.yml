@@ -1,0 +1,555 @@
+gate: comprehension
+spec_id: SPEC-002
+spec_path: docs/specs/gate-2c-wiring/spec.md
+timestamp: 2026-06-12T04:31:38Z
+scorer: agent
+model: claude-fable-5
+diff_range: main...HEAD
+# Producer metadata (appended per schema allowance — canonical fields above/below unchanged)
+diff_exclusions: ":!docs/specs/gate-2c-wiring (the spec's own pipeline artifacts)"
+notes: >
+  First-ever live run of Gate 2c — this artifact scores comprehension of the
+  wiring that created its own gate. Prompt-only changeset (markdown skills,
+  rubrics, agent prompt, one bash test); scored per the agent's prompt-only
+  edge-case rule. Verification went beyond text spot-checks: the test suite
+  (AC7) was executed (86/86 pass), and the pre-existing scripts/verify-evidence.sh
+  and skills/sdlc-status/SKILL.md were read to validate cross-file claims.
+
+# Phase A output — the artifact body
+comprehension_entries:
+  - ac_id: AC1
+    ac_text: >
+      (R1, R2) Given `gates.comprehension.enabled: true`, Gate 2b satisfied or
+      disabled, and no `gate-2c-comprehension.yml`, when `/sdlc run` performs
+      position detection, then Phase 3b is selected and
+      `references/phase-comprehension.md` drives the phase.
+    implementation_summary: >
+      skills/sdlc-run/SKILL.md gains two new position-detection rows: row "3b"
+      (line 77) fires on exactly the AC's three-part condition — Gate 2b
+      satisfied (or disabled), comprehension enabled, no
+      evidence/gate-2c-comprehension.yml — and row "3b-retry" (line 78) fires
+      when the evidence file exists with result != pass, mirroring the existing
+      3a-retry pattern. Line 85 defines "Gate 2b satisfied" and "Gate 2c
+      satisfied" generically (enabled key false/absent OR evidence with
+      result: pass; no override-pass for 2b/2c), and row 4 (Phase 4 entry
+      condition) is updated to "2b/2c each satisfied if enabled" so review
+      cannot start over an unsatisfied enabled 2c. A new "### Phase 3b:
+      Comprehension (Gate 2c)" section (line 164) delegates execution to the
+      new 164-line reference file
+      skills/sdlc-run/references/phase-comprehension.md, which carries the full
+      phase contract: existing-evidence skip (§1, lines 15-22), preconditions
+      requiring Gate 2 pass and 2b pass-or-disabled (§2, lines 24-35),
+      diff-range resolution in worktree/single-commit/explicit/ask order (§3,
+      lines 37-50), the agent dispatch input table (§4, lines 52-80),
+      dimension-aware result routing (§5, lines 82-122), and pass/fail commit
+      message formats (§6, lines 124-139). Malformed/interrupted evidence is
+      treated as absent with a re-dispatch (lines 160-163).
+    code_locations:
+      - file: skills/sdlc-run/SKILL.md
+        function: "Pipeline Position Detection table (rows 3b, 3b-retry) + satisfied definition"
+        lines: "77-85"
+      - file: skills/sdlc-run/SKILL.md
+        function: "### Phase 3b: Comprehension (Gate 2c)"
+        lines: "164-168"
+      - file: skills/sdlc-run/references/phase-comprehension.md
+        function: "module-level (new file — full phase contract)"
+        lines: "1-164"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      Row 3b's "Gate 2b satisfied (or disabled)" wording is redundant with the
+      line-85 definition (satisfied already subsumes disabled) but mirrors the
+      spec's own "satisfied-or-disabled" phrasing in R2 — harmless, intent
+      preserved.
+    rejected_alternatives: []
+
+  - ac_id: AC2
+    ac_text: >
+      (R1) Given the flag is `false` or absent, when position detection runs,
+      then Phase 3b is skipped entirely and review proceeds with no 2c evidence
+      required anywhere (Gate 4 records `n/a`).
+    implementation_summary: >
+      Skipping is enforced by construction: position-detection row 3b
+      (sdlc-run/SKILL.md:77) requires `gates.comprehension.enabled: true` as a
+      conjunct, and the Phase 3b section (line 166) opens with "Run only when
+      gates.comprehension.enabled: true". gate-check/SKILL.md:41 scopes the 2c
+      evidence check with "(only checked if gates.comprehension.enabled:
+      true)". The Gate 4 `n/a` recording rides on pre-existing
+      forward-compatible machinery — gate-check:43 ("disabled opt-in gates
+      report n/a") and rubrics/evidence-package.md check 5 (lines 47-54)
+      already handled a disabled 2c; this diff's contribution is removing the
+      two surfaces that previously made the ENABLED path an error: the
+      gate-check Gate 4 step that reported "the gate is not wired in this
+      release" (replaced at gate-check:152 with a plain evidence requirement)
+      and the sdlc-doctor config-lint WARN block (deleted, old
+      sdlc-doctor/SKILL.md lines 55-58). Net effect matches the AC: disabled →
+      invisible and n/a; enabled → a real gate instead of an error.
+    code_locations:
+      - file: skills/sdlc-run/SKILL.md
+        function: "row 3b enabled-flag conjunct + Phase 3b run-only-when guard"
+        lines: "77, 166"
+      - file: skills/gate-check/SKILL.md
+        function: "Gate 2c conditional evidence check + Gate 4 verification step 5"
+        lines: "41, 152"
+      - file: skills/sdlc-doctor/SKILL.md
+        function: "config-lint 'unwired comprehension gate' WARN (deleted)"
+        lines: "55-58 (pre-diff numbering, removed)"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      The default-off intent (spec anti-pattern 3: "Do NOT enable the gate by
+      default for consumers") is honored: the doctor --init template ships the
+      comprehension block fully commented out (sdlc-doctor/SKILL.md:239-242),
+      so a fresh consumer project has the flag absent → Phase 3b never fires.
+    rejected_alternatives: []
+
+  - ac_id: AC3
+    ac_text: >
+      (R3) Given `/sdlc gate comprehension` with no evidence file, when
+      gate-check runs, then the comprehension-scorer is dispatched cold (spec +
+      diff only) and writes `{spec_dir}/{spec_name}/evidence/gate-2c-comprehension.yml`.
+    implementation_summary: >
+      gate-check/SKILL.md adds `comprehension` to the valid-gate list (line
+      32), adds the missing-evidence dispatch row (line 50: "dispatch the
+      comprehension-scorer agent as a fresh subagent ... never run its logic
+      inline"), and gains a dedicated "Gate 2c: Collecting Comprehension
+      Evidence" section (lines 101-116) that dispatches the agent at
+      agents/comprehension-scorer/AGENT.md per the dispatch contract in
+      phase-comprehension.md, names the output path
+      {spec_dir}/{spec_name}/evidence/gate-2c-comprehension.yml (line 109), and
+      restates the cold-read constraint verbatim (line 110: spec + diff only,
+      never the implementing session's reasoning; always a fresh subagent). The
+      cold-read contract itself is implemented in the new 248-line
+      agents/comprehension-scorer/AGENT.md: a "cold-read principle" section
+      (lines 30-39) instructing the agent to ignore any prior reasoning in the
+      dispatching context, an 8-item input list containing only spec path, diff
+      range, worktree root, system-spec path, rubric path, output path, config
+      path, and optional previous_flags (lines 43-57) — no channel for
+      implementer reasoning exists in the contract — plus a two-phase
+      generate-then-score procedure (Phase A lines 60-119, Phase B lines
+      122-183) and prompt-only/empty-diff/missing-AC edge-case handling (lines
+      232-249).
+    code_locations:
+      - file: skills/gate-check/SKILL.md
+        function: "valid-gate list, dispatch row, Gate 2c collection section"
+        lines: "32, 50, 101-116"
+      - file: agents/comprehension-scorer/AGENT.md
+        function: "module-level (new file — cold-read contract, Phase A/B procedure)"
+        lines: "1-249"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      The cold-read constraint — the spec's anti-pattern 1 ("Do NOT let the
+      implementing agent grade its own comprehension") — is enforced at three
+      independent layers: the dispatch row (gate-check:50), the collection
+      section (gate-check:110), and the agent's own prompt (AGENT.md:30-39),
+      with phase-comprehension.md:71-80 adding a fourth statement for the
+      sdlc-run path. Defense in depth against the gate's central failure mode.
+    rejected_alternatives: []
+
+  - ac_id: AC4
+    ac_text: >
+      (R5) Given a completed comprehension scoring, when the evidence file is
+      read, then it conforms to the rubric's canonical schema including
+      recorded `weights:`, `per_dimension_minimum`, threshold 7.0, result, and
+      flags — and the recorded overall is mechanically recomputable from the
+      recorded weights.
+    implementation_summary: >
+      rubrics/comprehension.md gains an "Evidence Output Format (Canonical
+      Schema)" section (lines 404-467) defining the full gate-2c-comprehension.yml
+      structure: header metadata, Phase A body (comprehension_entries with
+      ac_text/implementation_summary/code_locations/coverage/gap_notes/
+      intent_notes/rejected_alternatives; unexplained_behaviors with
+      description/file/line_range/concern/recommendation), and Phase B scoring
+      block (weights, dimensions, overall, threshold, per_dimension_minimum,
+      result, three-tier flags, per-dimension reasoning). The weights block is
+      annotated (line 443) as what "makes overall mechanically recomputable by
+      verify-evidence.sh". The schema declares itself canonical: producers may
+      append metadata but never rename/restructure/omit fields, and other files
+      must reference rather than restate it (line 406). The agent honors that
+      single-source rule — AGENT.md's Output Format section (lines 186-201)
+      points at the rubric's schema by name instead of duplicating it, and
+      instructs recording the weights and the config-read per_dimension_minimum
+      precisely so recomputation is possible. Supporting renames keep the
+      schema's `spec_fidelity` key consistent rubric-wide (Dimension 3 retitled
+      from "Intent Alignment" at line 204, weights table line 347, flag
+      definitions lines 370/376) and the rounding convention is pinned to
+      half-up (line 350). Threshold 7.0 lives in the rubric's Gate Decision
+      section, lib/gates.md registry row 20, and the doctor template.
+    code_locations:
+      - file: rubrics/comprehension.md
+        function: "## Evidence Output Format (Canonical Schema)"
+        lines: "404-467"
+      - file: rubrics/comprehension.md
+        function: "Spec Fidelity rename + half-up rounding"
+        lines: "204, 347, 350, 370, 376"
+      - file: agents/comprehension-scorer/AGENT.md
+        function: "## Output Format (schema by reference; record weights + per_dimension_minimum)"
+        lines: "186-201"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      The recomputability PROPERTY holds — weights, dimensions, overall,
+      threshold, and per_dimension_minimum are all recorded, so any reader can
+      recompute mechanically (this very file demonstrates conformance). One
+      narrowing caveat found by cross-checking the named consumer: the
+      pre-existing scripts/verify-evidence.sh (unchanged in this diff)
+      registers gate-2c-comprehension.yml as kind "plain" (line 350), and its
+      weight-recomputation check (check_scorecard) only runs for kind
+      "scorecard" (line 374) — 2a/2b get recomputed, 2c currently gets only
+      exists/parses/result/blocking-flag checks. The rubric comment at line 443
+      therefore overstates today's script behavior. See recommended flag.
+    rejected_alternatives: []
+
+  - ac_id: AC5
+    ac_text: >
+      (R8) Given a `spec_fidelity` dimension score below the per-dimension
+      minimum, when Phase 3b evaluates the result, then the pipeline escalates
+      to a human immediately with the artifact as evidence — no re-dispatch
+      occurs.
+    implementation_summary: >
+      phase-comprehension.md §5 (lines 82-122) implements the dimension-aware
+      routing as a four-row failure table: AC Coverage, Accuracy, and Scope
+      Containment are classed "Artifact-quality" (re-dispatch may succeed);
+      Spec Fidelity is classed "Implementation" with the rationale stated in
+      the table itself ("Re-dispatch will NOT help. The artifact correctly
+      describes an implementation that misses spec intent. Escalate to
+      human."). Line 103-104 makes the AC's exact behavior explicit: "If ONLY
+      Spec Fidelity is below the minimum: escalate immediately, do not
+      re-dispatch." The mixed case (artifact-quality AND spec-fidelity both
+      below minimum) also escalates — fixing the artifact "would only document
+      the wrong thing more carefully." Artifact-quality-only failures permit
+      exactly one re-dispatch with the previous artifact's flags block as
+      feedback (lines 114-122, cap stated at line 121: "Maximum re-dispatches
+      per pipeline run: 1"). The same routing is restated in gate-check's Gate
+      2c section (line 115 bullet: re-dispatch once for artifact-quality
+      dimensions; Spec Fidelity "is an implementation problem, not an artifact
+      problem — escalate to the user immediately, do not re-dispatch"), and the
+      agent's Step B4 (AGENT.md:168-183) closes the loop on the consumer side:
+      a persisting spec_fidelity flag must be surfaced as unresolvable by
+      re-dispatch.
+    code_locations:
+      - file: skills/sdlc-run/references/phase-comprehension.md
+        function: "§5 Handle the result (failure table, escalation rules, re-dispatch cap)"
+        lines: "82-122"
+      - file: skills/gate-check/SKILL.md
+        function: "Gate 2c section step 4, failure-routing bullet"
+        lines: "111-116"
+      - file: agents/comprehension-scorer/AGENT.md
+        function: "### Step B4: Address previous-attempt feedback"
+        lines: "168-183"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      The spec's Risk 3 mitigation promises the routing logic "stated
+      identically in phase reference, gate-check dispatch section, and rubric."
+      In the diff it is stated in the phase reference, gate-check, and the
+      AGENT (Step B4) — rubrics/comprehension.md carries the gate-decision and
+      flag rules but not the re-dispatch/escalation routing table. The AC's
+      required behavior is fully delivered; the third stating-surface differs
+      from the spec's prose. See advisory flag.
+    rejected_alternatives: []
+
+  - ac_id: AC6
+    ac_text: >
+      (R6) Given comprehension enabled and passing evidence, when `/sdlc close`
+      runs, then `gate-4-summary.yml` records the comprehension result and the
+      PR-body evidence table includes a Gate 2c row.
+    implementation_summary: >
+      sdlc-close/SKILL.md:138 extends the PR-body evidence table instruction:
+      "add ... a Gate 2c (comprehension) row if gates.comprehension.enabled:
+      true. Do not list disabled opt-in gates" — exactly mirroring the 2a/2b
+      conditional pattern. The gate-4-summary recording path runs through
+      gate-check's Gate 4 verification: step 5 (gate-check:152) now requires
+      gate-2c-comprehension.yml with result: pass when enabled (replacing the
+      old not-wired error message), feeding the pre-existing "all enabled
+      opt-in gates passed / disabled report n/a" summary machinery
+      (gate-check:43). rubrics/evidence-package.md check 5 (line 49) drops its
+      "may not be wired in this release" hedge for "opt-in (experimental)",
+      making 2c evidence a first-class conditional requirement of the package.
+      The pipeline-summary surface (R6's remaining clause, not literally in
+      this AC) is also wired: phase-evidence.md adds a "Gate 2c
+      (comprehension): pass ({score})" row (line 18), the conditional-inclusion
+      rule (line 24), and the close-workflow delegation mentions "Gate 2a/2b/2c
+      rows when enabled" (line 51). sdlc-status needed no diff — its Gate 2c
+      conditional rows pre-existed as forward-compatible surfaces (verified at
+      sdlc-status/SKILL.md lines 21, 35, 63).
+    code_locations:
+      - file: skills/sdlc-close/SKILL.md
+        function: "PR description evidence-table instruction"
+        lines: "138"
+      - file: skills/gate-check/SKILL.md
+        function: "Gate 4 verification step 5 (2c row)"
+        lines: "152"
+      - file: skills/sdlc-run/references/phase-evidence.md
+        function: "pipeline summary Gate 2c row + conditional-inclusion rule"
+        lines: "18, 24, 51"
+      - file: rubrics/evidence-package.md
+        function: "check 5 wording (experimental, not forward-compatible hedge)"
+        lines: "47-49"
+    coverage: full
+    gap_notes: ""
+    intent_notes: ""
+    rejected_alternatives: []
+
+  - ac_id: AC7
+    ac_text: >
+      (R7) When `bash tests/test-gate-wiring.sh` runs, then the comprehension
+      registry row receives the same Layer-A assertions as
+      eval-intent/eval-quality and the full suite passes.
+    implementation_summary: >
+      Implemented by deletion plus registry flip — the Layer-A loop was already
+      generic, so wiring the row meant removing the carve-outs that excluded
+      it. tests/test-gate-wiring.sh removes the early `continue` that skipped
+      comprehension inside the Layer-A loop (6 lines deleted) and removes the
+      entire dedicated negative-assertion section (the four "must NOT be
+      referenced as runnable" greps, 6 lines deleted). lib/gates.md:20 flips
+      the registry row that drives the loop: phase column "NOT WIRED" → "Phase
+      3b: Comprehension (Gate 2c)" and scorer column "none committed — NOT
+      WIRED" → "comprehension-scorer", which activates the scorer-exists and
+      sdlc-run-position assertions previously short-circuited by the case
+      statement's NOT-WIRED arm and the phase-column guard. The accompanying
+      lib/gates.md "Gate 2c — wired (experimental, default off)" section
+      rewrite (lines 32-34) removes the old prose that forbade any committed
+      skill from referencing phase-comprehension.md — text that would
+      contradict the new wiring. The doctor --init template block
+      (sdlc-doctor:239-242, R4) is load-bearing here too: Layer-A asserts the
+      `comprehension:` block and `threshold: 7.0` literals in the template.
+      EXECUTED, not just read: 86/86 checks pass, and the comprehension row
+      receives 13 Layer-A assertions — identical in kind to
+      eval-intent/eval-quality (rubric exists, threshold in registry, scorer
+      agent exists, evidence filename in gate-check/sdlc-status/
+      evidence-package, config key in those three, doctor block, doctor
+      threshold, evidence file + phase string in sdlc-run) — plus Layer-B
+      closure rows for gate-2c-comprehension.yml and the "Gate 2c" label.
+    code_locations:
+      - file: tests/test-gate-wiring.sh
+        function: "Layer-A loop comprehension skip + negative-assertion section (both deleted)"
+        lines: "96-101, 134-139 (pre-diff numbering, removed)"
+      - file: lib/gates.md
+        function: "gate registry comprehension row + wired-experimental section"
+        lines: "20, 32-34"
+      - file: skills/sdlc-doctor/SKILL.md
+        function: "--init template commented comprehension block (asserted by Layer-A)"
+        lines: "239-242"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      The test's own header (lines 9-12) names Layer B's purpose as catching "a
+      future half-wired gate that lands WITHOUT updating the registry (the
+      actual Gate 2c failure mode)" — the diff converts Gate 2c from that
+      cautionary example into a fully asserted row, which is precisely the
+      spec's problem statement resolved.
+    rejected_alternatives: []
+
+  - ac_id: AC8
+    ac_text: >
+      (R9) When a user reads the README, then Gate 2c appears in the pipeline
+      description ("4 required + 3 opt-in"), the gate table, and an enablement
+      subsection that labels the gate experimental.
+    implementation_summary: >
+      README.md:11 rewrites the headline to "7-stage quality pipeline (4
+      required + 3 opt-in gates)" — the AC's exact phrase. The ASCII pipeline
+      diagram (lines 219-225) inserts a "Gate 2c: Comprehension / (opt-in,
+      experimental) / cold-read per-AC artifact on diff, scored 4 dims" box
+      between Gate 2b and Gate 3; the gate table (line 235) adds the 2c row
+      ("between eval quality and review", "opt-in, experimental",
+      gate-2c-comprehension.yml). Two experimental-labeled enablement surfaces
+      exist: the "### Gate 2c: Comprehension (opt-in, experimental)" subsection
+      (lines 247-251) describing the cold-read mechanism, dark-code framing,
+      thresholds, and "enable with gates.comprehension.enabled: true"; and the
+      "Opt-in gates" configuration section ("Three additional gates...") with
+      the commented YAML block at lines 472-475 and the updated pipeline
+      insertion diagram. Supporting README touchpoints: /spec gate command row
+      now lists 2c, the dispatch-cost table gains a Gate 2c row
+      (comprehension-scorer x1 + at most 1 re-dispatch), and the plugin
+      structure tree shows 6 agents including comprehension-scorer with the
+      rubric line dropping "(gate not yet wired)".
+    code_locations:
+      - file: README.md
+        function: "headline pipeline description"
+        lines: "11"
+      - file: README.md
+        function: "pipeline diagram + gate table + Gate 2c subsection"
+        lines: "219-251"
+      - file: README.md
+        function: "opt-in gates enablement section (config block + insertion diagram)"
+        lines: "459-480"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      R9's second clause (ROADMAP status tables move to shipped-experimental
+      with calibration corpus as the open item) is delivered in ROADMAP.md but
+      has no AC asserting it — listed under unexplained_behaviors for scope
+      accounting rather than silently folded in here.
+    rejected_alternatives: []
+
+unexplained_behaviors:
+  - description: >
+      ROADMAP.md status flips (Jones-mapping table and status-table rows move
+      from "wiring pending" to "Shipped experimental 2026-06-12"), the Gate 2c
+      section retitles from "#1 Priority" to "shipped experimental (calibration
+      corpus open)", the build-cost table becomes a build-status table, the
+      rubric dimension rename (Intent Alignment → Spec Fidelity) propagates,
+      and the contributing section reframes calibration examples as graduating
+      the gate from experimental.
+    file: ROADMAP.md
+    line_range: "20-110, 205-254"
+    concern: minor_utility
+    recommendation: >
+      OK to ship — explicitly required by spec R9 ("ROADMAP status tables move
+      from 'designed, not built' to shipped-experimental with the calibration
+      corpus as the open item"); R9's ROADMAP clause simply has no AC of its
+      own (see recommended flag on AC gaps).
+  - description: >
+      Dogfood enablement: .claude/sdlc.local.md adds the comprehension block
+      with enabled: true, threshold 7.0, per_dimension_minimum 5 in
+      Speculator's own repo config — the very config consumed by this run.
+    file: .claude/sdlc.local.md
+    line_range: "23-26"
+    concern: minor_utility
+    recommendation: >
+      OK to ship — sanctioned by the spec's Constraints section ("enabled in
+      Speculator's own repo config (dogfooding — every future spec in this
+      repo generates a comprehension artifact, seeding the calibration
+      corpus)"). Does not contradict the consumer default-off requirement,
+      which lives in the doctor template.
+  - description: >
+      Gate 3 comprehension preamble: gate-check's Gate 3 procedure gains a new
+      conditional step 1 — when gate-2c-comprehension.yml exists with result:
+      pass, the reviewer reads the artifact before the 6-point checklist so
+      review budget goes to code quality rather than re-deriving what the diff
+      does (existing steps renumbered 2-6).
+    file: skills/gate-check/SKILL.md
+    line_range: "122"
+    concern: minor_utility
+    recommendation: >
+      Promote to AC in a future spec amendment. The Critical User Journey
+      explicitly demands this behavior ("On pass, the artifact becomes the
+      Gate 3 reviewer's preamble — review starts from understanding rather
+      than re-derivation") and phase-comprehension.md:142-156 documents it,
+      but no AC asserts it — today nothing in the test suite or AC set would
+      catch its silent removal. Classified minor_utility rather than
+      scope_creep because the spec's journey section asked for it; the gap is
+      in the AC list, not the implementation.
+  - description: >
+      Blinding-scope documentation updates: lib/gates.md:43 and
+      phase-scoring.md:23 extend the "2a/2b judges receive the config path"
+      note to "2a/2b/2c", recording that the comprehension judge is unblinded
+      like its siblings.
+    file: lib/gates.md
+    line_range: "43 (companion edit at skills/sdlc-run/references/phase-scoring.md:23)"
+    concern: minor_utility
+    recommendation: >
+      OK to ship — this documents the spec's own Out of Scope item 3
+      ("Blinding the comprehension judge from its own threshold — matches the
+      2a/2b convention"), which the spec says is "documented in lib/gates.md
+      Blinding Scope".
+  - description: >
+      sdlc-doctor config-lint WARN removal: the v2.9.0 "enabled but not wired
+      — Gate 4 cannot be satisfied" warning block is deleted, so enabling the
+      flag no longer draws a diagnostic warning.
+    file: skills/sdlc-doctor/SKILL.md
+    line_range: "55-58 (pre-diff numbering, removed)"
+    concern: minor_utility
+    recommendation: >
+      OK to ship — explicitly required by R4 ("the v2.9.0 'enabled but not
+      wired' doctor WARN is removed"); like R9's ROADMAP clause, R4 has no
+      dedicated AC (see recommended flag).
+
+# Phase B output — the scoring block
+weights:
+  ac_coverage: 0.30
+  accuracy: 0.30
+  spec_fidelity: 0.25
+  scope_containment: 0.15
+dimensions:
+  ac_coverage: 8
+  accuracy: 8
+  spec_fidelity: 7
+  scope_containment: 8
+overall: 7.8
+threshold: 7.0
+per_dimension_minimum: 5
+result: pass
+
+flags:
+  blocking: []
+  recommended:
+    - >
+      verify-evidence.sh does not recompute Gate 2c overalls: scripts/
+      verify-evidence.sh:350 registers gate-2c-comprehension.yml as kind
+      "plain", and the weight-recomputation check (check_scorecard) only runs
+      for kind "scorecard" (line 374) — so the recorded weights enable
+      recomputation (AC4's data property holds) but the consumer named by the
+      schema comment (rubrics/comprehension.md:443) never exercises it for 2c.
+      The 2c scoring block is shape-compatible with 2a/2b scorecards;
+      likely-one-line fix: flip "plain" → "scorecard" on the comprehension row
+      of the opt-in loop. (Script is outside this diff — pre-existing
+      registration now overstated by new rubric text.)
+    - >
+      Two spec-sanctioned behaviors have no AC and therefore no regression
+      guard: (1) R4's doctor-template block + WARN removal (the template block
+      is indirectly covered by AC7's Layer-A assertions; the WARN removal is
+      covered by nothing), and (2) the Gate 3 comprehension preamble at
+      gate-check/SKILL.md:122, demanded by the Critical User Journey but
+      absent from the AC list. Consider promoting both to ACs in a future
+      amendment.
+  advisory:
+    - >
+      Spec Risk 3's mitigation says the asymmetric failure routing is "stated
+      identically in phase reference, gate-check dispatch section, and rubric"
+      — in the shipped diff the three surfaces are phase-comprehension.md §5,
+      gate-check:115, and AGENT.md Step B4; rubrics/comprehension.md carries
+      gate-decision and flag rules but not the routing table. Behavior is
+      unaffected; align the spec prose or add the routing note to the rubric.
+    - >
+      rejected_alternatives fields are empty throughout this artifact — a
+      cold reader cannot recover decision rationale that the diff itself does
+      not record. If 9-10-band entries are wanted from this gate, implementers
+      could leave brief why-this-shape comments in prompt files for the cold
+      reader to harvest.
+
+reasoning:
+  ac_coverage: >
+    All 8 ACs have individual entries with file:line locations at
+    section/symbol granularity, each distinguishing the AC's expected behavior
+    from the delivering mechanism (e.g. AC7's wired-by-deletion mechanism,
+    AC2's reliance on pre-existing forward-compatible surfaces). Scored 8 not
+    9-10: entries explain mechanisms and a few documented decisions, but
+    rejected-alternatives rationale is unavailable to a cold reader and the
+    diff records none.
+  accuracy: >
+    Spot-checks exceeded the 3-entry mandate: every cited line number in AC1
+    (sdlc-run:77-85, 164), AC3 (gate-check:32/50/101-116), AC4
+    (comprehension.md:404-467, 443), AC5 (phase-comprehension.md:82-122,
+    103-104, 121), AC6 (sdlc-close:138, gate-check:152), and AC8 (README:11,
+    235, 247) was verified by grep against the working tree, and AC7 was
+    verified empirically by executing the suite (86/86 pass, 13
+    comprehension-row Layer-A assertions observed). No spot-check failures.
+    Scored 8 not 9: this is calibration-corpus seed #1 with no anchors, and a
+    few ranges in prose-heavy sections are section-level rather than
+    line-exact.
+  spec_fidelity: >
+    The implementation enforces all three spec anti-patterns directly:
+    cold-read stated at four independent surfaces (anti-pattern 1),
+    anti-inflation plus blocking-on-contradiction in the rubric (anti-pattern
+    2), and consumer default-off via the commented doctor template
+    (anti-pattern 3); the asymmetric R8 routing exists in three surfaces.
+    Scored 7 not 8 for two narrowing deliveries the diff does not itself
+    flag: AC4's mechanical-recomputability consumer (verify-evidence.sh)
+    cannot actually recompute 2c evidence today while new rubric text claims
+    it can (recommended flag), and Risk 3's "stated in the rubric" routing
+    surface is actually the agent prompt (advisory flag). Letter of every AC
+    is satisfied; intent is satisfied on 7 of 8 with one overstated
+    verification claim.
+  scope_containment: >
+    Every one of the 15 changed files maps to an AC entry or an
+    unexplained-behaviors entry; the five unexplained behaviors (ROADMAP,
+    dogfood config, Gate 3 preamble, blinding-scope notes, WARN removal) are
+    each classified with file:line and an actionable recommendation,
+    including a promote-to-AC recommendation for the journey-demanded
+    preamble. Scored 8 not 9-10: classification of the Gate 3 preamble as
+    minor_utility vs scope_creep is judgment without calibration anchors, and
+    no entry recommends removal where one might argue the spec should have
+    been amended first.

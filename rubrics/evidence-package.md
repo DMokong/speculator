@@ -46,7 +46,7 @@ How to verify:
 
 ### 5. Gate 2c Evidence Exists (conditional — required if comprehension is enabled)
 
-The comprehension gate is opt-in (forward-compatible — it may not be wired in this release). When enabled, it must have passed before the package is complete.
+The comprehension gate is opt-in (experimental). When enabled, it must have passed before the package is complete.
 
 How to verify:
 1. Read `gates.comprehension.enabled` from `.claude/sdlc.local.md`

@@ -10,6 +10,11 @@
 - Gate 2b is opt-in via `gates.eval-quality.enabled: true` in `.claude/sdlc.local.md`; it is disabled by default. [from: SPEC-001]
 - When `gates.eval-quality.enabled: false` (default), the `sdlc-run` pipeline skips Gate 2b and proceeds directly from Gate 2 to Gate 3. [from: SPEC-001]
 - When `gates.eval-quality.enabled: true`, the `sdlc-run` pipeline detects Gate 2 evidence and, if no `gate-2b-eval-quality.yml` artifact exists, dispatches the `eval-quality-scorer` agent before proceeding to Gate 3. [from: SPEC-001]
+- Gate 2c (Comprehension Gate) is an opt-in, experimental LLM-as-judge gate that runs as Phase 3b, positioned between Gate 2b (eval quality) and Gate 3 (review). [from: SPEC-002]
+- Gate 2c is opt-in via a global `gates.comprehension.enabled` flag (default `false`); it is disabled by default and labeled experimental. [from: SPEC-002]
+- When `gates.comprehension.enabled: false` (default) or absent, `sdlc-run` position detection skips Phase 3b entirely; Gate 4 records `n/a` for Gate 2c and no comprehension evidence is required anywhere in the pipeline. [from: SPEC-002]
+- When `gates.comprehension.enabled: true`, Gate 2b is satisfied or disabled, and no `gate-2c-comprehension.yml` exists, `sdlc-run` position detection selects Phase 3b and drives the phase from `references/phase-comprehension.md`. [from: SPEC-002]
+- `sdlc-run` position detection gains a failed-2c resume row that mirrors the 2a/3a retry pattern, in addition to the Phase 3b entry row. [from: SPEC-002]
 
 ## Eval Quality Scorer
 
@@ -29,7 +34,48 @@
 - The `gate-check` skill recognizes `gate=eval-quality` as a valid gate identifier and knows how to collect evidence for it. [from: SPEC-001]
 - When `gate-check` is invoked with `gate=eval-quality` and `gate-2b-eval-quality.yml` exists with `result: pass`, the skill reports the gate as passing. [from: SPEC-001]
 - When `gate-check` is invoked with `gate=eval-quality` and `gate-2b-eval-quality.yml` is absent, the skill dispatches the `eval-quality-scorer` agent. [from: SPEC-001]
+- The `gate-check` skill recognizes `comprehension` as a valid gate identifier and knows how to collect evidence for it. [from: SPEC-002]
+- When `gate-check` is invoked with `gate=comprehension` and no `gate-2c-comprehension.yml` exists, the skill dispatches the `comprehension-scorer` agent under the cold-read contract — the agent receives the spec and the diff only, never the implementing session's reasoning. [from: SPEC-002]
+- The `comprehension-scorer` agent writes its evidence artifact to `{spec_dir}/{spec_name}/evidence/gate-2c-comprehension.yml`. [from: SPEC-002]
 
 ## Spec Template
 
 - `templates/spec-template.md` includes a comment in the Acceptance Criteria section explaining how AC IDs map to test names and why this traceability improves Gate 2b Dimension 1 (AC Coverage) scores. [from: SPEC-001]
+
+## Comprehension Scorer
+
+- The `comprehension-scorer` agent operates under a cold-read constraint: it receives the spec and the diff only, and must never receive the implementing session's reasoning — the cold-read constraint is the gate's core validity guarantee. [from: SPEC-002]
+- The `comprehension-scorer` agent generates a per-AC explanation artifact ("what does this code do, and does it match what the spec intended?") and scores it on four dimensions. [from: SPEC-002]
+- On a passing comprehension score, the artifact becomes the Gate 3 reviewer's preamble so that review starts from understanding rather than re-derivation. [from: SPEC-002]
+
+## Comprehension Rubric
+
+- `rubrics/comprehension.md` defines the canonical `gate-2c-comprehension.yml` schema with 4 dimension scores (`ac_coverage`, `accuracy`, `scope_containment`, `spec_fidelity`), recorded `weights:`, `per_dimension_minimum`, threshold (7.0), result, and flags. [from: SPEC-002]
+- The recorded overall score in `gate-2c-comprehension.yml` is mechanically recomputable from the recorded weights and dimension scores. [from: SPEC-002]
+- The `comprehension-scorer` agent references the rubric schema rather than restating it. [from: SPEC-002]
+
+## Comprehension Failure Routing
+
+- Failure routing for Gate 2c is dimension-aware: artifact-quality dimensions (`ac_coverage`, `accuracy`, `scope_containment`) permit exactly one re-dispatch with prior flags as feedback. [from: SPEC-002]
+- A `spec_fidelity` dimension score below `per_dimension_minimum` escalates to a human immediately with the artifact as evidence; no re-dispatch occurs, because re-dispatch cannot fix an implementation that does not match spec intent. [from: SPEC-002]
+- The asymmetric routing logic (re-dispatch-once vs. escalate-immediately) is stated identically in the phase reference, gate-check dispatch section, and rubric to prevent routing ambiguity. [from: SPEC-002]
+
+## Doctor Init Template
+
+- `sdlc-doctor --init` template includes a commented `gates.comprehension` block (`enabled: false`, `threshold: 7.0`, `per_dimension_minimum: 5`) labeled experimental. [from: SPEC-002]
+- The v2.9.0 "enabled but not wired" doctor WARN for `gates.comprehension` is removed now that Gate 2c is wired. [from: SPEC-002]
+
+## Conditional Gate Surfaces
+
+- Gate 4 (evidence-package), `sdlc-status`, the close-flow PR-body evidence table, and the pipeline summary all conditionally include Gate 2c when `gates.comprehension.enabled: true`, mirroring the 2a/2b conditional handling. [from: SPEC-002]
+- When comprehension is enabled and passing evidence exists, `/sdlc close` records the comprehension result in `gate-4-summary.yml` and includes a Gate 2c row in the PR-body evidence table. [from: SPEC-002]
+
+## Gate Wiring Registry
+
+- `lib/gates.md` comprehension row reflects wired-experimental status (previously "NOT wired"). [from: SPEC-002]
+- `tests/test-gate-wiring.sh` applies the full Layer-A assertion set to the comprehension registry row, replacing any prior negative guards; the full suite passes. [from: SPEC-002]
+
+## README and Roadmap
+
+- The README presents Gate 2c in the pipeline description ("4 required + 3 opt-in"), the gate table, and a dedicated enablement subsection labeled experimental. [from: SPEC-002]
+- ROADMAP status tables reflect Gate 2c as shipped-experimental, with the calibration corpus as the open item (moved from "designed, not built"). [from: SPEC-002]

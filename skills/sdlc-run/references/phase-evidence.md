@@ -15,12 +15,13 @@ Read `close.strategy` from the project config (`.claude/sdlc.local.md`). Default
      Gate 2a (eval intent):  pass ({score})
      Gate 2 (code):  pass
      Gate 2b (eval quality): pass ({score})
+     Gate 2c (comprehension): pass ({score})
      Gate 3 (review): pass
      Plan:           {N} tasks completed
      Stories:        {N} completed (closed during the close workflow, before Gate 4)
      Delivery:       {close_strategy} (merge or pr)
    ```
-   The Gate 2a row is included only when `gates.eval-intent.enabled: true` in `.claude/sdlc.local.md`; the Gate 2b row only when `gates.eval-quality.enabled: true`. Omit the rows for disabled opt-in gates — do not show them as skipped.
+   The Gate 2a row is included only when `gates.eval-intent.enabled: true` in `.claude/sdlc.local.md`; the Gate 2b row only when `gates.eval-quality.enabled: true`; the Gate 2c row only when `gates.comprehension.enabled: true`. Omit the rows for disabled opt-in gates — do not show them as skipped.
 
    Then ask:
    ```
@@ -47,4 +48,4 @@ Read `close.strategy` from the project config (`.claude/sdlc.local.md`). Default
 
 ## Close workflow (delegated)
 
-4. **Execute the close workflow exactly as defined in the `sdlc-close` skill** (`${CLAUDE_PLUGIN_ROOT}/skills/sdlc-close/SKILL.md`). It covers, in order: beads story/epic closure (before Gate 4 — its beads-cleanup check requires closed stories), Gate 4 evidence package via `gate-check`, `status: closed` frontmatter update + `.active` lock release, the evidence commit, and strategy-dependent delivery (merge + compaction, or PR with the evidence-table body — including Gate 2a/2b rows when enabled — + compaction). In Full Auto mode the skill executes the merge/PR commands itself per its autonomy-mode section.
+4. **Execute the close workflow exactly as defined in the `sdlc-close` skill** (`${CLAUDE_PLUGIN_ROOT}/skills/sdlc-close/SKILL.md`). It covers, in order: beads story/epic closure (before Gate 4 — its beads-cleanup check requires closed stories), Gate 4 evidence package via `gate-check`, `status: closed` frontmatter update + `.active` lock release, the evidence commit, and strategy-dependent delivery (merge + compaction, or PR with the evidence-table body — including Gate 2a/2b/2c rows when enabled — + compaction). In Full Auto mode the skill executes the merge/PR commands itself per its autonomy-mode section.

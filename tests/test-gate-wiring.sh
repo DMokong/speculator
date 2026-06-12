@@ -93,12 +93,6 @@ while IFS= read -r row; do
     check "[$id] threshold $threshold appears in gate registry" "grep -qF '$threshold' '$REGISTRY'"
   fi
 
-  # Comprehension is NOT wired — skip its wiring assertions entirely.
-  # (Negative assertions for it run in a dedicated section below.)
-  if [ "$id" = "comprehension" ]; then
-    continue
-  fi
-
   # Scorer agent exists (when the registry names one)
   case "$scorer" in
     *none*|*"NOT WIRED"*) : ;;
@@ -130,12 +124,6 @@ while IFS= read -r row; do
     check "[$id] phase string '$phase' in sdlc-run" "grep -qF '$phase' '$SDLC_RUN'"
   fi
 done <<< "$ROWS"
-
-bold "=== Comprehension (Gate 2c) — must NOT be referenced as runnable ==="
-check "no committed skill references phase-comprehension.md" "! grep -rq 'phase-comprehension' '$ROOT/skills'"
-check "no committed skill or agent references a comprehension scorer" "! grep -rq 'comprehension-scorer' '$ROOT/skills' '$ROOT/agents'"
-check "sdlc-run has no Gate 2c pipeline position (gate-2c-comprehension absent)" "! grep -rq 'gate-2c-comprehension' '$ROOT/skills/sdlc-run'"
-check "gate-check does not list comprehension as a runnable gate" "! grep -qE 'comprehension. \(Gate' '$GATE_CHECK'"
 
 bold "=== Layer B: Touchpoints → Registry (closure) ==="
 # Every gate evidence filename referenced anywhere must have a registry row.
