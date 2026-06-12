@@ -1,0 +1,33 @@
+evidence_type: evidence-package
+spec_id: SPEC-002
+timestamp: 2026-06-12T15:10:00+10:00
+gates:
+  spec-quality:
+    evidence_file: gate-1-scorecard.yml
+    result: pass            # 8.2/7.0, blinded dispatch, overall recomputed from recorded weights
+  code-quality:
+    evidence_file: gate-2-quality.yml
+    result: pass            # prompt-only changeset: 141/141 structural + documented N/A rationale
+  eval-intent:
+    evidence_file: gate-2a-eval-intent.yml
+    result: pass            # 8.0/6.5 on retry 1 (round 1 failed 6.3 — blocking anti-pattern gap, revised)
+  eval-quality:
+    evidence_file: gate-2b-eval-quality.yml
+    result: n/a             # gates.eval-quality not enabled in this repo's config
+  comprehension:
+    evidence_file: gate-2c-comprehension.yml
+    result: pass            # 7.8/7.0 — FIRST LIVE RUN of Gate 2c; calibration-corpus seed #1
+  review:
+    evidence_file: gate-3-review.yml
+    result: pass
+    warnings: 0             # no warn verdicts; 3 advisory observations recorded in gate-3 evidence
+blocking_flags_resolved: true   # gate-1 and gate-2c carry zero blocking flags
+spec_status: complete
+beads_epic: null                # tracked externally as claudeclaw claw-771n (speculator-local beads retired)
+beads_stories_closed: n/a
+pipeline_result: pass
+notes:
+  - "Mechanical verification: scripts/verify-evidence.sh — 26 passed, 0 failed, 1 skipped (gate-2a records no weights by its rubric convention), 0 warnings."
+  - "Trust context: scored 8.2 under the config in effect at scoring time (full_auto_threshold 7.8); thresholds were raised mid-pipeline to 8.3/8.5 in response to the test-retest sigma study (benchmarks/results/test-retest-sigma.yml). Under the new threshold this spec would be Guided — and the run was operated guided-with-human-in-loop regardless."
+  - "Follow-up spec amendments recommended by Gate 2c (non-blocking): promote R4 (doctor template) and the Gate 3 comprehension-preamble hand-off to ACs with regression guards. The preamble hand-off IS covered by eval ac-1.md's would-fail conditions."
+  - "close.strategy is 'pr' in config; delivery executed as direct merge + release under the operator's explicit session approval."
