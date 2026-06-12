@@ -1,0 +1,489 @@
+gate: comprehension
+spec_id: SPEC-003
+spec_path: docs/specs/system-spec-domain-split/spec.md
+timestamp: 2026-06-12T05:14:52Z
+scorer: agent
+model: claude-fable-5
+diff_range: main...HEAD
+
+# Phase A output — the artifact body
+comprehension_entries:
+  - ac_id: AC1
+    ac_text: >
+      (R1): Given a project whose {spec_dir} contains SYSTEM-SPEC.md with a Domains
+      table (or any SYSTEM-SPEC-*.md sibling), when any SYSTEM-SPEC consumer runs,
+      then it operates in split mode; given neither marker, it operates in
+      single-file mode.
+    implementation_summary: >
+      New file lib/system-spec-layout.md (54 lines) is the canonical statement of
+      the rule: split when SYSTEM-SPEC.md contains a markdown table whose header
+      row has both Domain and File columns (lines 12-22, with the Phase 1 index
+      format shown verbatim) OR at least one SYSTEM-SPEC-*.md sibling exists
+      (line 24, "either marker alone is sufficient"); neither marker means
+      single-file (line 26). Safe degradation at line 28: a malformed or absent
+      Domains table with no siblings is treated as single-file — detection "never
+      errors and never blocks." All six consumers cite the lib file by path
+      instead of owning the rule: spec-compactor AGENT.md:25 ("Layout Detection
+      (run first)"), spec-scorer AGENT.md:59 (before its 6-step impact
+      validation), eval-intent-scorer AGENT.md:56 (conflict-check layout note),
+      eval-authoring SKILL.md:41 (step 2.1), spec-compact SKILL.md:30 (bootstrap
+      mode) and :101 (single-spec mode), sdlc-close SKILL.md:83 and :106 (both
+      close strategies). tests/test-gate-wiring.sh:148-167 structurally enforces
+      this: it asserts lib/system-spec-layout.md exists and greps each of the six
+      consumers for the literal string "system-spec-layout.md".
+    code_locations:
+      - file: lib/system-spec-layout.md
+        function: "Layout Detection (run before any SYSTEM-SPEC read or write)"
+        lines: "10-28"
+      - file: tests/test-gate-wiring.sh
+        function: "System-Spec Layout Consistency (SPEC-003) section"
+        lines: "148-167"
+      - file: agents/spec-compactor/AGENT.md
+        function: "Layout Detection (run first)"
+        lines: "23-29"
+      - file: agents/spec-scorer/AGENT.md
+        function: "Impact Validation — Layout detection paragraph"
+        lines: "59"
+      - file: agents/eval-intent-scorer/AGENT.md
+        function: "Step 3 — Layout note"
+        lines: "56"
+      - file: skills/eval-authoring/SKILL.md
+        function: "Step 2.1 — layout detection"
+        lines: "41"
+      - file: skills/spec-compact/SKILL.md
+        function: "bootstrap step 2 / single-spec step 4"
+        lines: "30, 101"
+      - file: skills/sdlc-close/SKILL.md
+        function: "compaction step (merge + PR strategies)"
+        lines: "83, 106"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      Each consumer carries a one-line "In short:"-style gloss of the two markers
+      alongside the citation. The glosses are consistent with the lib today, and
+      every one defers to lib as canonical, but the structural test asserts
+      citation only — not absence of restatement. See advisory flag.
+
+  - ac_id: AC2
+    ac_text: >
+      (R2): Given a split-layout project and a closing spec with domain: memory,
+      when compaction runs, then new behavior lines (with [from: SPEC-NNN]
+      provenance) land in SYSTEM-SPEC-memory.md and the index file gains no
+      behavior entries.
+    implementation_summary: >
+      spec-compactor AGENT.md Split-Layout Routing rule 1 (line 48) targets all
+      behavior additions and amendments from the existing Process at
+      {spec_dir}/SYSTEM-SPEC-<domain>.md, read from the closing spec's domain:
+      frontmatter — "not the index." Rule 4 (line 51) makes the index
+      navigation-only: "NEVER write behavior entries to the index file"; adding
+      or re-describing a Domains-table row is the only permitted index edit. The
+      existing Process's [from: SPEC-NNN] provenance discipline is extended
+      per-file by rule 7 (line 54): each domain file's behavior count out must be
+      >= its count in. The Output section (line 58) re-scopes the deliverable to
+      "updated domain file(s) plus any Domains-table index row additions" in
+      split layout. The same routing is stated canonically at
+      lib/system-spec-layout.md:43 (rule 1) and :45 (rule 3), and described at
+      the invoking surfaces (sdlc-close SKILL.md:83/:106, spec-compact
+      SKILL.md:57 — "behavior entries never land in the index").
+    code_locations:
+      - file: agents/spec-compactor/AGENT.md
+        function: "Split-Layout Routing — rules 1, 4, 7 + Output"
+        lines: "44-58"
+      - file: lib/system-spec-layout.md
+        function: "Routing Rules — rules 1, 3"
+        lines: "41-45"
+      - file: skills/sdlc-close/SKILL.md
+        function: "compaction step routing note"
+        lines: "83, 106"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      Rule 6 (AGENT.md:53) additionally routes cross-domain amendments in place
+      where the amended behavior lives, keeping its original owner — an
+      implementer-defined extension of this routing surface beyond the AC's
+      letter; evaluated under unexplained_behaviors and spec_fidelity.
+
+  - ac_id: AC3
+    ac_text: >
+      (R2): Given a closing spec declaring a domain with no existing file, when
+      compaction runs, then the domain file is created AND the index's Domains
+      table gains a row for it.
+    implementation_summary: >
+      spec-compactor AGENT.md rule 3 (line 50): if SYSTEM-SPEC-<domain>.md does
+      not exist, create it — initialized from the First Compaction template,
+      titled "# System Specification — <domain>" with a comment noting the index
+      lives in SYSTEM-SPEC.md (line 80) — AND add the index row in the exact
+      Phase 1 format "| <domain> | [SYSTEM-SPEC-<domain>.md](SYSTEM-SPEC-<domain>.md)
+      | <one-line description> |", with the invariant "never create one without
+      the other — a domain file without an index row is drift." Canonical at
+      lib/system-spec-layout.md:44 (rule 2: "in the same step"), which directly
+      implements the spec's Risk 3 mitigation (index drift).
+    code_locations:
+      - file: agents/spec-compactor/AGENT.md
+        function: "Split-Layout Routing — rule 3"
+        lines: "50"
+      - file: agents/spec-compactor/AGENT.md
+        function: "First Compaction Handling — split extension"
+        lines: "80"
+      - file: lib/system-spec-layout.md
+        function: "Routing Rules — rule 2"
+        lines: "44"
+    coverage: full
+    gap_notes: ""
+
+  - ac_id: AC4
+    ac_text: >
+      (R3): Given a split-layout project and a closing spec with no domain:
+      field, when compaction runs autonomously, then compaction halts with an
+      escalation listing the existing domains — no file is modified; when run
+      interactively, the author is prompted to choose or create a domain.
+    implementation_summary: >
+      Three coordinated surfaces. (1) The compactor agent itself never guesses:
+      AGENT.md rule 2 (line 49) — if no domain: is declared, "write NOTHING",
+      stop, and report to the invoker with the existing domains read from the
+      index's Domains table, message shape included. (2) Autonomous surface:
+      sdlc-close SKILL.md:84 (merge strategy) and :107 (PR strategy) declare the
+      close workflow autonomous — "compaction HALTS with nothing written" and the
+      escalation lists existing domains and instructs adding domain: and
+      re-running /spec compact; the halt is treated as a compaction failure (spec
+      stays status: closed, merge/PR not rolled back). (3) Interactive surface:
+      spec-compact SKILL.md:101-106 (single-spec step 4) prompts the author to
+      choose an existing domain or create one (listing domains from the index),
+      writes the choice into the spec's frontmatter BEFORE dispatching the
+      compactor; bootstrap mode does the same per-spec at SKILL.md:32, and a
+      still-missing domain during --all is logged as a per-spec failure without
+      aborting the run (SKILL.md:57-59 region). The skill's "Never" list
+      (SKILL.md:137) and lib rule 4 (lib:46-49) both prohibit guessing in either
+      context.
+    code_locations:
+      - file: agents/spec-compactor/AGENT.md
+        function: "Split-Layout Routing — rule 2"
+        lines: "49"
+      - file: skills/sdlc-close/SKILL.md
+        function: "halt-never-guess bullets (both strategies)"
+        lines: "84, 107"
+      - file: skills/spec-compact/SKILL.md
+        function: "single-spec step 4 + bootstrap step 2 + Never list"
+        lines: "32, 101-106, 137"
+      - file: lib/system-spec-layout.md
+        function: "Routing Rules — rule 4"
+        lines: "46-49"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      Mechanism note: the dispatched compactor agent cannot prompt a human, so
+      interactivity is implemented in the invoking skill (domain resolved into
+      frontmatter pre-dispatch) while the agent's halt-and-report covers every
+      path that reaches it without a domain. The division of labor delivers both
+      AC clauses, and "no file is modified" is explicit at both layers ("write
+      NOTHING" / "nothing written").
+
+  - ac_id: AC5
+    ac_text: >
+      (R5, R6): Given a split-layout project and a spec declaring domain: memory,
+      when Gate 1 impact validation or the Gate 2a conflict check runs, then the
+      agent reads the index and SYSTEM-SPEC-memory.md — not every domain file.
+    implementation_summary: >
+      Gate 1: spec-scorer AGENT.md:59 inserts layout detection before the 6-step
+      impact validation — in split layout, read the index plus only the domain
+      file(s) matching the spec's declared domain:, passed inline by spec-score
+      SKILL.md (extracted from the spec's frontmatter at step 2, SKILL.md:35;
+      passed at step 3, SKILL.md:41) with an agent-side fallback to read the
+      frontmatter itself (AGENT.md:23). No declared domain — or a declared
+      domain with no file yet — reads the index plus ALL domain files. Steps 1,
+      2 and 4 of impact validation are re-scoped onto the domain files read
+      (existence, parseability, semantic overlap); the index contributes the
+      domain inventory only. Gate 2a: eval-intent-scorer AGENT.md:56 applies the
+      identical subset rule for the SYSTEM-SPEC conflict check, with the domain
+      passed inline by eval-authoring SKILL.md:90; eval-authoring's own
+      pre-authoring amends-context display applies it at SKILL.md:41. Both cite
+      lib's Read Rule (lib/system-spec-layout.md:30-39) as canonical. Scorer
+      context hygiene is preserved: spec-score SKILL.md:43 adds domain: to the
+      scorer's permitted view (bias-safe, contains no thresholds).
+    code_locations:
+      - file: agents/spec-scorer/AGENT.md
+        function: "Impact Validation — layout detection paragraph + input 4"
+        lines: "23, 59"
+      - file: skills/spec-score/SKILL.md
+        function: "steps 2-3 domain extraction and inline pass"
+        lines: "35, 41, 43"
+      - file: agents/eval-intent-scorer/AGENT.md
+        function: "Step 3 — Layout note"
+        lines: "56"
+      - file: skills/eval-authoring/SKILL.md
+        function: "step 2.1 + scorer dispatch inputs"
+        lines: "41, 90"
+      - file: lib/system-spec-layout.md
+        function: "Read Rule (subset reads in split layout)"
+        lines: "30-39"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      The fileless-declared-domain fallback (lib:36, spec-scorer:59) extends
+      R5's conservative default beyond its letter (R5 names only the
+      no-domain case) to declarations that cannot be resolved, with the
+      rationale stated in the diff itself: "a declaration that cannot be
+      resolved cannot be trusted to scope reads." This honors R5's explicit
+      principle that correctness is never traded for the token saving.
+
+  - ac_id: AC6
+    ac_text: >
+      (R7): Given a split-layout project, when /spec compact --all runs, then
+      the regenerated output is the split layout (index + domain files) with all
+      provenance trails intact.
+    implementation_summary: >
+      spec-compact SKILL.md bootstrap step 2 (lines 30-32) detects the layout
+      first and regenerates whichever was detected: split → "the index (Domains
+      table, no behavior entries) plus the per-domain SYSTEM-SPEC-<domain>.md
+      files, with every [from: SPEC-XXX] provenance trail preserved", routing
+      each spec by its domain: frontmatter per lib's rules; closed specs missing
+      domain: are resolved interactively per-spec (this skill is named the
+      interactive surface). Step 3 additionally extracts domain from each
+      candidate's frontmatter in split layout (SKILL.md:37 region). Step 6
+      (line 57) delegates per-spec layout routing to the compactor agent; step 8
+      (line 68) commits all {spec_dir}/SYSTEM-SPEC-*.md domain files alongside
+      the index; step 9 (line ~78) reports the domain files updated or created.
+      Provenance protection during regeneration is enforced per-file by
+      spec-compactor rule 7 (AGENT.md:54).
+    code_locations:
+      - file: skills/spec-compact/SKILL.md
+        function: "bootstrap mode steps 2, 3, 6, 8, 9"
+        lines: "30-32, 57, 68, 78"
+      - file: agents/spec-compactor/AGENT.md
+        function: "Split-Layout Routing — rule 7"
+        lines: "54"
+    coverage: full
+    gap_notes: ""
+
+  - ac_id: AC7
+    ac_text: >
+      (R8): Given a single-file project (Speculator's own repo), when any of the
+      updated skills/agents run end-to-end, then their SYSTEM-SPEC reads and
+      writes are identical to v2.10.0 behavior — no index is created, no domain
+      prompts appear.
+    implementation_summary: >
+      Every consumer's split-handling addition carries an explicit
+      unchanged-single-file branch: lib has a dedicated "Single-File Projects:
+      Untouched" section (lines 52-54: "byte-for-byte as it did before this rule
+      existed... no index is created, no domain prompt or halt ever appears, and
+      no migration is performed or suggested"); spec-compactor AGENT.md:27
+      ("follow the Process below exactly as written... Nothing about the
+      existing behavior changes"); spec-scorer AGENT.md:59 ("run the 6 steps
+      below against SYSTEM-SPEC.md exactly as written — unchanged", including
+      routing malformed-with-no-siblings back into the pre-existing single-file
+      malformed handling); eval-intent-scorer AGENT.md:56 and eval-authoring
+      SKILL.md:41 ("read SYSTEM-SPEC.md as before — unchanged"); spec-compact
+      SKILL.md:31 and :102 ("no domain handling; proceed... unchanged");
+      sdlc-close SKILL.md:83/:106 ("single-file projects are unchanged"). The
+      compactor's Sizing Constraint (AGENT.md:84) retains the 500-line rule for
+      single-file and states migration is "opt-in and never performed
+      automatically." Speculator's own docs/specs/SYSTEM-SPEC.md (81 lines, no
+      Domains table, no siblings) is untouched by this diff and detects as
+      single-file under the new rule.
+    code_locations:
+      - file: lib/system-spec-layout.md
+        function: "Single-File Projects: Untouched"
+        lines: "52-54"
+      - file: agents/spec-compactor/AGENT.md
+        function: "Layout Detection — single-file branch + Sizing Constraint"
+        lines: "27, 84"
+      - file: agents/spec-scorer/AGENT.md
+        function: "layout detection paragraph — single-file branch"
+        lines: "59"
+      - file: skills/spec-compact/SKILL.md
+        function: "single-file branches"
+        lines: "31, 102"
+    coverage: full
+    gap_notes: ""
+    intent_notes: >
+      This is a prompt-only changeset, so "identical to v2.10.0" is an
+      instructed guarantee, not an executably asserted one — the only new
+      runtime effect in single-file projects is the detection check itself
+      (reading SYSTEM-SPEC.md plus a sibling glob), defined as behavior-neutral.
+      The spec's Constraints explicitly accept this ("the detection rule must
+      work from prose instructions alone — no executable layout-probe script in
+      this phase"), so prose-level delivery is conformant. See advisory flag.
+
+  - ac_id: AC8
+    ac_text: >
+      (R9): When an author creates a spec from the template, then the
+      frontmatter shows the optional domain: field with guidance on when it
+      matters.
+    implementation_summary: >
+      templates/spec-template.md gains a blank "domain:" frontmatter line at
+      line 10 with a three-line comment: marked optional with purpose and an
+      example value ("SYSTEM-SPEC domain for compaction routing (e.g. memory)"),
+      "Required at close time in split-layout projects (index +
+      SYSTEM-SPEC-<domain>.md files — see lib/system-spec-layout.md)", and
+      "ignorable in single-file projects." This matches R9's required content
+      (optional field + comment explaining it's required at close time in
+      split-layout projects) and delivers the Critical User Journey's
+      "template nudged them" beat.
+    code_locations:
+      - file: templates/spec-template.md
+        function: "frontmatter — domain field"
+        lines: "10-12"
+    coverage: full
+    gap_notes: ""
+
+unexplained_behaviors:
+  - description: >
+      New structural test section "System-Spec Layout Consistency (SPEC-003)"
+      asserting lib/system-spec-layout.md exists and that six consumers cite it
+      by name.
+    file: tests/test-gate-wiring.sh
+    line_range: "148-167"
+    concern: minor_utility
+    recommendation: >
+      OK to ship — this directly implements the spec's Risk 2 mitigation ("the
+      structural test suite asserts every consumer cites it"), though no AC
+      requires it. Note the consumer list has SIX entries where the problem
+      statement names four: eval-intent-scorer (the agent actually performing
+      the R6 Gate 2a check) and sdlc-close (the autonomous compaction surface
+      R3 names via sdlc-run Phase 5) are added. Both are genuine SYSTEM-SPEC
+      consumers, so the wider list serves the problem statement's "every
+      SYSTEM-SPEC consumer in the plugin" — faithful, not creep.
+  - description: >
+      Cross-domain amendment policy: an amends entry referencing a behavior
+      owned by a different domain file is amended in place where it lives,
+      keeping its original owner and extending provenance there.
+    file: agents/spec-compactor/AGENT.md
+    line_range: "53"
+    concern: minor_utility
+    recommendation: >
+      Promote to the spec (out-of-scope note or a follow-up AC) so the policy is
+      contractual rather than prompt text, and mirror it into
+      lib/system-spec-layout.md's Routing Rules — it currently exists only in
+      the compactor prompt. Classified minor_utility rather than scope_creep
+      because it adds no new capability: it completes R2's routing for an
+      operation the compactor already performs (amendments), and the chosen
+      policy is R4's one-owner/provenance principle applied to amends. The
+      classification is borderline and is weighed in scope_containment.
+  - description: >
+      Index self-repair and index creation: when split layout is detected via
+      sibling files but the index lacks a valid Domains table, the compactor
+      adds the table with one row per existing sibling before routing; if no
+      index exists at all, it creates one titled "# System Specification —
+      Index" with an empty Domains table.
+    file: agents/spec-compactor/AGENT.md
+    line_range: "51, 80"
+    concern: minor_utility
+    recommendation: >
+      Mirror into lib/system-spec-layout.md's Routing Rules (currently stated
+      only in the compactor — see recommended flag) and consider a follow-up AC,
+      since it writes a new table into the index unprompted. Classified
+      minor_utility: it is drift remediation that restores the invariant Risk 3
+      worries about (domain files without index rows) and is a precondition for
+      rule 2's "add index row" to be executable in that state.
+  - description: >
+      Sizing Constraint extended for split layout: the 500-line limit applies
+      per domain file; the index is exempt "by design because behavior entries
+      never land in it."
+    file: agents/spec-compactor/AGENT.md
+    line_range: "82-84"
+    concern: minor_utility
+    recommendation: >
+      OK to ship — coherent extension of the pre-existing single-file constraint,
+      aligned with the spec anti-pattern rationale "index stays small, domains
+      absorb growth."
+  - description: >
+      Mechanical step renumbering in both spec-compact modes (2→3...8→9, 4→5...)
+      and eval-authoring step 2 (1-3 → 1-4) caused by inserting the detection
+      steps; no behavioral content change in the renumbered steps.
+    file: skills/spec-compact/SKILL.md
+    line_range: "33-90 (also skills/eval-authoring/SKILL.md:42-46)"
+    concern: minor_utility
+    recommendation: "OK to ship; no spec impact."
+
+# Phase B output — the scoring block
+weights:
+  ac_coverage: 0.30
+  accuracy: 0.30
+  spec_fidelity: 0.25
+  scope_containment: 0.15
+dimensions:
+  ac_coverage: 8
+  accuracy: 8
+  spec_fidelity: 7
+  scope_containment: 8
+overall: 7.8
+threshold: 7.0
+per_dimension_minimum: 5
+result: pass
+
+flags:
+  blocking: []
+  recommended:
+    - >
+      Single-source drift risk: three routing behaviors exist only in
+      agents/spec-compactor/AGENT.md and not in lib/system-spec-layout.md —
+      rule 6 amends-in-place (line 53), rule 4's index-repair sentence
+      (line 51), and the index-creation extension (line 80). R1 and the Risk 2
+      mitigation establish lib as "a single reference" for these rules; mirror
+      the three into lib's Routing Rules so the canonical file stays complete.
+    - >
+      Cross-domain amends-in-place (spec-compactor AGENT.md:53) and index
+      repair/creation (AGENT.md:51, :80) are implementer-defined policies
+      beyond any AC — promote them into the spec (out-of-scope entries or
+      follow-up ACs) so the contract matches the prompts.
+  advisory:
+    - >
+      Consumers carry one-line "In short:" glosses of the detection markers
+      alongside the lib citation (e.g. spec-compactor AGENT.md:25, spec-compact
+      SKILL.md:30, sdlc-close SKILL.md:83); tests/test-gate-wiring.sh:166
+      asserts citation only, not absence of restatement. The glosses are
+      consistent with lib today but are the drift surface R1 warns about — a
+      future tightening could grep-guard the marker definition strings.
+    - >
+      AC7's "byte-for-byte identical to v2.10.0" is guaranteed by prose only
+      (conformant with the spec's no-executable-probe constraint); a future
+      phase could add a single-file regression fixture exercising one consumer
+      end-to-end against a markerless SYSTEM-SPEC.md.
+    - >
+      The spec's Constraints reference "Compactor" and "Scorer
+      impact-validation" domains that do not exist as section names in the
+      current docs/specs/SYSTEM-SPEC.md (sections are "Pipeline Gates", "Eval
+      Quality Scorer", "Conditional Gate Surfaces", etc.). No amends:
+      frontmatter is declared and the diff touches no SYSTEM-SPEC entries —
+      consistent with impact_rating: extends — but SPEC-003's own future
+      compaction should take care with section naming.
+
+reasoning:
+  ac_coverage: >
+    All eight ACs have dedicated entries at file + section/rule granularity
+    with verified line numbers; the cross-cutting AC1 is traced through all six
+    consumers plus the structural test, and AC4 distinguishes the expected
+    behavior (halt vs prompt) from the mechanism that delivers it (agent
+    halt-and-report vs skill-side pre-dispatch resolution). Held at 8 rather
+    than 9-10: rejected_alternatives are populated nowhere, and decision
+    rationale is surfaced only where the diff itself states it.
+  accuracy: >
+    Spot-checked four entries against the worktree at HEAD: AC1
+    (test-gate-wiring.sh:156-163 six-consumer list and lib:10-28 markers), AC4
+    (spec-compactor AGENT.md:49 "write NOTHING", sdlc-close:84/:107 escalation
+    text, spec-compact:101-106 interactive/autonomous fork), AC5
+    (spec-scorer:59 subset rule and lib:34-37 including the fileless-domain
+    bullet), and AC8 (template:10-12 comment text) — all claims and line
+    references confirmed; no contradictions found. Held at 8: line references
+    are verified but a few locations are cited at section rather than exact
+    span granularity (e.g. spec-compact step 9 "~78").
+  spec_fidelity: >
+    The implementation enforces all four spec anti-patterns at every surface
+    (never-guess at agent + both skill surfaces; index navigation-only;
+    explicit single-file-untouched branches everywhere; one-owner
+    cross-references), and the three beyond-letter judgment calls each extend
+    stated intent rather than narrow it — the six-consumer test serves "every
+    SYSTEM-SPEC consumer", the fileless-domain fallback serves R5's
+    "correctness is never traded for the token saving", and amends-in-place
+    applies R4's one-owner/provenance principle to amendments. Held to 7
+    because three routing rules live only in the compactor prompt and not in
+    lib (recommended flag), a genuine if small deviation from R1/Risk-2's
+    single-reference intent — the exact drift mechanism the spec set out to
+    prevent.
+  scope_containment: >
+    All five non-AC behaviors in the diff are listed with line ranges and
+    actionable recommendations; nothing in the diff adds a user-facing
+    capability beyond the spec, so no scope_creep classification was warranted.
+    Held at 8: the minor_utility classifications for amends-in-place and
+    index-repair are borderline (each is a real policy choice, not a pure
+    helper) and are documented as such rather than resolved.

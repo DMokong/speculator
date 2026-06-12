@@ -41,6 +41,7 @@
 ## Spec Template
 
 - `templates/spec-template.md` includes a comment in the Acceptance Criteria section explaining how AC IDs map to test names and why this traceability improves Gate 2b Dimension 1 (AC Coverage) scores. [from: SPEC-001]
+- `templates/spec-template.md` includes an optional `domain:` frontmatter field with a comment explaining it is required at close time in split-layout projects. [from: SPEC-003]
 
 ## Comprehension Scorer
 
@@ -79,3 +80,23 @@
 
 - The README presents Gate 2c in the pipeline description ("4 required + 3 opt-in"), the gate table, and a dedicated enablement subsection labeled experimental. [from: SPEC-002]
 - ROADMAP status tables reflect Gate 2c as shipped-experimental, with the calibration corpus as the open item (moved from "designed, not built"). [from: SPEC-002]
+
+## System Spec Layout
+
+- A project's system spec is **split** when `{spec_dir}/SYSTEM-SPEC.md` contains a valid Domains table (a markdown table whose header row contains `Domain` and `File` columns) OR any `{spec_dir}/SYSTEM-SPEC-*.md` sibling exists alongside it; otherwise the project is **single-file**. [from: SPEC-003]
+- Layout detection degrades safely: a `SYSTEM-SPEC.md` whose Domains table is malformed or absent, with no domain siblings, is treated as single-file; detection never errors and never blocks, and on any ambiguity falls back to single-file. [from: SPEC-003]
+- The layout detection rule lives in one place (`lib/system-spec-layout.md`) and every SYSTEM-SPEC consumer references it rather than restating it; if the rule changes, all consumers inherit the change. [from: SPEC-003]
+- In split layout, all SYSTEM-SPEC consumers read the index plus only the domain file(s) matching the spec's declared `domain:` frontmatter; when the spec declares no `domain:`, the consumer reads the index plus all domain files (the conservative default — correctness is never traded for the token saving). [from: SPEC-003]
+- The Gate 1 spec-scorer impact validation and the Gate 2a eval-authoring conflict check both apply the same layout detection and subset read rule when operating on split-layout projects. [from: SPEC-003]
+
+## Compactor
+
+- In split layout, the spec-compactor reads the closing spec's `domain:` frontmatter and appends all behavior entries (with `[from: SPEC-NNN]` provenance) to `{spec_dir}/SYSTEM-SPEC-<domain>.md`; behavior entries are NEVER written to the index file. [from: SPEC-003]
+- When a closing spec declares a domain with no existing domain file, the compactor creates `SYSTEM-SPEC-<domain>.md` AND adds a row for it to the index's Domains table in the same compaction step — a domain file without an index row is drift. [from: SPEC-003]
+- In split layout, when a closing spec declares no `domain:` field: interactive contexts prompt the author to choose or create a domain; autonomous contexts halt compaction and escalate with the list of existing domains from the index's Domains table; no file is modified before the halt. [from: SPEC-003]
+- Guessing a domain when the spec's `domain:` frontmatter is absent is prohibited in all contexts — a behavior filed in the wrong domain corrupts the provenance map that future impact checks rely on. [from: SPEC-003]
+- A behavior spanning multiple domains is placed in its primary owner's domain file with a prose cross-reference to the related domain; the entry is never duplicated across files — duplication breaks provenance audits. [from: SPEC-003]
+- When an `amends` entry references a behavior living in a different domain file than the closing spec's declared domain, the compactor amends the behavior in place where it lives (the behavior keeps its original owner) and extends its provenance trail there. [from: SPEC-003]
+- If split layout is detected via sibling files but the index lacks a Domains table, the compactor repairs the index by adding the table with one row per existing `SYSTEM-SPEC-*.md` sibling before routing. [from: SPEC-003]
+- The `spec-compact` skill's `--all` bootstrap mode regenerates the split layout (index plus all domain files, with all provenance trails intact) when the project is split, and regenerates the single file otherwise. [from: SPEC-003]
+- In single-file layout, every SYSTEM-SPEC consumer behaves byte-for-byte as it did before layout detection was introduced — no index is created, no domain prompts appear, and no migration is performed or suggested as a side effect of normal operation. [from: SPEC-003]

@@ -1,7 +1,7 @@
 ---
 id: SPEC-003
 feature: system-spec-domain-split
-status: approved
+status: closed
 risk_level: medium
 impact_rating: extends
 created: 2026-06-12
