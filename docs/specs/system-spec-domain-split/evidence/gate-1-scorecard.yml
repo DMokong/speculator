@@ -1,0 +1,46 @@
+gate: spec-quality
+spec_id: SPEC-003
+spec_path: docs/specs/system-spec-domain-split/spec.md
+timestamp: 2026-06-12 00:00:00+00:00
+scorer: llm-as-judge
+model: claude-sonnet-4-6
+weights:
+  completeness: 0.2
+  clarity: 0.2
+  testability: 0.2
+  intent_verifiability: 0.15
+  feasibility: 0.15
+  scope: 0.1
+scores:
+  completeness: 9
+  clarity: 8
+  testability: 8
+  intent_verifiability: 9
+  feasibility: 8
+  scope: 8
+  overall: 8.4
+threshold: 7.0
+dimension_minimum: 5
+result: pass
+flags:
+  blocking: null
+  recommended:
+  - AC5 bundles Gate 1 impact validation (R5) and Gate 2a conflict check (R6) into
+    a single criterion. Splitting into AC5a/AC5b would make each independently verifiable
+    and preserve clean R-to-AC traceability.
+  - R7's '--all' bootstrap mode for single-file projects has no dedicated AC. AC6
+    covers split-layout regeneration but the single-file case (--all regenerates the
+    single file unchanged) is untested by any AC.
+  advisory:
+  - R1 specifies that every consumer must reference lib/system-spec-layout.md rather
+    than restating the detection rule, but no AC verifies this single-source-of-truth
+    property. An AC asserting 'no consumer restates the detection logic inline' would
+    make the anti-duplication guarantee testable.
+  - The Critical User Journey's 'months later' Gate 1 scenario maps implicitly to
+    AC5 but lacks an explicit cross-reference. Adding '(see AC5)' to the journey narrative
+    would help future readers trace intent to criteria.
+override:
+  overridden: false
+  justification: null
+  overridden_by: null
+  override_date: null

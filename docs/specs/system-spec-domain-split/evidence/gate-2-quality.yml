@@ -1,0 +1,28 @@
+gate: code-quality
+spec_id: SPEC-003
+timestamp: 2026-06-12T17:20:00+10:00
+checks:
+  tests_pass:
+    commands:
+      - "bash tests/test-gate-wiring.sh"
+      - "bash tests/test-eval-intent-structure.sh"
+      - "bash tests/test-secrets-scan.sh"
+    tests_passed: 148  # 93 gate-wiring (86 + 7 new layout-consistency) + 30 + 25
+    tests_failed: 0
+    result: pass
+  coverage:
+    status: not-applicable
+    rationale: "Prompt-only changeset — lib/system-spec-layout.md + 8 markdown skill/agent/template edits + bash test extension; no executable code paths to cover. Per rubrics/code-quality.md Prompt-Only Changesets rule: structural suites + this rationale satisfy Gate 2; no LLM pseudo-tests invented."
+  build:
+    status: not-applicable
+    rationale: "build_required: false; markdown changeset"
+  lint:
+    status: not-applicable
+    rationale: "lint_required: false in config"
+  type_check:
+    status: not-applicable
+    rationale: "type_check_required: false in config"
+notes:
+  - "Layout-consistency section added to test-gate-wiring.sh asserts lib/system-spec-layout.md exists and all six SYSTEM-SPEC consumers (spec-compactor, spec-scorer, eval-intent-scorer, eval-authoring, spec-compact, sdlc-close) reference it by name — the implementer extended the spec's five named consumers to six per R1's 'every consumer' language."
+  - "Suites executed live in the worktree at evidence time, 148/148 green."
+result: pass

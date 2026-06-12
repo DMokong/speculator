@@ -38,15 +38,16 @@ You will receive:
 ### 2. Surface SYSTEM-SPEC.md context (before authoring)
 
 If SYSTEM-SPEC.md exists at `{spec_dir}/SYSTEM-SPEC.md`:
-1. Read the spec's `amends` frontmatter to find relevant sections.
-2. Extract and display the relevant crystallized behaviors to the author:
+1. Detect the system-spec layout per `${CLAUDE_PLUGIN_ROOT}/lib/system-spec-layout.md`. **Single-file:** read `SYSTEM-SPEC.md` as before — unchanged. **Split** (index with a valid Domains table and/or `SYSTEM-SPEC-*.md` siblings): apply the subset-read rule — read the index plus only the domain file(s) matching the spec's declared `domain:` frontmatter (`SYSTEM-SPEC-<domain>.md`); read the index plus all domain files when the spec declares no domain (the conservative default). Crystallized behaviors come from the domain file(s) — the index is navigation only.
+2. Read the spec's `amends` frontmatter to find relevant sections.
+3. Extract and display the relevant crystallized behaviors to the author:
    ```
    📋 SYSTEM-SPEC.md context — behaviors this spec amends:
    Section: {section name}
    Current behavior: {behavior text}
    Declared change: {amends.change from spec frontmatter}
    ```
-3. Tell the author: "Your evals should reflect the NEW behavior described in the spec, not the old crystallized behavior above."
+4. Tell the author: "Your evals should reflect the NEW behavior described in the spec, not the old crystallized behavior above."
 
 ### 3. Author evals — one per AC
 
@@ -86,6 +87,7 @@ Dispatch the `eval-intent-scorer` agent with:
 - Spec path
 - Evals directory (`docs/specs/{feature}/evals/`)
 - SYSTEM-SPEC.md path (pass even if doesn't exist — agent handles missing file)
+- The spec's declared `domain:` frontmatter (if any), written inline — in split-layout projects the scorer reads the index plus only that domain's file(s) for its conflict check, all domain files when undeclared (the subset-read rule in `lib/system-spec-layout.md`)
 - Worktree root path
 - Config path
 

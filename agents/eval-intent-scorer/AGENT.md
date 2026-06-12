@@ -53,6 +53,8 @@ For each dimension, evaluate ALL eval files together as a set — not individual
 
 ### Step 3: SYSTEM-SPEC.md conflict check
 
+**Layout note:** before reading, detect the system-spec layout per `${CLAUDE_PLUGIN_ROOT}/lib/system-spec-layout.md`. In **split** layout (the provided SYSTEM-SPEC.md is an index with a valid Domains table, and/or `SYSTEM-SPEC-*.md` siblings exist), read the index plus only the domain file(s) matching the spec's declared `domain:` (provided inline by the invoking skill, else read it from the spec's frontmatter); read the index plus all domain files when no domain is declared. Crystallized behaviors come from the domain file(s) — the index holds navigation only. In **single-file** layout, read SYSTEM-SPEC.md exactly as before — unchanged.
+
 If SYSTEM-SPEC.md exists:
 1. Read the spec's `amends` frontmatter to find relevant sections
 2. Extract the crystallized behaviors for those sections from SYSTEM-SPEC.md

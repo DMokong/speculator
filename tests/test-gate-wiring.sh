@@ -145,6 +145,27 @@ while IFS= read -r lbl; do
   check "closure: label '$lbl' has a registry row" "grep -qE '^\| [a-z][a-z-]+ \| $n \|' '$REGISTRY'"
 done <<< "$DISCOVERED_LABELS"
 
+bold "=== System-Spec Layout Consistency (SPEC-003) ==="
+# Single-source rule (SPEC-003 R1 / Risk 2): the split-vs-single-file detection
+# markers and domain routing rules live ONLY in lib/system-spec-layout.md, and
+# every SYSTEM-SPEC consumer must cite that file by name rather than restate
+# the rules — restated copies would drift.
+LAYOUT_REF="$ROOT/lib/system-spec-layout.md"
+check "layout reference exists (lib/system-spec-layout.md)" "[ -f '$LAYOUT_REF' ]"
+
+LAYOUT_CONSUMERS="
+agents/spec-compactor/AGENT.md
+agents/spec-scorer/AGENT.md
+agents/eval-intent-scorer/AGENT.md
+skills/eval-authoring/SKILL.md
+skills/spec-compact/SKILL.md
+skills/sdlc-close/SKILL.md
+"
+while IFS= read -r consumer; do
+  [ -z "$consumer" ] && continue
+  check "layout consumer cites system-spec-layout.md ($consumer)" "grep -qF 'system-spec-layout.md' '$ROOT/$consumer'"
+done <<< "$LAYOUT_CONSUMERS"
+
 bold "=== Results ==="
 TOTAL=$((PASS + FAIL))
 echo "Passed: $PASS / $TOTAL"
