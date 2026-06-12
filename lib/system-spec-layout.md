@@ -42,12 +42,13 @@ In single-file layout, read `SYSTEM-SPEC.md` exactly as before — no subset log
 
 1. **Route by frontmatter.** Read the closing spec's `domain:` frontmatter and append its behavior entries (with `[from: SPEC-NNN]` provenance) to `{spec_dir}/SYSTEM-SPEC-<domain>.md`.
 2. **New domain = file + index row, in the same step.** If the declared domain has no file, create `SYSTEM-SPEC-<domain>.md` AND add its row to the index's Domains table as part of the same compaction step. A domain file without an index row is drift — never create one without the other.
-3. **The index is navigation, not storage.** NEVER write behavior entries to the index file. The only index edit a compaction may make is adding (or updating the description of) a Domains-table row.
+3. **The index is navigation, not storage.** NEVER write behavior entries to the index file. The only index edit a compaction may make is adding (or updating the description of) a Domains-table row — plus one repair case: if split layout was detected via sibling files but the index lacks a Domains table, repair the index by adding the table with one row per existing `SYSTEM-SPEC-*.md` sibling before routing.
 4. **Missing domain: halt, never guess.** When a closing spec declares no `domain:` in a split-layout project:
    - **Interactive contexts** prompt the author to choose an existing domain or create a new one (list the existing domains from the index's Domains table), then record the choice in the spec's frontmatter.
    - **Autonomous contexts** (e.g. sdlc-run Phase 5) halt compaction and escalate with the list of existing domains, e.g.: *"Compaction halted: no `domain:` declared — existing domains: speculator, memory, slack-bot. Add `domain: <name>` to the spec frontmatter and resume."* Nothing is written before the halt.
    - Guessing a domain is prohibited in both contexts — a behavior filed in the wrong domain corrupts the provenance map that future impact checks rely on.
 5. **Cross-domain behaviors have one owner.** A behavior spanning domains is placed in its primary owner's domain file with a prose cross-reference to the related domain (e.g. *"…(also consumed by the slack-bot domain — see SYSTEM-SPEC-slack-bot.md)"*). Never duplicate the entry across files — duplication breaks provenance audits.
+6. **Amendments follow the behavior's owner.** When an `amends` entry references a behavior living in a different domain file than the closing spec's declared domain, amend it in place where it lives — the behavior keeps its original owner and its provenance trail extends there. (Single-ownership applied to amendments; relocating or duplicating an amended behavior breaks the audit trail.)
 
 ## Single-File Projects: Untouched
 
