@@ -33,6 +33,17 @@ done
 
 mkdir -p "$OUTPUT_DIR"
 
+# Containment: the implementer agent runs INSIDE this repo's gitignored runs/
+# tree, and agent processes (e.g. the superpowers workflow) follow a commit
+# discipline — on 2026-06-13 one force-added 15 commits of app code + .beads
+# blobs into speculator's main. A nested throwaway repo in the output dir makes
+# the agent's repo-root resolution stop here: its commits land in the sandbox,
+# never in the host repo.
+if [[ ! -d "$OUTPUT_DIR/.git" ]]; then
+  git -C "$OUTPUT_DIR" init -q 2>/dev/null || true
+  git -C "$OUTPUT_DIR" commit -q --allow-empty -m "benchmark sandbox root" 2>/dev/null || true
+fi
+
 # Build the full prompt
 PRD_CONTENT=$(cat "$PRD")
 TEMPLATE_CONTENT=$(cat "$TEMPLATE")
