@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.10.0 — Gate 2c: Comprehension Gate, wired (SPEC-002) (2026-06-12)
+
+The anti-dark-code gate is live: opt-in, experimental, default off. Shipped through Speculator's own pipeline — Gate 1 (8.2, blinded scorer), Gate 2a (failed 6.3 → revised evals → passed 8.0, the feedback loop working as designed), Gate 2 (prompt-only N/A rationale, 141/141 structural), **Gate 2c's first-ever live run (passed 7.8/7.0** — and the cold reader found a real verifier gap on run #1), Gate 3 (review with the comprehension artifact as preamble), Gate 4 (26/26 mechanical verification). SPEC-002 compacted into SYSTEM-SPEC.md (22 behaviors).
+
+### Added
+- **Phase 3b: Comprehension (Gate 2c)** — between eval quality and review. A fresh agent cold-reads the spec + diff (never the implementing session's reasoning), writes a per-AC explanation artifact, scores it on 4 dimensions (ac_coverage 0.30, accuracy 0.30, spec_fidelity 0.25, scope_containment 0.15; threshold 7.0). On pass, the artifact is the Gate 3 reviewer's preamble. Enable with `gates.comprehension.enabled: true`
+- **Dimension-aware failure routing** — artifact-quality failures re-dispatch once with prior flags; a `spec_fidelity` failure escalates to a human immediately (re-explaining cannot fix a wrong implementation)
+- **Canonical gate-2c evidence schema** with recorded weights + per-dimension minimum — mechanically recomputable by `verify-evidence.sh` (which now reads `dimensions:` maps and verifies 2a/2b/2c as scorecards)
+- Position-detection rows (3b + 3b-retry), gate-check dispatch, doctor `--init` template block, Gate 4/status/PR-body/pipeline-summary conditional surfaces, registry row + 7 structural-test assertions (suite now 86)
+
+### Changed
+- **Trust-ladder thresholds raised on empirical grounds**: `full_auto_threshold` 7.8 → 8.3, `self_improvement_trigger` 8.0 → 8.5 in this repo's config. The first test-retest sigma study (`benchmarks/results/test-retest-sigma.yml`: sigma 0.18–0.24 on polished specs, 0.86 on a draft) showed the old 0.2 band gap was within scorer noise
+- Comprehension enabled in Speculator's own repo config — every future spec generates a comprehension artifact, seeding the calibration corpus (the gate's open item)
+- Benchmarks: spec-only ablation driver + sigma study script added; vision-judge timeout still blocks full-matrix outcome runs (tracked)
+
 ## 2.9.0 — Consolidation Release: gate registry, deterministic verification, scorer blinding (2026-06-12)
 
 Closes out the 2026-06-12 multi-agent review. Every change below was implemented, then adversarially re-verified by six independent review lenses (6 blocking + 30 should-fix findings found and fixed before this release).

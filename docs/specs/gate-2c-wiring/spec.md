@@ -1,7 +1,7 @@
 ---
 id: SPEC-002
 feature: gate-2c-wiring
-status: complete
+status: closed
 risk_level: medium
 impact_rating: additive
 created: 2026-06-12

@@ -1,7 +1,7 @@
 {
   "name": "speculator",
-  "version": "2.9.0",
-  "description": "Speculator — spec quality scoring and a 6-stage gate pipeline (4 required + 2 opt-in eval gates) with LLM-as-judge evaluation, git worktree isolation, and beads issue tracking. Quality In, Quality Out.",
+  "version": "2.10.0",
+  "description": "Speculator — spec quality scoring and a 7-gate pipeline (4 required + 3 opt-in: eval intent, eval quality, comprehension) with LLM-as-judge evaluation, git worktree isolation, and beads issue tracking. Quality In, Quality Out.",
   "author": {
     "name": "Dustin Cheng",
     "url": "https://github.com/DMokong"
