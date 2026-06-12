@@ -1,0 +1,236 @@
+summary:
+  scorer_model: claude-sonnet-4-6
+  rubric_source: production
+  reps_per_spec: 5
+  overall_sigma_per_spec:
+  - 0.856
+  - 0.241
+  - 0.179
+  overall_sigma_max: 0.856
+  trust_ladder_band_gap: 0.2
+  band_gap_exceeded: true
+  interpretation: "If overall_sigma_max > trust_ladder_band_gap, the full_auto (7.8)\
+    \ vs self_improvement (8.0) distinction is within scorer noise \u2014 widen the\
+    \ gap via run.full_auto_threshold in .claude/sdlc.local.md."
+per_spec:
+  cc-vanilla-sonnet/spec-v0:
+    reps: 5
+    scores:
+      clarity:
+        values:
+        - 7
+        - 8
+        - 8
+        - 8
+        - 8
+        mean: 7.8
+        sigma: 0.447
+        range: 1
+      completeness:
+        values:
+        - 5
+        - 8
+        - 8
+        - 5
+        - 8
+        mean: 6.8
+        sigma: 1.643
+        range: 3
+      feasibility:
+        values:
+        - 6
+        - 7
+        - 7
+        - 5
+        - 7
+        mean: 6.4
+        sigma: 0.894
+        range: 2
+      intent_verifiability:
+        values:
+        - 3
+        - 4
+        - 4
+        - 3
+        - 4
+        mean: 3.6
+        sigma: 0.548
+        range: 1
+      overall:
+        values:
+        - 4.9
+        - 6.6
+        - 6.6
+        - 5.2
+        - 6.6
+        mean: 5.98
+        sigma: 0.856
+        range: 1.7
+      scope:
+        values:
+        - 5
+        - 6
+        - 6
+        - 6
+        - 6
+        mean: 5.8
+        sigma: 0.447
+        range: 1
+      testability:
+        values:
+        - 3
+        - 5
+        - 5
+        - 4
+        - 4
+        mean: 4.2
+        sigma: 0.837
+        range: 2
+  cc-vanilla-sonnet/spec-v1:
+    reps: 5
+    scores:
+      clarity:
+        values:
+        - 9
+        - 8
+        - 9
+        - 9
+        - 9
+        mean: 8.8
+        sigma: 0.447
+        range: 1
+      completeness:
+        values:
+        - 8
+        - 8
+        - 8
+        - 8
+        - 9
+        mean: 8.2
+        sigma: 0.447
+        range: 1
+      feasibility:
+        values:
+        - 7
+        - 7
+        - 7
+        - 7
+        - 7
+        mean: 7
+        sigma: 0.0
+        range: 0
+      intent_verifiability:
+        values:
+        - 4
+        - 5
+        - 5
+        - 4
+        - 6
+        mean: 4.8
+        sigma: 0.837
+        range: 2
+      overall:
+        values:
+        - 7.4
+        - 7.3
+        - 7.6
+        - 7.2
+        - 7.8
+        mean: 7.46
+        sigma: 0.241
+        range: 0.6
+      scope:
+        values:
+        - 7
+        - 7
+        - 6
+        - 5
+        - 6
+        mean: 6.2
+        sigma: 0.837
+        range: 2
+      testability:
+        values:
+        - 8
+        - 8
+        - 9
+        - 8
+        - 8
+        mean: 8.2
+        sigma: 0.447
+        range: 1
+  cc-vanilla-sonnet/spec-v2:
+    reps: 5
+    scores:
+      clarity:
+        values:
+        - 8
+        - 9
+        - 9
+        - 8
+        - 9
+        mean: 8.6
+        sigma: 0.548
+        range: 1
+      completeness:
+        values:
+        - 9
+        - 9
+        - 9
+        - 9
+        - 8
+        mean: 8.8
+        sigma: 0.447
+        range: 1
+      feasibility:
+        values:
+        - 7
+        - 8
+        - 8
+        - 7
+        - 7
+        mean: 7.4
+        sigma: 0.548
+        range: 1
+      intent_verifiability:
+        values:
+        - 5
+        - 5
+        - 5
+        - 5
+        - 5
+        mean: 5
+        sigma: 0.0
+        range: 0
+      overall:
+        values:
+        - 7.5
+        - 7.8
+        - 7.8
+        - 7.6
+        - 7.4
+        mean: 7.62
+        sigma: 0.179
+        range: 0.4
+      scope:
+        values:
+        - 7
+        - 6
+        - 6
+        - 6
+        - 6
+        mean: 6.2
+        sigma: 0.447
+        range: 1
+      testability:
+        values:
+        - 8
+        - 8
+        - 8
+        - 9
+        - 8
+        mean: 8.2
+        sigma: 0.447
+        range: 1
+  cc-vanilla-sonnet/spec-improved:
+    error: only 0 successful reps
