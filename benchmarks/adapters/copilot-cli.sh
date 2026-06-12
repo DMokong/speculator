@@ -94,16 +94,22 @@ if [[ ! -s "$SPEC_FILE" ]]; then
   cp "$SESSION_LOG" "$SPEC_FILE"
 fi
 
-# Extract token counts from session log if present
-TOKENS_IN=0
-TOKENS_OUT=0
+# Extract token counts from session log if present. Copilot CLI has no JSON
+# usage envelope, so when the scrape finds nothing the counts are null —
+# never 0, because zeros masquerade as measurements.
+TOKENS_IN=null
+TOKENS_OUT=null
 
 if grep -q "input tokens" "$SESSION_LOG" 2>/dev/null; then
-  TOKENS_IN=$(grep "input tokens" "$SESSION_LOG" | grep -oE '[0-9]+' | head -1 || echo 0)
+  TOKENS_IN=$(grep "input tokens" "$SESSION_LOG" | grep -oE '[0-9]+' | head -1 || echo null)
 fi
 if grep -q "output tokens" "$SESSION_LOG" 2>/dev/null; then
-  TOKENS_OUT=$(grep "output tokens" "$SESSION_LOG" | grep -oE '[0-9]+' | head -1 || echo 0)
+  TOKENS_OUT=$(grep "output tokens" "$SESSION_LOG" | grep -oE '[0-9]+' | head -1 || echo null)
 fi
+
+# bc emits sub-second values without a leading zero (".042"), which is
+# invalid JSON — pad it.
+[[ "$WALL_CLOCK_SECONDS" == .* ]] && WALL_CLOCK_SECONDS="0$WALL_CLOCK_SECONDS"
 
 # Write metrics
 cat > "$METRICS_FILE" <<EOF
