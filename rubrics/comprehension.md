@@ -468,6 +468,35 @@ reasoning:
 
 ---
 
+## As-Built mode (v2.13.0)
+
+`gates.comprehension.mode: asbuilt` routes Gate 2c to a different instrument entirely — the As-Built Knowledge System's shadow gate (SPEC-048/049/050), dispatched via `skills/asbuilt-gate/SKILL.md` against the ported `asbuilt/` toolchain and the `asbuilt-generator`/`asbuilt-judge` agent pair, rather than this rubric's own `comprehension-scorer` agent. This section documents what that mode is, what has been measured about it, and what changes for a project that opts in. The dimensions, weights, calibration examples, and Gate Decision logic elsewhere in this file remain the `legacy`-mode contract and are unaffected — `legacy` is the unchanged default.
+
+### Mechanical layer: non-negotiable
+
+Unlike `legacy` mode's judge-only scoring, `asbuilt` mode runs deterministic mechanical checks (`symbol_exists`, `span_valid`, a computed unexplained-behavior list) against every citation in the comprehension artifact *before* the judge ever sees it — a fabricated or misspanned citation blocks the gate regardless of how the judge would otherwise have scored the prose around it. This layer is not configurable off; it is where the measured citation-integrity advantage is unconditional.
+
+### Measured reliability record
+
+The numbers below are reproduced from the SPEC-050 validation campaign — reference implementation evidence: `docs/specs/asbuilt-validation/evidence/{calibration-run.yml, judge-sigma.yml, VALIDATION.md}` (claudeclaw reference repo). They are recomputable from raw integers via that repo's `sigma-stats.ts`; do not restate them more strongly than the source:
+
+- **Calibration mean point-divergence: 0.5** across the four judged dimensions against a 14-example blinded corpus — no dimension flagged `needs_tuning`.
+- **Miss direction is strict, not charitable**: 4 of 5 out-of-band calibration scores were harsher than the verified band; no charitable inflation was observed on either of the two Accuracy plausible-but-wrong traps or the two Spec Fidelity letter-vs-spirit traps.
+- **Test-retest sigma: 0.162** (5 reps, fixed 8.x-band artifact; mean 8.26, pass-margin 1.26), yielding a **safety factor of 7.8** at that measured artifact class — the tightest scorer reliability yet measured in this project, on this artifact class.
+- These measurements are of a single strong-band artifact (n=5 reps) and a 14-example calibration corpus, evaluated against an LLM-generated, LLM-band-verified reference standard — consistency evidence, not human-anchored ground truth. See the reference `VALIDATION.md`'s Known limitations section for the full caveats (corpus provenance, sigma's single-artifact scope, n=2 comparison, unsampled 9-10 band for three dimensions).
+
+Because sigma was only measured on a clean, strong-band artifact, near-threshold artifacts (6.8–7.2) are treated as borderline pending a band-edge sigma study.
+
+### Blinding and invoker-stamping are structural, not optional
+
+As with Gate 1's spec-scorer, the `asbuilt-judge` agent never receives the pass threshold or the generator's reasoning — it scores judgment dimensions only. The invoking skill (`skills/asbuilt-gate/SKILL.md`, Step 6) reads the threshold from `.claude/sdlc.local.md` and stamps `result` itself, after the judge has already scored. This is a release requirement for `asbuilt` mode, not a configurable option — the measured strict-miss-direction and judge-independence findings above rest on it holding.
+
+### Migration note
+
+`asbuilt` mode replaces the legacy `comprehension-scorer`'s *scoring and citation trust* for projects that opt in — it does not retire the legacy scorer's flag-generation value, which produced real findings in both SPEC-050 comparison runs. Existing `gate-2c-comprehension.yml` artifacts from prior runs remain readable history and are not migrated or reinterpreted. `legacy` mode remains fully available and is the unchanged default — no existing config's behavior changes as a result of this section.
+
+---
+
 ## Calibration Set Requirements
 
 **Status (2026-06-12): the corpus exists** — see `rubrics/comprehension-calibration/` (47 band-verified examples, README documents usage: calibration runs, anchor rotation, regression checks). The requirements it was built against:

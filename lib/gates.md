@@ -33,6 +33,19 @@ This document is the single canonical inventory of every quality gate in the Spe
 
 The comprehension gate is fully wired and ships **experimental, default off** — enable it with `gates.comprehension.enabled: true` in `.claude/sdlc.local.md`. Enablement is a global flag, not bound to `risk_level` (risk-level-bound enablement is deferred to v3 — see the ROADMAP backlog). The `comprehension-scorer` agent cold-reads the spec + diff (never the implementing session's reasoning), generates a per-AC comprehension artifact, and scores it against `rubrics/comprehension.md`. The rubric's calibration corpus is still seed-stage — that open work is what keeps the gate labeled experimental.
 
+### Gate 2c mode: `gates.comprehension.mode` (v2.13.0)
+
+Gate 2c has two dispatch modes, selected by `gates.comprehension.mode` in `.claude/sdlc.local.md`. **No behavior change for existing configs**: any project without this key, or with `mode: legacy`, dispatches exactly as described above — the legacy `comprehension-scorer` agent is unmodified.
+
+| Mode | Evidence file |
+|------|----------------|
+| legacy (default) | gate-2c-comprehension.yml |
+| asbuilt | gate-2c-asbuilt.yml |
+
+`mode: asbuilt` dispatches `skills/asbuilt-gate/SKILL.md` instead, which orchestrates the ported `asbuilt/` toolchain (deterministic code-graph extraction + mechanical citation checks) and the `asbuilt-generator`/`asbuilt-judge` agent pair against `rubrics/comprehension.md`'s As-Built mode section. The invoking skill reads the threshold from config and stamps `result` itself (blinded-judge discipline — see that skill's Step 6); the evidence file `gate-2c-asbuilt.yml` satisfies this row when `result: pass`.
+
+Asbuilt-mode touchpoints: `skills/asbuilt-gate/SKILL.md`, `agents/asbuilt-generator/AGENT.md`, `agents/asbuilt-judge/AGENT.md`, the `asbuilt/` package, and `rubrics/comprehension.md`'s As-Built mode section.
+
 ### Display convention for disabled opt-in gates
 
 - `sdlc-status` (full inventory surface): disabled opt-in gates render as SKIPPED rows — the user sees the whole gate landscape.

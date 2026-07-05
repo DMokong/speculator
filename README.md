@@ -232,7 +232,7 @@ Seven gate stages — four always-on, three opt-in:
 | 2a — Eval Intent | between plan and implementation | **opt-in** (`gates.eval-intent.enabled`) | `gate-2a-eval-intent.yml` |
 | 2 — Code Quality | post-implementation | required | `gate-2-quality.yml` |
 | 2b — Eval Quality | between code and review | **opt-in** (`gates.eval-quality.enabled`) | `gate-2b-eval-quality.yml` |
-| 2c — Comprehension | between eval quality and review | **opt-in, experimental** (`gates.comprehension.enabled`) | `gate-2c-comprehension.yml` |
+| 2c — Comprehension | between eval quality and review | **opt-in, experimental** (`gates.comprehension.enabled`) | `gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `mode: asbuilt`) |
 | 3 — Code Review | post-implementation | required | `gate-3-review.yml` |
 | 4 — Evidence Package | pre-merge | required | `gate-4-summary.yml` |
 
@@ -249,6 +249,16 @@ Why pre-implementation? Catching letter-vs-spirit gaming requires measuring inte
 The anti-dark-code gate. The `comprehension-scorer` agent reads the spec and the diff **cold** — no access to the implementing agent's reasoning, plan, or in-session context (the implementing agent cannot be its own judge) — generates a per-AC explanation artifact naming the implementing code, then scores that artifact on 4 dimensions (AC coverage, accuracy, spec fidelity, scope containment). Spec fidelity is the dark-code detector: an implementation can satisfy every AC literally and still defeat the spec's intent (soft-delete where the spec demanded erasure). Default threshold: 7.0, per-dimension minimum 5. Disabled by default; enable with `gates.comprehension.enabled: true`.
 
 The artifact doubles as durable context: per-AC documentation answering *"why was this written this way?"* that the Gate 3 reviewer consumes as preamble. **Experimental** — the rubric's calibration corpus is still seed-stage, so treat scores as advisory until it's built out from real artifacts.
+
+**As-Built mode (opt-in, v2.13.0):** `gates.comprehension.mode: asbuilt` routes Gate 2c to a different instrument — a mechanically-validated citation gate (deterministic code-graph checks) plus a blinded judge that never sees the pass threshold. See `rubrics/comprehension.md`'s As-Built mode section for the measured reliability record. Default mode is `legacy` (above) — no behavior change unless you opt in:
+
+```yaml
+gates:
+  comprehension:
+    enabled: true
+    mode: asbuilt        # "legacy" (default) or "asbuilt" — see rubrics/comprehension.md § As-Built mode
+    threshold: 7.0
+```
 
 ### Gate 3: Code Review
 

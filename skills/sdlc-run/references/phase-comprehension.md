@@ -12,6 +12,17 @@ and before Gate 3 (Code Review).
 
 ---
 
+## 0. Mode routing (v2.13.0)
+
+Before following Steps 1-6 below, read `gates.comprehension.mode` from
+`.claude/sdlc.local.md` (default `legacy` — no behavior change for existing
+configs). When `gates.comprehension.mode: asbuilt` is configured, dispatch
+per `${CLAUDE_PLUGIN_ROOT}/skills/asbuilt-gate/SKILL.md` instead — the
+invoking skill reads the threshold and stamps `result` itself (see that
+skill's Step 6); the evidence file is `evidence/gate-2c-asbuilt.yml` and
+satisfies Gate 2c when `result: pass`. When `mode` is absent or `legacy`,
+continue with Steps 1-6 below unchanged.
+
 ## 1. Check for existing evidence
 
 If `evidence/gate-2c-comprehension.yml` already exists with `result: pass`, skip

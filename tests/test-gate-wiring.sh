@@ -145,6 +145,25 @@ while IFS= read -r lbl; do
   check "closure: label '$lbl' has a registry row" "grep -qE '^\| [a-z][a-z-]+ \| $n \|' '$REGISTRY'"
 done <<< "$DISCOVERED_LABELS"
 
+bold "=== Gate 2c As-Built Mode Routing (SPEC-051 T3) ==="
+# gates.comprehension.mode: asbuilt is an additive routing option on top of
+# the legacy Gate 2c dispatch — these assertions confirm the routing text,
+# the shadow-gate skill/agents it dispatches to, and the rubric section it
+# cites all exist, without re-parsing the registry table (mode is a value
+# within the existing comprehension row, not a new gate row).
+PHASE_COMPREHENSION="$ROOT/skills/sdlc-run/references/phase-comprehension.md"
+ASBUILT_GATE_SKILL="$ROOT/skills/asbuilt-gate/SKILL.md"
+ASBUILT_GENERATOR_AGENT="$ROOT/agents/asbuilt-generator/AGENT.md"
+ASBUILT_JUDGE_AGENT="$ROOT/agents/asbuilt-judge/AGENT.md"
+COMPREHENSION_RUBRIC="$ROOT/rubrics/comprehension.md"
+
+check "gate-check SKILL.md mentions mode: asbuilt routing" "grep -q 'mode: asbuilt' '$GATE_CHECK'"
+check "phase-comprehension.md mentions mode: asbuilt routing" "grep -q 'mode: asbuilt' '$PHASE_COMPREHENSION'"
+check "skills/asbuilt-gate/SKILL.md exists" "[ -f '$ASBUILT_GATE_SKILL' ]"
+check "agents/asbuilt-generator/AGENT.md exists" "[ -f '$ASBUILT_GENERATOR_AGENT' ]"
+check "agents/asbuilt-judge/AGENT.md exists" "[ -f '$ASBUILT_JUDGE_AGENT' ]"
+check "rubrics/comprehension.md contains 'As-Built mode' heading" "grep -q '## As-Built mode' '$COMPREHENSION_RUBRIC'"
+
 bold "=== System-Spec Layout Consistency (SPEC-003) ==="
 # Single-source rule (SPEC-003 R1 / Risk 2): the split-vs-single-file detection
 # markers and domain routing rules live ONLY in lib/system-spec-layout.md, and

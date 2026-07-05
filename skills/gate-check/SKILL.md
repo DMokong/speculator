@@ -102,6 +102,8 @@ When running Gate 2b:
 
 This gate is opt-in and experimental. Only run it when `gates.comprehension.enabled: true` in `.claude/sdlc.local.md`.
 
+**Mode routing (v2.13.0):** read `gates.comprehension.mode` from `.claude/sdlc.local.md` (default `legacy` — no behavior change for existing configs). When `gates.comprehension.mode: asbuilt` is configured, dispatch per `${CLAUDE_PLUGIN_ROOT}/skills/asbuilt-gate/SKILL.md` instead of the steps below — the invoking skill reads the threshold and stamps `result` itself (see that skill's Step 6); the evidence file is `evidence/gate-2c-asbuilt.yml` and satisfies Gate 2c when `result: pass`. When `mode` is absent or `legacy`, continue with the steps below unchanged.
+
 When running Gate 2c:
 
 1. Read the rubric at `${CLAUDE_PLUGIN_ROOT}/rubrics/comprehension.md`
@@ -149,7 +151,7 @@ When running Gate 4:
 5. **Verify opt-in gates per the project config** (`.claude/sdlc.local.md`):
    - If `gates.eval-intent.enabled: true` → `gate-2a-eval-intent.yml` must exist with `result: pass` or `result: override-pass`
    - If `gates.eval-quality.enabled: true` → `gate-2b-eval-quality.yml` must exist with `result: pass`
-   - If `gates.comprehension.enabled: true` → `gate-2c-comprehension.yml` must exist with `result: pass`
+   - If `gates.comprehension.enabled: true` → `gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `mode: asbuilt`) must exist with `result: pass`
    - Disabled or absent opt-in gates are `n/a` and do not block
    - **Historical-evidence grace**: for an opt-in gate that was enabled AFTER the spec closed, the evidence file may record `result: n/a` with the rationale `"gate enabled post-closure"` instead of being treated as missing — accept it and note the rationale in the summary
 6. **Verify Gate 1 scorecard has no unaddressed blocking flags.** If the scorecard contains blocking flags that were not resolved, the evidence package fails.

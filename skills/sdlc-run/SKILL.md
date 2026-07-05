@@ -74,8 +74,8 @@ After resolving the spec, determine where the pipeline left off by checking evid
 | 3 | Plan exists, gate 2a satisfied (or disabled), no `evidence/gate-2-quality.yml` | Phase 3: Implementation + Gate 2 |
 | 3a | Gate 2 exists, `eval-quality.enabled: true`, no `evidence/gate-2b-eval-quality.yml` | Phase 3a: Eval Quality (Gate 2b) |
 | 3a-retry | `evidence/gate-2b-eval-quality.yml` exists but `result` is not `pass` | Phase 3a: Eval Quality (Gate 2b) |
-| 3b | Gate 2b satisfied (or disabled), `gates.comprehension.enabled: true`, no `evidence/gate-2c-comprehension.yml` | Phase 3b: Comprehension (Gate 2c) |
-| 3b-retry | `evidence/gate-2c-comprehension.yml` exists but `result` is not `pass` | Phase 3b: Comprehension (Gate 2c) |
+| 3b | Gate 2b satisfied (or disabled), `gates.comprehension.enabled: true`, no `evidence/gate-2c-comprehension.yml` (or `evidence/gate-2c-asbuilt.yml` when `mode: asbuilt`) | Phase 3b: Comprehension (Gate 2c) |
+| 3b-retry | `evidence/gate-2c-comprehension.yml` (or `evidence/gate-2c-asbuilt.yml` when `mode: asbuilt`) exists but `result` is not `pass` | Phase 3b: Comprehension (Gate 2c) |
 | 4 | Gate 2 exists (and 2b/2c each satisfied if enabled), no `evidence/gate-3-review.yml` | Phase 4: Review |
 | 5 | Gate 3 exists, no `evidence/gate-4-summary.yml` | Phase 5: Close |
 | 6 | All required gates exist | Pipeline complete — nothing to do |

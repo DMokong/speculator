@@ -145,6 +145,18 @@ which bd 2>/dev/null || which beads 2>/dev/null
 - **PASS**: beads CLI found in PATH
 - **FAIL**: beads CLI not found — required for SDLC issue tracking. See https://github.com/DMokong/beads for installation.
 
+### 7. As-Built Mode: bun Availability
+
+This check only applies when a project's `.claude/sdlc.local.md` configures `gates.comprehension.mode: asbuilt` — `bun` is **not** required otherwise; skip this check entirely for `legacy` mode (the default) or when the comprehension gate is disabled.
+
+```bash
+which bun 2>/dev/null
+```
+
+- **PASS**: `gates.comprehension.mode: asbuilt` configured and `bun` found in PATH
+- **WARN**: `gates.comprehension.mode: asbuilt` configured and `bun` missing — "⚠️ asbuilt mode requires bun; install https://bun.sh or set mode: legacy"
+- **N/A** (no check run): `gates.comprehension.mode` absent or `legacy`
+
 ## Output Format
 
 Present results as a clear diagnostic report:

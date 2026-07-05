@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.13.0 — As-Built comprehension mode: mechanically-validated citations, blinded judge, measured reliability (2026-07-05)
+
+### Added
+- **`asbuilt/` toolchain package** — ported from the reference implementation (SPEC-051 T1): deterministic code-graph extraction, diff-touched slicing, mechanical citation checks (`symbol_exists`, `span_valid`), evidence assembly, and the supporting CLI, faithfully mirroring the source at the recorded SHA with only path/layout adaptations
+- **`asbuilt-generator` / `asbuilt-judge` agents** — the generator cold-reads the spec + diff + graph slice and writes a per-AC comprehension artifact citing graph node ids (never scores); the judge is a blinded auditor that scores judgment dimensions only, never seeing the pass threshold or the generator's reasoning
+- **`asbuilt-gate` skill** — orchestrates the shadow Gate 2c: graph extraction, slicing, generator dispatch, mechanical checks with one re-dispatch on blocking failure, blinded judge dispatch, and evidence assembly into `gate-2c-asbuilt.yml`
+- **`gates.comprehension.mode` config key** (`legacy` | `asbuilt`, default `legacy`) — opt-in routing for Gate 2c to the As-Built instrument, carrying the SPEC-050 measured reliability record (calibration divergence 0.5, no `needs_tuning`, strict miss direction; test-retest sigma 0.162, safety factor 7.8) into `rubrics/comprehension.md`'s new As-Built mode section
+
+### Changed
+- **Comprehension rubric** (`rubrics/comprehension.md`) gains an "As-Built mode (v2.13.0)" section: mechanical-layer non-negotiability, the measured reliability record with citations to the reference implementation's evidence, the borderline-artifact caveat (near-threshold 6.8–7.2 results pending a band-edge sigma study), blinding/invoker-stamping as structural requirements, and a migration note (asbuilt mode replaces the legacy scorer's scoring and citation trust, not its flag-generation value; legacy artifacts remain readable history)
+- **`gate-check` / `sdlc-run` mode routing** — Gate 2c dispatch reads `gates.comprehension.mode` and routes to `skills/asbuilt-gate/SKILL.md` when `asbuilt`; position-detection and Gate 4 evidence checks recognize `gate-2c-asbuilt.yml` alongside `gate-2c-comprehension.yml`
+- **`sdlc-doctor`** gains a bun-availability check, scoped to projects configuring `mode: asbuilt` (WARN + remediation when `bun` is missing; not required otherwise)
+- **README** gate table gains the mode row and a config example for `gates.comprehension.mode: asbuilt`
+
+**No behavior change for existing configs** — mode defaults to legacy.
+
 ## 2.12.0 — Validation Campaign: calibration corpus, controlled ablation results, noise-safe defaults (2026-06-12)
 
 ### Added
