@@ -80,6 +80,9 @@ Build the section from the template below. Keep the final section **at or under 
 lines** — it rides in every future session's context, so compactness is a feature
 requirement, not a style preference. Substitutions:
 
+- The only substitution tokens are `{VERSION}`, `{DATE}`, `{GATES_LINE}`, and
+  `{ASBUILT_BLOCK}`. Any other braced text in the template (e.g. the
+  `docs/specs/{feature}/evidence/` path) is literal notation — copy it verbatim.
 - `{VERSION}` / `{DATE}` — from step 1.4.
 - `{GATES_LINE}` — reflect the project's real config: name which opt-in gates are
   enabled (e.g. "Opt-in gates enabled here: eval-intent, eval-quality, comprehension
