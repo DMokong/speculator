@@ -250,7 +250,7 @@ The anti-dark-code gate. The `comprehension-scorer` agent reads the spec and the
 
 The artifact doubles as durable context: per-AC documentation answering *"why was this written this way?"* that the Gate 3 reviewer consumes as preamble. **Experimental (legacy mode)** — the calibration corpus shipped in v2.12.0 (47 band-verified examples), but the legacy single-dispatch scorer has never been calibrated against it, so treat legacy-mode scores as advisory. The As-Built mode below is the measured path.
 
-**As-Built mode (opt-in, v2.13.0):** `gates.comprehension.mode: asbuilt` routes Gate 2c to a different instrument — a mechanically-validated citation gate (deterministic code-graph checks) plus a blinded judge that never sees the pass threshold. See `rubrics/comprehension.md`'s As-Built mode section for the measured reliability record. Default mode is `legacy` (above) — no behavior change unless you opt in:
+**As-Built mode (opt-in, v2.13.0):** `gates.comprehension.mode: asbuilt` routes Gate 2c to a different instrument — a mechanically-validated citation gate (deterministic code-graph checks) plus a blinded judge that never sees the pass threshold. See `rubrics/comprehension.md`'s As-Built mode section for the measured reliability record, and **[`docs/comprehension-workflow.md`](docs/comprehension-workflow.md)** for the full operator's guide — including the backfill workflow that bootstraps and audits a knowledge bundle for an *existing* codebase, no spec required. Default mode is `legacy` (above) — no behavior change unless you opt in:
 
 ```yaml
 gates:
