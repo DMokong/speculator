@@ -11,13 +11,13 @@
 // against a real repo (r2mcp: old-vs-new extractor byte-identical) in the
 // SPEC-053 evidence.
 
+import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, test } from "bun:test";
 import { extractGraph, listSourceFiles } from "../src/extract";
-import { adapterForFile, SUPPORTED_LANGUAGES } from "../src/lang";
+import { SUPPORTED_LANGUAGES, adapterForFile } from "../src/lang";
 import type { GraphManifest } from "../src/manifest";
 
 const FIXTURES = new URL("./fixtures/lang", import.meta.url).pathname;

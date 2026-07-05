@@ -6,11 +6,11 @@
 // mechanical layer both accepts a true Go citation and blocks a fabricated
 // span, and that an audited draft folds into a Go concept with provenance.
 
+import { describe, expect, test } from "bun:test";
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, test } from "bun:test";
 
 const FIXTURE = new URL("./fixtures/lang/go", import.meta.url).pathname;
 const SRC = new URL("../src", import.meta.url).pathname;
