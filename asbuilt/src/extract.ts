@@ -233,6 +233,11 @@ if (import.meta.main) {
     process.exit(1);
   }
   const out = argValue("--out") ?? join(target, "docs/asbuilt/.graph-manifest.json");
+  if (listSourceFiles(target).length === 0) {
+    console.error(
+      `note: no supported-language sources found in ${target} (supported: ${ADAPTERS.map((a) => a.name).join(", ")}) — an empty manifest will be written; the comprehension gate can still run judge-only via --graph-unavailable`,
+    );
+  }
   const m = await extractGraph(target);
   saveManifest(out, m);
   console.log(`symbols=${m.symbols.length} edges=${m.edges.length} hash=${manifestHash(m)}`);
