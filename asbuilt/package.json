@@ -1,0 +1,21 @@
+{
+  "name": "asbuilt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test tests/",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src/ tests/"
+  },
+  "dependencies": {
+    "web-tree-sitter": "0.24.5",
+    "tree-sitter-wasms": "0.1.12",
+    "yaml": "2.5.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/node": "22.10.2",
+    "bun-types": "1.3.14",
+    "typescript": "5.7.2"
+  }
+}

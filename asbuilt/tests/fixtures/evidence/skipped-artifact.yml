@@ -1,0 +1,14 @@
+comprehension_entries:
+  - ac_id: AC1
+    ac_text: "Gamma repeats the input string twice."
+    implementation_summary: "src/util/gamma.ts#gamma calls String#repeat(2) on its input."
+    code_locations:
+      - symbol: "src/util/gamma.ts#gamma"
+        lines: "1-3"
+    coverage: full
+    gap_notes: ""
+
+enrichment_drafts:
+  - concept: src/util/gamma.md
+    explanation: "Gamma is the low-level string-doubling primitive alpha depends on."
+    decisions: "kept trivial on purpose; no configuration surface needed"

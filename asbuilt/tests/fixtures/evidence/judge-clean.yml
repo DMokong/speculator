@@ -1,0 +1,7 @@
+dimensions:
+  ac_coverage: 8
+  accuracy: 8
+  spec_fidelity: 7
+  scope_containment: 8
+flags: {}
+reasoning: {}

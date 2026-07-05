@@ -1,0 +1,17 @@
+comprehension_entries:
+  - ac_id: AC1
+    ac_text: "Alpha module doubles input via gamma and uppercases it."
+    implementation_summary: "src/alpha.ts#alphaMain calls gamma(input) then uppercases the result."
+    code_locations:
+      - symbol: "src/alpha.ts#alphaMain"
+        lines: "3-5"
+    coverage: full
+    gap_notes: ""
+
+enrichment_drafts:
+  - concept: src/alpha.md
+    explanation: "Alpha module orchestrates gamma doubling."
+    decisions: "chose repeat(2) for determinism"
+  - concept: src/beta.md
+    explanation: "Beta module adapts raw input for alpha by trimming it first."
+    decisions: "trims whitespace before delegating so alpha never sees padding"

@@ -1,0 +1,14 @@
+comprehension_entries:
+  - ac_id: AC1
+    ac_text: "Alpha's private helper doubles the numeric input before AlphaService.run adds one."
+    implementation_summary: "src/alpha.ts#helper multiplies its argument by 2; AlphaService.run adds 1 to the result."
+    code_locations:
+      - symbol: "src/alpha.ts#helper"
+        lines: "13-15"
+    coverage: full
+    gap_notes: ""
+
+enrichment_drafts:
+  - concept: src/alpha.md
+    explanation: "Alpha's private helper doubles its numeric input before AlphaService.run adds one."
+    decisions: "kept helper private since it is an internal implementation detail"

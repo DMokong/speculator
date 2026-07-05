@@ -1,0 +1,8 @@
+gate: comprehension-asbuilt
+mode: shadow
+result: fail
+spec_id: SPEC-TEST
+mechanical:
+  blocking: false
+generator:
+  artifact: pass-artifact.yml

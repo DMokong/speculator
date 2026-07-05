@@ -1,0 +1,8 @@
+gate: comprehension-asbuilt
+mode: shadow
+result: pass
+spec_id: SPEC-GHOST
+mechanical:
+  blocking: false
+generator:
+  artifact: ghost-artifact.yml

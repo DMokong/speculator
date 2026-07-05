@@ -1,0 +1,6 @@
+comprehension_entries:
+  - ac_id: AC1
+    implementation_summary: "Type used for the beta handler's result."
+    code_locations:
+      - symbol: "src/beta.ts#BetaResult"
+        lines: "14"

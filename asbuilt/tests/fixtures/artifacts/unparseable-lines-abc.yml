@@ -1,0 +1,6 @@
+comprehension_entries:
+  - ac_id: AC1
+    implementation_summary: "Doubles the input value."
+    code_locations:
+      - symbol: "src/alpha.ts#helper"
+        lines: "abc"

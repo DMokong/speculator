@@ -1,0 +1,13 @@
+{
+  "symbols": [
+    { "id": "src/alpha.ts#AlphaService", "kind": "class", "file": "src/alpha.ts", "span": [7, 11], "exported": true },
+    { "id": "src/alpha.ts#AlphaService.run", "kind": "method", "file": "src/alpha.ts", "span": [8, 10], "exported": true },
+    { "id": "src/alpha.ts#alphaMain", "kind": "function", "file": "src/alpha.ts", "span": [3, 5], "exported": true },
+    { "id": "src/alpha.ts#helper", "kind": "function", "file": "src/alpha.ts", "span": [13, 15], "exported": false },
+    { "id": "src/beta.ts#BetaConfig", "kind": "interface", "file": "src/beta.ts", "span": [5, 7], "exported": true },
+    { "id": "src/beta.ts#BetaResult", "kind": "type", "file": "src/beta.ts", "span": [9, 9], "exported": true },
+    { "id": "src/beta.ts#betaHandler", "kind": "const", "file": "src/beta.ts", "span": [3, 3], "exported": true },
+    { "id": "src/noexport.ts#hidden", "kind": "function", "file": "src/noexport.ts", "span": [1, 3], "exported": false },
+    { "id": "src/util/gamma.ts#gamma", "kind": "function", "file": "src/util/gamma.ts", "span": [1, 3], "exported": true }
+  ]
+}

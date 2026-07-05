@@ -1,0 +1,14 @@
+{
+  "graphify_version": "graphify 0.9.6",
+  "pinned_expected": "0.9.6",
+  "files_compared": 4,
+  "symbols_matched": 7,
+  "symbols_manifest_only": [],
+  "types_not_compared": 2,
+  "nodes_graphify_only": [],
+  "calls_matched": 3,
+  "calls_unmatched": [
+    { "from": "src/alpha.ts#AlphaService", "toName": "src/alpha.ts#AlphaService.run", "side": "graphify" }
+  ],
+  "ambiguous_skipped": 3
+}

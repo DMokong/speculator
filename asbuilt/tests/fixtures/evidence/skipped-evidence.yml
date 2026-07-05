@@ -1,0 +1,8 @@
+gate: comprehension-asbuilt
+mode: shadow
+result: pass
+spec_id: SPEC-TEST
+mechanical:
+  skipped: true
+generator:
+  artifact: skipped-artifact.yml

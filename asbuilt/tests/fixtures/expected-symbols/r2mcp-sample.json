@@ -1,0 +1,45 @@
+{
+  "target_commit": "9f07c548956f365372a6384691b081aa42204ee4",
+  "symbols": [
+    { "id": "src/fingerprint.ts#normalizeContent", "kind": "function", "file": "src/fingerprint.ts", "span": [3, 9], "exported": true },
+    { "id": "src/fingerprint.ts#fingerprint", "kind": "function", "file": "src/fingerprint.ts", "span": [11, 14], "exported": true },
+
+    { "id": "src/mcp-response.ts#asMcpResponse", "kind": "function", "file": "src/mcp-response.ts", "span": [9, 17], "exported": true },
+
+    { "id": "src/env.ts#currentScope", "kind": "function", "file": "src/env.ts", "span": [28, 31], "exported": true },
+    { "id": "src/env.ts#loadEnvFile", "kind": "function", "file": "src/env.ts", "span": [33, 50], "exported": true },
+
+    { "id": "src/graph-rebuild.ts#triggerGraphRebuild", "kind": "function", "file": "src/graph-rebuild.ts", "span": [12, 22], "exported": true },
+
+    { "id": "src/providers/errors.ts#ProviderUnavailableError", "kind": "class", "file": "src/providers/errors.ts", "span": [6, 11], "exported": true },
+    { "id": "src/providers/errors.ts#ProviderUnavailableError.constructor", "kind": "method", "file": "src/providers/errors.ts", "span": [7, 10], "exported": true },
+
+    { "id": "src/providers/semaphore.ts#Semaphore", "kind": "class", "file": "src/providers/semaphore.ts", "span": [9, 51], "exported": true },
+    { "id": "src/providers/semaphore.ts#Semaphore.constructor", "kind": "method", "file": "src/providers/semaphore.ts", "span": [14, 16], "exported": true },
+    { "id": "src/providers/semaphore.ts#Semaphore.inFlight", "kind": "method", "file": "src/providers/semaphore.ts", "span": [18, 20], "exported": true },
+    { "id": "src/providers/semaphore.ts#Semaphore.peak", "kind": "method", "file": "src/providers/semaphore.ts", "span": [22, 24], "exported": true },
+    { "id": "src/providers/semaphore.ts#Semaphore.acquire", "kind": "method", "file": "src/providers/semaphore.ts", "span": [26, 35], "exported": true },
+    { "id": "src/providers/semaphore.ts#Semaphore.release", "kind": "method", "file": "src/providers/semaphore.ts", "span": [37, 41], "exported": true },
+    { "id": "src/providers/semaphore.ts#Semaphore.withPermit", "kind": "method", "file": "src/providers/semaphore.ts", "span": [43, 50], "exported": true },
+
+    { "id": "src/providers/types.ts#LogicalModel", "kind": "type", "file": "src/providers/types.ts", "span": [8, 8], "exported": true },
+    { "id": "src/providers/types.ts#ProviderName", "kind": "type", "file": "src/providers/types.ts", "span": [10, 10], "exported": true },
+    { "id": "src/providers/types.ts#CompleteRequest", "kind": "interface", "file": "src/providers/types.ts", "span": [12, 17], "exported": true },
+    { "id": "src/providers/types.ts#CompleteResponse", "kind": "interface", "file": "src/providers/types.ts", "span": [19, 26], "exported": true },
+    { "id": "src/providers/types.ts#LLMProvider", "kind": "interface", "file": "src/providers/types.ts", "span": [28, 32], "exported": true },
+
+    { "id": "src/entities/normalize.ts#normalizeEntityName", "kind": "function", "file": "src/entities/normalize.ts", "span": [5, 7], "exported": true },
+
+    { "id": "src/edges/candidate-pairs.ts#CandidatePair", "kind": "interface", "file": "src/edges/candidate-pairs.ts", "span": [4, 9], "exported": true },
+    { "id": "src/edges/candidate-pairs.ts#CandidateOptions", "kind": "interface", "file": "src/edges/candidate-pairs.ts", "span": [11, 15], "exported": true },
+    { "id": "src/edges/candidate-pairs.ts#findCandidatePairs", "kind": "function", "file": "src/edges/candidate-pairs.ts", "span": [30, 56], "exported": true },
+
+    { "id": "src/compiler/clustering.ts#MemoryCluster", "kind": "interface", "file": "src/compiler/clustering.ts", "span": [12, 16], "exported": true },
+    { "id": "src/compiler/clustering.ts#clusterByTopic", "kind": "function", "file": "src/compiler/clustering.ts", "span": [25, 42], "exported": true },
+    { "id": "src/compiler/clustering.ts#effectiveDate", "kind": "function", "file": "src/compiler/clustering.ts", "span": [49, 51], "exported": true },
+    { "id": "src/compiler/clustering.ts#memoriesForTopic", "kind": "function", "file": "src/compiler/clustering.ts", "span": [57, 66], "exported": true },
+    { "id": "src/compiler/clustering.ts#pickPrimaryTopic", "kind": "function", "file": "src/compiler/clustering.ts", "span": [68, 73], "exported": false },
+    { "id": "src/compiler/clustering.ts#topicToSlug", "kind": "function", "file": "src/compiler/clustering.ts", "span": [75, 80], "exported": true },
+    { "id": "src/compiler/clustering.ts#topicTitle", "kind": "function", "file": "src/compiler/clustering.ts", "span": [82, 88], "exported": true }
+  ]
+}

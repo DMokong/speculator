@@ -1,0 +1,9 @@
+comprehension_entries: []
+
+enrichment_drafts:
+  - concept: src/alpha.md
+    explanation: "This should never be written because src/ghost.md fails validation."
+    decisions: "atomicity probe — validate-all-before-write-any"
+  - concept: src/ghost.md
+    explanation: "This concept does not exist anywhere in the bundle."
+    decisions: "n/a"

@@ -1,0 +1,5 @@
+comprehension_entries:
+  - ac_id: AC1
+    implementation_summary: "Adds one to the doubled value returned by helper."
+    code_locations:
+      - symbol: "src/alpha.ts#AlphaService.run"
