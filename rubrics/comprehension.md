@@ -478,14 +478,15 @@ Unlike `legacy` mode's judge-only scoring, `asbuilt` mode runs deterministic mec
 
 ### Measured reliability record
 
-The numbers below are reproduced from the SPEC-050 validation campaign — reference implementation evidence: `docs/specs/asbuilt-validation/evidence/{calibration-run.yml, judge-sigma.yml, VALIDATION.md}` (claudeclaw reference repo). They are recomputable from raw integers via that repo's `sigma-stats.ts`; do not restate them more strongly than the source:
+The numbers below are reproduced from the SPEC-050 validation campaign and its claw-u806 band-edge follow-up — reference implementation evidence: `docs/specs/asbuilt-validation/evidence/{calibration-run.yml, judge-sigma.yml, band-edge-sigma.yml, VALIDATION.md}` (claudeclaw reference repo). They are recomputable from raw integers via that repo's `sigma-stats.ts`; do not restate them more strongly than the source:
 
 - **Calibration mean point-divergence: 0.5** across the four judged dimensions against a 14-example blinded corpus — no dimension flagged `needs_tuning`.
 - **Miss direction is strict, not charitable**: 4 of 5 out-of-band calibration scores were harsher than the verified band; no charitable inflation was observed on either of the two Accuracy plausible-but-wrong traps or the two Spec Fidelity letter-vs-spirit traps.
-- **Test-retest sigma: 0.162** (5 reps, fixed 8.x-band artifact; mean 8.26, pass-margin 1.26), yielding a **safety factor of 7.8** at that measured artifact class — the tightest scorer reliability yet measured in this project, on this artifact class.
-- These measurements are of a single strong-band artifact (n=5 reps) and a 14-example calibration corpus, evaluated against an LLM-generated, LLM-band-verified reference standard — consistency evidence, not human-anchored ground truth. See the reference `VALIDATION.md`'s Known limitations section for the full caveats (corpus provenance, sigma's single-artifact scope, n=2 comparison, unsampled 9-10 band for three dimensions).
+- **Test-retest sigma: 0.162 strong-band, 0.343 band-edge** (5 reps each, fixed artifacts). Strong band: mean 8.26, pass-margin 1.26, **safety factor 7.8** — the tightest scorer reliability yet measured in this project. Band edge (the artifact the live gate scored 6.8/fail, retested ×5 in its original repo state): mean 7.78, values 7.3–8.3, safety factor 2.27 — and the original 6.8 sits below all five retest values, ≈2.9 retest sigmas under the mean.
+- **Band-edge noise is a different mechanism, not just a bigger sigma**: at strong band, variance was severity-weighting of one agreed finding (accuracy sigma 0.000); at band edge, accuracy carries nearly all variance (sigma 0.98, bimodal 6↔8) because finding-*discovery* is stochastic on a defect-bearing artifact — every rep found genuine defects, but not the same ones. Severity calibration alone cannot remove this.
+- These measurements are of two artifacts from one project (n=5 reps each) and a 14-example calibration corpus, evaluated against an LLM-generated, LLM-band-verified reference standard — consistency evidence, not human-anchored ground truth. See the reference `VALIDATION.md`'s Known limitations section for the full caveats (corpus provenance, n=2 comparison, unsampled 9-10 band for three dimensions).
 
-Because sigma was only measured on a clean, strong-band artifact, near-threshold artifacts (6.8–7.2) are treated as borderline pending a band-edge sigma study.
+The band-edge study (`band-edge-sigma.yml`, 2026-07-05) replaces the earlier "pending a band-edge sigma study" caveat with a measured one: a single-run score within ~2σ of the bar (**6.3–7.7**) can plausibly sit on the other side on retest — the live 6.8 fail retested as 5/5 passes. Treat scores within ±1σ (6.7–7.3) as borderline, and do not act on any single-run score inside 6.3–7.7 without a median-of-3 re-dispatch or human review.
 
 ### Blinding and invoker-stamping are structural, not optional
 
