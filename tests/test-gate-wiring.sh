@@ -164,6 +164,14 @@ check "agents/asbuilt-generator/AGENT.md exists" "[ -f '$ASBUILT_GENERATOR_AGENT
 check "agents/asbuilt-judge/AGENT.md exists" "[ -f '$ASBUILT_JUDGE_AGENT' ]"
 check "rubrics/comprehension.md contains 'As-Built mode' heading" "grep -q '## As-Built mode' '$COMPREHENSION_RUBRIC'"
 
+# Gate 4's authoritative evidence checks must also recognize gate-2c-asbuilt.yml
+# as an alternative to gate-2c-comprehension.yml — otherwise a spec running
+# gates.comprehension.mode: asbuilt would fail Gate 4 / show wrong status
+# despite a passing shadow gate (the SPEC-051 T3 review gap this guards against).
+check "rubrics/evidence-package.md mentions gate-2c-asbuilt.yml" "grep -qF 'gate-2c-asbuilt.yml' '$EVIDENCE_RUBRIC'"
+check "scripts/verify-evidence.sh mentions gate-2c-asbuilt.yml" "grep -qF 'gate-2c-asbuilt.yml' '$ROOT/scripts/verify-evidence.sh'"
+check "skills/sdlc-status/SKILL.md mentions gate-2c-asbuilt.yml" "grep -qF 'gate-2c-asbuilt.yml' '$SDLC_STATUS'"
+
 bold "=== System-Spec Layout Consistency (SPEC-003) ==="
 # Single-source rule (SPEC-003 R1 / Risk 2): the split-vs-single-file detection
 # markers and domain routing rules live ONLY in lib/system-spec-layout.md, and

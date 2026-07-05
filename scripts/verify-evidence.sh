@@ -26,6 +26,8 @@
 #     file is a WARN by default — a policy gap, since the gate may have been
 #     enabled after the spec closed — and a FAIL with --strict. A present opt-in
 #     file may record `result: n/a` (e.g. gate enabled post-closure, with rationale).
+#     (Gate 2c also accepts gate-2c-asbuilt.yml in place of gate-2c-comprehension.yml
+#     when gates.comprehension.mode: asbuilt is configured — SPEC-051 T3.)
 #
 # Usage: scripts/verify-evidence.sh [--strict] <spec-dir>
 #   e.g. scripts/verify-evidence.sh docs/specs/my-feature
@@ -350,16 +352,29 @@ for fname, kind in (("gate-1-scorecard.yml", "scorecard"),
 gates_cfg = config.get("gates") if isinstance(config.get("gates"), dict) else {}
 if not os.path.isfile(config_path):
     skip(f"opt-in gate checks: {config_path} not found")
-for gate_name, fname, kind in (("eval-intent", "gate-2a-eval-intent.yml", "scorecard"),
-                               ("eval-quality", "gate-2b-eval-quality.yml", "scorecard"),
-                               ("comprehension", "gate-2c-comprehension.yml", "scorecard")):
+for gate_name, fname, kind, alt_fname in (
+        ("eval-intent", "gate-2a-eval-intent.yml", "scorecard", None),
+        ("eval-quality", "gate-2b-eval-quality.yml", "scorecard", None),
+        # gates.comprehension.mode: asbuilt (SPEC-051) writes gate-2c-asbuilt.yml
+        # instead of gate-2c-comprehension.yml — accept either filename. The
+        # asbuilt schema (asbuilt/src/evidence.ts) still carries top-level
+        # result/overall/weights/dimensions, so the scorecard checks below
+        # apply unchanged once the alt file is selected.
+        ("comprehension", "gate-2c-comprehension.yml", "scorecard", "gate-2c-asbuilt.yml")):
     g = gates_cfg.get(gate_name)
     enabled = isinstance(g, dict) and bool(g.get("enabled"))
     path = os.path.join(ev_dir, fname)
-    if not enabled and not os.path.isfile(path):
+    alt_path = os.path.join(ev_dir, alt_fname) if alt_fname else None
+    # Prefer the primary filename; fall back to the alt (mode-specific) file
+    # only when the primary is absent and the alt is present.
+    active_fname, active_path = fname, path
+    if not os.path.isfile(path) and alt_path is not None and os.path.isfile(alt_path):
+        active_fname, active_path = alt_fname, alt_path
+    names = fname if alt_fname is None else f"{fname} or {alt_fname}"
+    if not enabled and not os.path.isfile(active_path):
         continue
-    if enabled and not os.path.isfile(path):
-        msg = (f"{fname}: gates.{gate_name}.enabled is true in {config_path} "
+    if enabled and not os.path.isfile(active_path):
+        msg = (f"{names}: gates.{gate_name}.enabled is true in {config_path} "
                "but the evidence file is missing")
         if strict:
             fail(msg)
@@ -372,12 +387,12 @@ for gate_name, fname, kind in (("eval-intent", "gate-2a-eval-intent.yml", "score
     # with rationale "gate enabled post-closure" per rubrics/evidence-package.md).
     na_note = ("legitimate for opt-in gates — verify a rationale is recorded"
                if enabled else "opt-in gate disabled")
-    data = check_common(fname, path, allow_na=True, na_note=na_note)
+    data = check_common(active_fname, active_path, allow_na=True, na_note=na_note)
     if data is not None and enabled and str(data.get("result") or "").strip().lower() in ("n/a", "na"):
-        warn(f"{fname}: gates.{gate_name}.enabled is true but result is 'n/a' — "
+        warn(f"{active_fname}: gates.{gate_name}.enabled is true but result is 'n/a' — "
              "acceptable only with a recorded rationale (e.g. gate enabled post-closure)")
     if data is not None and kind == "scorecard":
-        check_scorecard(fname, data)
+        check_scorecard(active_fname, data)
 
 print()
 summary = f"{passes} passed, {failures} failed, {skips} skipped, {warns} warnings"

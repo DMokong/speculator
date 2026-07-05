@@ -51,7 +51,7 @@ The comprehension gate is opt-in (experimental). When enabled, it must have pass
 How to verify:
 1. Read `gates.comprehension.enabled` from `.claude/sdlc.local.md`
 2. If `false` or absent, result is `n/a` and does not block
-3. If `true`, look for `{spec_dir}/{spec_name}/evidence/gate-2c-comprehension.yml`
+3. If `true`, look for `{spec_dir}/{spec_name}/evidence/gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `gates.comprehension.mode: asbuilt` is configured — that file satisfies this check when its `result` field is `pass`; see `rubrics/comprehension.md` § As-Built mode)
 4. Parse the YAML and check that the `result` field is `pass`
 5. If the file is missing, result is `missing`. If present but `result` is not `pass`, result is `fail`
 
@@ -131,7 +131,7 @@ gates:
     evidence_file: gate-2b-eval-quality.yml
     result: pass | fail | missing | n/a
   comprehension:
-    evidence_file: gate-2c-comprehension.yml
+    evidence_file: gate-2c-comprehension.yml  # or gate-2c-asbuilt.yml when gates.comprehension.mode: asbuilt
     result: pass | fail | missing | n/a
   review:
     evidence_file: gate-3-review.yml

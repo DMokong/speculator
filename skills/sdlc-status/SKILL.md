@@ -32,7 +32,7 @@ Show the user where their spec currently stands in the quality pipeline.
       ```
    c. Merge results — show all specs with their location (main vs worktree name).
 
-4. **For each spec, check gate evidence**: Look in the spec's evidence directory using the correct base path (worktree or main). Evidence files per gate: `gate-1-scorecard.yml`, `gate-2a-eval-intent.yml`, `gate-2-quality.yml`, `gate-2b-eval-quality.yml`, `gate-2c-comprehension.yml`, `gate-3-review.yml`, `gate-4-summary.yml`.
+4. **For each spec, check gate evidence**: Look in the spec's evidence directory using the correct base path (worktree or main). Evidence files per gate: `gate-1-scorecard.yml`, `gate-2a-eval-intent.yml`, `gate-2-quality.yml`, `gate-2b-eval-quality.yml`, `gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `gates.comprehension.mode: asbuilt`), `gate-3-review.yml`, `gate-4-summary.yml`.
 
 5. **Display status**: Show a clear pipeline view for each active spec. Rows appear in pipeline execution order: Gate 1, Gate 2a, Gate 2, Gate 2b, Gate 2c, Gate 3, Gate 4. Opt-in gate rows (2a/2b/2c) are conditional:
    - Config block present with `enabled: true` → render the row with PASS/FAIL/PENDING based on evidence
