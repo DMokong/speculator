@@ -43,10 +43,12 @@ Run from the target project root. Collect, in one pass:
 2. **Config state** — does `.claude/sdlc.local.md` exist? If yes, read its `gates:`
    block and note which opt-in gates (`eval-intent`, `eval-quality`,
    `comprehension`) are enabled, and the `comprehension.mode` if set.
-3. **Language detection** — the target counts as TypeScript when `tsconfig.json`
-   exists at the root OR `.ts`/`.tsx` sources exist outside `node_modules` (check
-   with a bounded glob, e.g. `src/**/*.ts`, falling back to a repo-wide search
-   capped at the first match).
+3. **Language detection** — the target counts as as-built-supported when any
+   supported language is present: TypeScript (`tsconfig.json` at the root, or
+   `.ts`/`.tsx` sources outside `node_modules`), Go (`go.mod` or `.go` sources),
+   Java (`pom.xml`/`build.gradle*` or `.java` sources), or Python
+   (`pyproject.toml`/`setup.py` or `.py` sources). Use bounded globs (e.g.
+   `src/**/*.ts`), falling back to a repo-wide search capped at the first match.
 4. **Plugin version** — read `version` from this plugin's own manifest at
    `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Today's date comes from
    `date +%Y-%m-%d`.
@@ -89,10 +91,11 @@ requirement, not a style preference. Substitutions:
   (asbuilt mode)."), or "No opt-in gates enabled yet." when none, or "Config not yet
   initialized — run `/sdlc doctor --init`." when sdlc.local.md is absent. Never
   describe a gate as enabled that the config does not enable.
-- `{ASBUILT_BLOCK}` — for **TypeScript** targets, the full block from the template
-  (enablement snippet + backfill pointer + the two cautions). For **non-TS**
-  targets, replace the entire block with the single line:
-  `As-Built comprehension requires a TypeScript codebase; the legacy comprehension gate remains available (gates.comprehension.enabled with mode: legacy).`
+- `{ASBUILT_BLOCK}` — for targets in a **supported language** (TypeScript, Go,
+  Java, Python), the full block from the template (enablement snippet + backfill
+  pointer + the two cautions). For targets in **no supported language**, replace
+  the entire block with the single line:
+  `As-Built comprehension currently supports TypeScript, Go, Java, and Python codebases; for other languages the legacy comprehension gate (mode: legacy) and the judge-only degraded mode remain available.`
 
 Template (between the markers; the markers themselves wrap it):
 
@@ -156,7 +159,7 @@ whitespace. Outside the markers, prime is read-only.
 
 ### 6. Report
 
-Summarize: created vs updated, the version/date stamped, TS or non-TS tailoring
+Summarize: created vs updated, the version/date stamped, supported-language or unsupported tailoring
 applied, which gates the section reports as enabled, and whether config scaffolding
 was run, offered-and-declined, or unnecessary. Suggest `/sdlc start` as the natural
 next step in a freshly-primed project.

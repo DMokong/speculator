@@ -81,10 +81,15 @@ gated("AC5 — tailoring matches the project", () => {
     expect(s).toContain("skeleton.ts");
     expect(s).toContain("call edges");
   });
-  test("non-TS project gets the TS-requirement note and no asbuilt how-to", () => {
+  test("unsupported-language project gets the supported-set note and no asbuilt how-to", () => {
     const s = fence(out("fx-nots/CLAUDE.md"));
-    expect(s).toContain("requires a TypeScript codebase");
+    expect(s).toContain("currently supports TypeScript, Go, Java, and Python");
     expect(s).not.toContain("mode: asbuilt");
+  });
+  test("Go project gets the full asbuilt block (SPEC-053)", () => {
+    const s = fence(out("fx-go/CLAUDE.md"));
+    expect(s).toContain("mode: asbuilt");
+    expect(s).toContain("comprehension-workflow.md");
   });
 });
 

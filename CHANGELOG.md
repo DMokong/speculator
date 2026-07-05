@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.15.0 — Multi-language as-built extraction: Go, Java, Python (2026-07-06)
+
+### Added
+- **Language-adapter registry** (`asbuilt/src/lang.ts`, SPEC-053) — graph extraction now supports **Go, Java, and Python** alongside TypeScript, using the grammar wasms already shipped in `tree-sitter-wasms` (no new dependencies). Each adapter is a thin mapping (definitions, names, owner composition, visibility rule, calls): Go exports by capitalization with receiver-owned `Type.Method` ids; Java by `public` modifier with constructor/method member ids; Python by the underscore convention with class-owned methods and function-local defs excluded. Mixed-language repos union into one manifest; per-language behavior is pinned by empirically-verified fixture snapshots, and a full Go end-to-end test drives extract → skeleton → check → verify → fold.
+- **Unsupported-repo notice** — extracting a repo with no supported-language sources reports the supported set and points at the judge-only degraded mode instead of failing silently.
+
+### Changed
+- **TypeScript output is byte-identical** to the 2.14.0 extractor (proven old-vs-new on a real repo: identical manifest bytes) — existing bundles and `graph_hash` pins are unaffected.
+- **`conceptPath`** appends `.md` to the full filename for non-TypeScript sources (`svc.go` → `svc.go.md`), preventing cross-language concept collisions (`api.ts` + `api.py`); TypeScript mapping unchanged.
+- **`/spec prime`** detects the full supported set (TS, Go, Java, Python) and only shows the unsupported-language note for repos outside it; the note now names the supported set.
+- **Comprehension rubric** gains a language-scope line: extraction facts are language-neutral; the measured judge-reliability record is TypeScript-only pending a non-TS calibration.
+
 ## 2.14.0 — /spec prime: teach a project's CLAUDE.md to use Speculator (2026-07-05)
 
 ### Added
