@@ -105,12 +105,12 @@ describe("Task 8: asbuilt-gate/SKILL.md", () => {
   });
 
   test("embeds the exact CLI invocations from Tasks 2/5/6/7", () => {
-    expect(text).toContain("bun scripts/asbuilt/src/extract.ts --target <repo>");
-    expect(text).toContain("bun scripts/asbuilt/src/slice.ts --target <repo> --manifest <path> --diff-range <range>");
+    expect(text).toContain("bun asbuilt/src/extract.ts --target <repo>");
+    expect(text).toContain("bun asbuilt/src/slice.ts --target <repo> --manifest <path> --diff-range <range>");
     expect(text).toContain(
-      "bun scripts/asbuilt/src/check.ts --manifest <p> --artifact <p> --target <repo> --diff-range <r>",
+      "bun asbuilt/src/check.ts --manifest <p> --artifact <p> --target <repo> --diff-range <r>",
     );
-    expect(text).toContain("bun scripts/asbuilt/src/evidence.ts --artifact <p> (--mechanical <p.json> | --graph-unavailable)");
+    expect(text).toContain("bun asbuilt/src/evidence.ts --artifact <p> (--mechanical <p.json> | --graph-unavailable)");
     expect(text).toContain("--per-dimension-minimum <n> --generator-model <s> --judge-model <s> --out <p>");
   });
 

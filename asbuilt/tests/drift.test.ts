@@ -7,11 +7,14 @@
 // drifting apart, on either side.
 //
 // Only the "CLI reference" bullet list at the top of SKILL.md spells out
-// invocations as literal `bun scripts/asbuilt/src/<tool>.ts ...` text; every
-// other runnable example in the doc uses the `$EXT/src/<tool>.ts` shorthand
-// (`EXT=scripts/asbuilt`, defined once near the top) and is therefore
-// invisible to this test's regex by construction — this test only polices
-// the one place where the literal, copy-pasteable path is spelled out.
+// invocations as literal `bun asbuilt/src/<tool>.ts ...` text (the bare,
+// repo-root-relative form each module's own CLI_USAGE constant exports);
+// every other runnable example in the doc invokes the same tools through
+// `bun ${CLAUDE_PLUGIN_ROOT}/asbuilt/src/<tool>.ts` and is therefore
+// invisible to this test's regex by construction (the `${CLAUDE_PLUGIN_ROOT}/`
+// prefix breaks the immediate "bun asbuilt/src/" adjacency the regex
+// requires) — this test only polices the one place where the literal,
+// copy-pasteable CLI_USAGE string is spelled out.
 
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
@@ -41,7 +44,7 @@ const USAGES = [
   SIGMA_STATS_USAGE,
 ];
 
-const INVOCATION_RE = /bun scripts\/asbuilt\/src\//;
+const INVOCATION_RE = /bun asbuilt\/src\//;
 
 /**
  * Pure drift comparator (AC9's "in-test mutation" helper). For every line in
