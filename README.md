@@ -284,6 +284,7 @@ Gate 3 runs three checks — all blocking on failure:
 | `/spec compact` | Compact closed specs into SYSTEM-SPEC.md (`--all` for bootstrap) |
 | `/spec status` | Cross-worktree pipeline view (all features at a glance) |
 | `/spec doctor` | Diagnostics + auto-fix (prereqs, config, hooks) |
+| `/spec prime` | Write a delimited, idempotent Speculator usage section into the project's CLAUDE.md (commands, gate model, as-built enablement — tailored to the project; re-run after upgrades) |
 
 ## `/spec run` — Autonomous Pipeline
 

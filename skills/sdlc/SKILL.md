@@ -4,9 +4,9 @@ description: >-
   Master orchestrator for the Speculator quality pipeline — routes all /sdlc and
   /spec commands to specialized sub-skills. Use when the user says "/sdlc" or "/spec"
   with any subcommand (start, score, gate, eval, status, implement, review, close, run,
-  compact, doctor), says "run the quality pipeline", "quality gates", "author evals",
-  "write evals", or just "/sdlc" or "/spec" with no args to see status. Both prefixes
-  are equivalent.
+  compact, doctor, prime), says "run the quality pipeline", "quality gates", "author
+  evals", "write evals", or just "/sdlc" or "/spec" with no args to see status. Both
+  prefixes are equivalent.
 ---
 
 # Speculator — Master Orchestrator
@@ -23,7 +23,7 @@ Before routing any subcommand, check if this session is on main but should be in
 4. If the user picks a worktree, set the worktree's absolute path as the base directory for all subsequent spec/evidence operations. Inform them: *"Operating against worktree `{name}`. For full isolation, consider launching a separate Claude Code session in this worktree."*
 5. Pass the resolved base path to whichever sub-skill handles the command.
 
-**Skip this preamble** for commands that don't need a spec: `/sdlc start`, `/sdlc doctor`.
+**Skip this preamble** for commands that don't need a spec: `/sdlc start`, `/sdlc doctor`, `/sdlc prime`.
 
 ## Routing
 
@@ -44,6 +44,7 @@ Based on the user's command, invoke the appropriate sub-skill. Both `/sdlc` and 
 | `/sdlc doctor` or `/spec doctor` | Run system diagnostics — invoke `sdlc-doctor` skill |
 | `/sdlc compact` or `/spec compact` | Bootstrap: process closed specs into SYSTEM-SPEC.md — invoke `spec-compact` skill |
 | `/sdlc eval` or `/spec eval` | Run eval authoring phase (Gate 2a) — invoke `eval-authoring` skill |
+| `/sdlc prime` or `/spec prime` | Prime the project's CLAUDE.md with a delimited Speculator usage section — invoke `sdlc-prime` skill |
 
 ## `/sdlc implement`
 

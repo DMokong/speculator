@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.14.0 — /spec prime: teach a project's CLAUDE.md to use Speculator (2026-07-05)
+
+### Added
+- **`sdlc-prime` skill** (`/sdlc prime` / `/spec prime`, SPEC-052) — writes a compact Speculator usage section into the target project's `CLAUDE.md` between stable marker comments (`<!-- speculator:prime:start -->` / `<!-- speculator:prime:end -->`): core commands, the gate model, comprehension as-built enablement, backfill workflow pointer, and operational cautions. Idempotent — re-runs replace only the fenced section and byte-preserve everything outside it; malformed markers stop the tool with a line-numbered report, never a guess. Tailors to the project: non-TypeScript targets get a TS-requirement note instead of as-built instructions; the section reflects which opt-in gates the project's config actually enables; a version/date stamp on the section's first line makes staleness visible after plugin upgrades. Config scaffolding is delegated to `sdlc-doctor --init` (single owner) — prime never emits config YAML.
+
+### Changed
+- **Master `sdlc` router** — routes the `prime` subcommand (both prefixes); `prime` joins `start`/`doctor` in the worktree-preamble skip list (it needs no spec). README Commands table lists it.
+
 ## 2.13.0 — As-Built comprehension mode: mechanically-validated citations, blinded judge, measured reliability (2026-07-05)
 
 ### Added
