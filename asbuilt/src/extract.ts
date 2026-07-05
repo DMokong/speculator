@@ -43,10 +43,13 @@ const EDGE_SOURCE_KINDS: ReadonlySet<string> = new Set(["function", "method", "c
 
 // git-tracked source files only, minus type-declaration files, vendored deps,
 // and our own test fixtures (which may contain source files that aren't part
-// of the target repo's real source graph). Deliberately unchanged by SPEC-053:
-// git ls-files already respects .gitignore, which covers venvs and vendor
-// trees in practice — new exclusions would risk perturbing existing TS output.
-const EXCLUDE_FILE_PATTERN = /\.d\.ts$|node_modules\/|^tests\/fixtures\//;
+// of the target repo's real source graph). SPEC-053 adds only the plugin-repo
+// layout's own fixture dir (asbuilt/tests/fixtures/ — the committed lang
+// fixtures are real Go/Java/Python sources that must not pollute the plugin's
+// own graph); no other exclusions changed — git ls-files already respects
+// .gitignore, which covers venvs and vendor trees in practice, and broader
+// exclusions would risk perturbing existing TS output.
+const EXCLUDE_FILE_PATTERN = /\.d\.ts$|node_modules\/|^tests\/fixtures\/|^asbuilt\/tests\/fixtures\//;
 
 function gitFiles(targetRepo: string, globs: string[]): string[] {
   const out = execFileSync("git", ["-C", targetRepo, "ls-files", "--", ...globs], {
