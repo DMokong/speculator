@@ -10,7 +10,7 @@
 
 A Claude Code plugin that enforces a 7-stage quality pipeline (4 required + 3 opt-in gates) on agentic development workflows with LLM-as-judge spec scoring, git worktree isolation, and in-repo evidence artifacts. *Spec + Evaluator = Speculator.*
 
-Speculator is being built toward an explicit goal: an **anti-dark-code pipeline** — a workflow that won't ship code unless intent, behavior, and comprehension can all be evidenced. Today it covers spec quality (Gate 1), eval intent (Gate 2a), code quality (Gate 2), eval quality (Gate 2b), comprehension (Gate 2c, experimental), code review (Gate 3), and evidence packaging (Gate 4). Gate 2c closes the last gap between *"tests pass"* and *"any human or agent could explain what shipped"* — its calibration corpus is the remaining open work. See [ROADMAP.md](ROADMAP.md).
+Speculator is being built toward an explicit goal: an **anti-dark-code pipeline** — a workflow that won't ship code unless intent, behavior, and comprehension can all be evidenced. Today it covers spec quality (Gate 1), eval intent (Gate 2a), code quality (Gate 2), eval quality (Gate 2b), comprehension (Gate 2c, experimental), code review (Gate 3), and evidence packaging (Gate 4). Gate 2c closes the last gap between *"tests pass"* and *"any human or agent could explain what shipped"* — its calibration corpus shipped in v2.12.0, and v2.13.0 added an opt-in As-Built mode with measured judge reliability (see `rubrics/comprehension.md` § As-Built mode). See [ROADMAP.md](ROADMAP.md).
 
 ## Prerequisites
 
@@ -248,7 +248,7 @@ Why pre-implementation? Catching letter-vs-spirit gaming requires measuring inte
 
 The anti-dark-code gate. The `comprehension-scorer` agent reads the spec and the diff **cold** — no access to the implementing agent's reasoning, plan, or in-session context (the implementing agent cannot be its own judge) — generates a per-AC explanation artifact naming the implementing code, then scores that artifact on 4 dimensions (AC coverage, accuracy, spec fidelity, scope containment). Spec fidelity is the dark-code detector: an implementation can satisfy every AC literally and still defeat the spec's intent (soft-delete where the spec demanded erasure). Default threshold: 7.0, per-dimension minimum 5. Disabled by default; enable with `gates.comprehension.enabled: true`.
 
-The artifact doubles as durable context: per-AC documentation answering *"why was this written this way?"* that the Gate 3 reviewer consumes as preamble. **Experimental** — the rubric's calibration corpus is still seed-stage, so treat scores as advisory until it's built out from real artifacts.
+The artifact doubles as durable context: per-AC documentation answering *"why was this written this way?"* that the Gate 3 reviewer consumes as preamble. **Experimental (legacy mode)** — the calibration corpus shipped in v2.12.0 (47 band-verified examples), but the legacy single-dispatch scorer has never been calibrated against it, so treat legacy-mode scores as advisory. The As-Built mode below is the measured path.
 
 **As-Built mode (opt-in, v2.13.0):** `gates.comprehension.mode: asbuilt` routes Gate 2c to a different instrument — a mechanically-validated citation gate (deterministic code-graph checks) plus a blinded judge that never sees the pass threshold. See `rubrics/comprehension.md`'s As-Built mode section for the measured reliability record. Default mode is `legacy` (above) — no behavior change unless you opt in:
 
@@ -312,11 +312,13 @@ Spec quality determines how much human oversight is needed:
 
 Self-improvement is a core principle of the Speculator pipeline, not an afterthought.
 
-The self-improvement trigger (default **8.0**) is intentionally set **higher** than the Full Auto threshold (default **7.8**). This gap is by design:
+The self-improvement trigger (built-in fallback **8.0**) is intentionally set **higher** than the Full Auto threshold (built-in fallback **7.8**). This gap is by design:
 
 - **>= 8.0 on first pass** — Spec was excellent. Skip self-improvement, proceed to Full Auto.
 - **< 8.0** — Self-improvement loop triggers. The agent reads scorer feedback, revises weak sections, and re-scores (up to 3 attempts).
   - **Reaches >= 7.8** — Good enough for Full Auto after refinement.
+
+> **Note:** the values above are the built-in fallbacks used when a project config has no `run:` block. `spec doctor --init` generates configs with **8.5 / 8.3** — thresholds sized to the scorer's measured test-retest sigma (v2.12.0; see `benchmarks/results/test-retest-sigma.yml`).
   - **Exhausted, >= 7.0** — Falls back to Guided Autopilot (human reviews plan and final output).
   - **Exhausted, < 7.0** — Pipeline stops. Human rework needed.
 
@@ -446,8 +448,8 @@ close:
 
 # /spec run autonomy thresholds
 run:
-  self_improvement_trigger: 8.0  # score below this triggers refinement loop
-  full_auto_threshold: 7.8       # minimum score for autonomous execution
+  self_improvement_trigger: 8.5  # score below this triggers refinement loop (sized to measured scorer sigma, v2.12.0)
+  full_auto_threshold: 8.3       # minimum score for autonomous execution
   guided_threshold: 7.0           # minimum score for guided mode (below = stop)
   max_spec_retries: 3             # max self-improvement attempts
   max_code_retries: 3             # max test-fix attempts in Gate 2
@@ -512,14 +514,17 @@ speculator/
 │   ├── sdlc-close/SKILL.md          # /spec close    — Gate 4 evidence + delivery + SYSTEM-SPEC compaction
 │   ├── sdlc-status/SKILL.md         # /spec status   — cross-worktree pipeline view
 │   ├── sdlc-doctor/SKILL.md         # /spec doctor   — diagnostics + auto-fix
-│   └── spec-compact/SKILL.md        # /spec compact  — bootstrap or single-spec compaction
-├── agents/                          # 6 agents
+│   ├── spec-compact/SKILL.md        # /spec compact  — bootstrap or single-spec compaction
+│   └── asbuilt-gate/SKILL.md        # As-Built shadow-gate orchestration (Gate 2c mode: asbuilt) (v2.13.0)
+├── agents/                          # 8 agents
 │   ├── spec-scorer/AGENT.md         # Gate 1 LLM-as-judge for spec quality + impact validation
 │   ├── eval-intent-scorer/AGENT.md  # Gate 2a — scores authored evals (4 dims) + SYSTEM-SPEC conflict + regression check
 │   ├── eval-quality-scorer/AGENT.md # Gate 2b — scores test suites as detection instruments (7 dims)
 │   ├── comprehension-scorer/AGENT.md # Gate 2c — cold-read per-AC artifact generation + scoring (4 dims)
 │   ├── code-reviewer/AGENT.md       # Gate 3 — 6-point review + mandatory secrets scan + skill-description eval
-│   └── spec-compactor/AGENT.md      # Folds closed specs into SYSTEM-SPEC.md
+│   ├── spec-compactor/AGENT.md      # Folds closed specs into SYSTEM-SPEC.md
+│   ├── asbuilt-generator/AGENT.md   # Gate 2c As-Built mode — cold-read artifact generator (never scores) (v2.13.0)
+│   └── asbuilt-judge/AGENT.md       # Gate 2c As-Built mode — blinded judge (never sees thresholds) (v2.13.0)
 ├── rubrics/                         # 9 rubrics
 │   ├── spec-quality.md              # Gate 1 — 6-dimension rubric (completeness, clarity, testability, intent_verifiability, feasibility, scope)
 │   ├── impact-awareness.md          # Gate 1 sub-validation — impact mismatch decision matrix

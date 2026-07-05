@@ -20,7 +20,7 @@ Jones proposed three fixes. Speculator's pipeline maps to all three:
 | Jones's fix | Speculator gate | Status |
 |-------------|------------------|--------|
 | **Spec-driven dev** — comprehension lives in the spec | Gate 1 (Spec Quality) + Gate 2a (Eval Intent) | ✅ Shipped |
-| **Comprehension gates** — PRs blocked unless human can explain what the code does | **Gate 2c (Comprehension Gate)** | ✅ **Shipped experimental (2026-06-12), opt-in, default off — calibration corpus is the open work** |
+| **Comprehension gates** — PRs blocked unless human can explain what the code does | **Gate 2c (Comprehension Gate)** | ✅ **Shipped experimental 2026-06-12; corpus shipped v2.12.0; measured As-Built mode shipped v2.13.0 (opt-in `mode: asbuilt`)** |
 | **Context engineering** — failure modes + why-wired-this-way on high-risk modules | Gate 2c artifact (durable per-AC explanation, not just a gate) | 🚧 Same artifact, dual purpose |
 
 Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass while testing the wrong thing — and was always **Phase 1 of a two-phase anti-dark-code expansion**. Gate 2c is **Phase 2**.
@@ -42,7 +42,7 @@ Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass whi
 | Required 4-gate pipeline (Spec / Code / Review / Evidence) | ✅ Shipped, dogfooded on Speculator's own SPECs |
 | Gate 2a — Eval Intent (pre-implementation) | ✅ Shipped v2.8.0, opt-in |
 | Gate 2b — Eval Quality (post-implementation) — *Anti-dark-code Phase 1* | ✅ Shipped v2.7.0, opt-in |
-| **Gate 2c — Comprehension Gate** — *Anti-dark-code Phase 2* | ✅ Shipped 2026-06-12, opt-in + experimental (calibration corpus pending) |
+| **Gate 2c — Comprehension Gate** — *Anti-dark-code Phase 2* | ✅ Shipped 2026-06-12 (experimental) → graduated via As-Built mode v2.13.0 (measured: calibration divergence 0.5, sigma 0.162) |
 | Gate 3 — Mandatory secrets scan | ✅ Shipped v2.5.0, 25/25 fixture tests passing |
 | Gate 3 — Skill description eval | ✅ Shipped v2.6.0 |
 | `/sdlc run` autonomous orchestrator with trust ladder | ✅ Shipped v1.3.0, refined through v2.x |
@@ -55,11 +55,11 @@ Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass whi
 
 ---
 
-## Gate 2c: Comprehension Gate — shipped experimental (calibration corpus open)
+## Gate 2c: Comprehension Gate — shipped experimental; As-Built mode graduated (v2.13.0)
 
 **Goal:** close the dark-code pathway between "tests pass" and "code ships." The comprehension agent reads the spec + diff *cold* (no access to the implementing agent's reasoning — the implementing agent cannot be its own judge), generates a per-AC explanation artifact, then scores it.
 
-**Status:** wired and shipped 2026-06-12 as an opt-in experimental gate (`gates.comprehension.enabled: true`, default off, global flag — risk-level binding deferred to v3, see backlog). **The remaining open item is the calibration corpus** — the rubric ships with seed examples only; it needs 10–15 calibrated examples per dimension, seeded from real artifacts, before the gate's scores graduate from advisory-quality.
+**Status:** wired and shipped 2026-06-12 as an opt-in experimental gate (`gates.comprehension.enabled: true`, default off, global flag — risk-level binding deferred to v3, see backlog). **Update (v2.12.0–v2.13.0):** the calibration corpus shipped in v2.12.0 (47 band-verified examples), and v2.13.0 shipped `gates.comprehension.mode: asbuilt` — a split generator/blinded-judge instrument with mechanically validated citations whose reliability has been measured against that corpus (calibration mean divergence 0.5, no `needs_tuning` flags, test-retest sigma 0.162; see `rubrics/comprehension.md` § As-Built mode). The legacy single-dispatch scorer remains uncalibrated and advisory. Remaining measurement follow-ups (band-edge sigma, human anchoring of the accuracy subset, 9-10-band coverage) are tracked in the consuming project's issue tracker.
 
 The artifact has dual value:
 - **As a gate** — catches dark code (implementations that satisfy tests while missing spec intent).
@@ -119,7 +119,7 @@ The agent code was mostly mechanical, as predicted. **Calibration is the remaini
 
 The "does this actually work?" question now has its first controlled data:
 
-- **Test-retest sigma study** (`benchmarks/results/test-retest-sigma.yml`): scorer sigma 0.18–0.24 on polished specs, 0.86 on a rough draft. The trust ladder's old 0.2 full-auto band gap was inside noise — this repo's config moved to `full_auto_threshold: 8.3` / `self_improvement_trigger: 8.5`. **Open decision:** the consumer-facing doctor template still ships 7.8/8.0 defaults.
+- **Test-retest sigma study** (`benchmarks/results/test-retest-sigma.yml`): scorer sigma 0.18–0.24 on polished specs, 0.86 on a rough draft. The trust ladder's old 0.2 full-auto band gap was inside noise — this repo's config moved to `full_auto_threshold: 8.3` / `self_improvement_trigger: 8.5`. **Resolved (v2.12.0):** the doctor `--init` template ships 8.3/8.5 defaults sized to the measured sigma.
 - **Feedback-vs-control ablation** (`benchmarks/results/feedback-vs-control-ablation.yml`): paired arms, n=3, pinned scorer, production rubric. Feedback: mean lift +2.23, 3/3 passed in one iteration. Control (generic revision): +0.63, 0/3 passed in three. **Scorer feedback content — not revision compute — drives the lift.** This replaces the uncontrolled 18-point claim as the citable evidence.
 - **Outcome matrix** (spec score → implementation quality): in flight on the repaired harness (configurable judge timeouts, per-target error isolation, real token accounting). This is the thesis's remaining open link.
 
