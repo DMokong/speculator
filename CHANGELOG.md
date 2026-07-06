@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.17.1 — refresh clears exhausted changed: stale flags (2026-07-07)
+
+Bugfix (SPEC-055, claw-dkxq — latent trap found in SPEC-054's review): a `changed:`-shaped stale flag whose recorded ids are all dead (absent from the manifest) with no `explains` drift now clears on refresh — staleness for that family is a pure function of current facts, not a latch only fold's incidental write behavior could reset. A changed-id still present in the manifest stays carried until re-audit (by design, boundary-pinned); `source removed` and hand-set reasons pass through untouched. No CLI, schema, or output-format changes.
+
+First release gated by the v2.17.0 all-gates-on pipeline end to end (Gate 2c blocking: 8.9).
+
 ## 2.17.0 — All seven gates on by default for new projects (2026-07-06)
 
 The `doctor --init` template now generates every gate enabled — the three optional gates (2a eval-intent, 2b eval-quality, 2c comprehension) ship `enabled: true` instead of commented out, with Gate 2c defaulting to `mode: asbuilt` (the validated instrument; requires bun, which the doctor already checks). Disable any optional gate with `enabled: false`.
