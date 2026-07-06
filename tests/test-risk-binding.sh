@@ -165,6 +165,45 @@ EOF
 assert_run "2a evidence without weights still verifies (legacy schema)" 0 "$D"
 assert_out  "weights-less 2a file skips recomputation (the pre-SPEC-057 gap)" "gate-2a-eval-intent\.yml: no weights recorded"
 
+CFG_2B_ON='  eval-quality:
+    enabled: true'
+D="$TMPROOT/c8c"; fixture "$D" "$CFG_2B_ON" "medium"
+cat > "$D/docs/specs/fx/evidence/gate-2b-eval-quality.yml" << 'EOF'
+gate: eval-quality
+result: pass
+dimensions:
+  ac_coverage: 7
+  behavioral_specificity: 6
+  intent_fidelity: 7
+  sensitivity: 6
+  scenario_completeness: 6
+  assertion_density: 8
+  test_independence: 8
+weights:
+  ac_coverage: 0.20
+  behavioral_specificity: 0.15
+  intent_fidelity: 0.20
+  sensitivity: 0.15
+  scenario_completeness: 0.10
+  assertion_density: 0.10
+  test_independence: 0.10
+overall: 6.8
+threshold: 6.5
+per_dimension_minimum: 4
+EOF
+assert_run "2b evidence with recorded weights verifies clean" 0 "$D"
+assert_out  "2b overall recomputed from recorded weights (no skip)" "gate-2b-eval-quality\.yml: recorded overall 6\.8 matches recomputed"
+assert_not_out "no 'no weights recorded' skip for the weights-bearing 2b file" "gate-2b-eval-quality\.yml: no weights recorded"
+
+echo "=== Case 9 (R1): empty allowlist -> gate never runs (legal; doctor lint owns the nudge) ==="
+CFG_EMPTY='  comprehension:
+    enabled: true
+    risk_levels: []'
+D="$TMPROOT/c9"; fixture "$D" "$CFG_EMPTY" "critical"
+assert_run "empty risk_levels binds out every level (even critical)" 0 "$D"
+assert_out  "empty-list skip recorded as risk binding" "skipped by risk binding"
+assert_not_out "no missing-evidence warn under an empty allowlist" "evidence file is missing"
+
 echo
 echo "=== Results ==="
 echo "Passed: $PASSED  Failed: $FAILED"
