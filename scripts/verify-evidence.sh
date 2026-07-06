@@ -28,6 +28,12 @@
 #     file may record `result: n/a` (e.g. gate enabled post-closure, with rationale).
 #     (Gate 2c also accepts gate-2c-asbuilt.yml in place of gate-2c-comprehension.yml
 #     when gates.comprehension.mode: asbuilt is configured — SPEC-051 T3.)
+#   - risk-level binding (SPEC-057, lib/gates.md "Risk-level binding"): when an
+#     opt-in gate block carries a `risk_levels:` allowlist and the spec's
+#     frontmatter risk_level (default medium) is not in it, the gate is bound
+#     out — its absent evidence is legitimate (no WARN, even with --strict).
+#     Out-of-enum spec risk_level is fail-safe: gate treated active, WARN names it.
+#     `enabled: false` keeps a gate off regardless of risk_levels.
 #
 # Usage: scripts/verify-evidence.sh [--strict] <spec-dir>
 #   e.g. scripts/verify-evidence.sh docs/specs/my-feature
@@ -327,6 +333,20 @@ def check_gate2(name, data):
          "(looked for: test_command, test_commands, commands, command, rationale, notes)")
 
 
+RISK_ENUM = ("low", "medium", "high", "critical")
+
+
+def spec_effective_risk(spec_dir):
+    """Spec frontmatter risk_level; 'medium' when absent (the pipeline-wide
+    default); None when out-of-enum (caller treats None as fail-safe-active
+    and warns). See lib/gates.md 'Risk-level binding' (SPEC-057)."""
+    fm = load_frontmatter(os.path.join(spec_dir, "spec.md")) or {}
+    rl = str(fm.get("risk_level") or "").strip().lower()
+    if not rl:
+        return "medium"
+    return rl if rl in RISK_ENUM else None
+
+
 config = load_frontmatter(config_path) or {}
 evidence_dirname = config.get("evidence_dir") or "evidence"
 ev_dir = os.path.join(spec_dir, evidence_dirname)
@@ -363,6 +383,19 @@ for gate_name, fname, kind, alt_fname in (
         ("comprehension", "gate-2c-comprehension.yml", "scorecard", "gate-2c-asbuilt.yml")):
     g = gates_cfg.get(gate_name)
     enabled = isinstance(g, dict) and bool(g.get("enabled"))
+    # SPEC-057 risk binding (lib/gates.md "Risk-level binding"): enabled +
+    # risk_levels allowlist. Binding refines `enabled` — it never re-activates
+    # enabled: false. Absent list = active for all levels. Fail-safe:
+    # out-of-enum spec risk_level => gate treated active.
+    bound_out = False
+    rls = g.get("risk_levels") if isinstance(g, dict) else None
+    if enabled and isinstance(rls, list):
+        spec_risk = spec_effective_risk(spec_dir)
+        if spec_risk is None:
+            warn(f"{gate_name}: spec risk_level is not one of {'/'.join(RISK_ENUM)} — "
+                 "fail-safe: treating gate as active")
+        else:
+            bound_out = spec_risk not in [str(x).strip().lower() for x in rls]
     path = os.path.join(ev_dir, fname)
     alt_path = os.path.join(ev_dir, alt_fname) if alt_fname else None
     # Prefer the primary filename; fall back to the alt (mode-specific) file
@@ -372,6 +405,10 @@ for gate_name, fname, kind, alt_fname in (
         active_fname, active_path = alt_fname, alt_path
     names = fname if alt_fname is None else f"{fname} or {alt_fname}"
     if not enabled and not os.path.isfile(active_path):
+        continue
+    if bound_out and not os.path.isfile(active_path):
+        ok(f"{names}: skipped by risk binding (spec risk_level not in "
+           f"gates.{gate_name}.risk_levels) — absent evidence is legitimate")
         continue
     if enabled and not os.path.isfile(active_path):
         msg = (f"{names}: gates.{gate_name}.enabled is true in {config_path} "
