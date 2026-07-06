@@ -77,7 +77,7 @@ If SYSTEM-SPEC.md exists:
 
 ### Step 5: Calculate score and write output
 
-Calculate the weighted overall score using the dimension weights from the project config if it defines them, otherwise the Default Weights table in `${CLAUDE_PLUGIN_ROOT}/rubrics/eval-intent.md` (read in Step 1). Do not hardcode weights in this prompt — the rubric and config are the single source of truth.
+Calculate the weighted overall score using the dimension weights from the project config if it defines them, otherwise the Default Weights table in `${CLAUDE_PLUGIN_ROOT}/rubrics/eval-intent.md` (read in Step 1). Do not hardcode weights in this prompt — the rubric and config are the single source of truth. Record the weights you actually used in the scorecard's `weights:` block — this makes the overall mechanically recomputable by `scripts/verify-evidence.sh` (mirroring the Gate 1 spec-scorer contract).
 
 Write the completed scorecard to `{spec_dir}/{spec_name}/evidence/gate-2a-eval-intent.yml`.
 
@@ -96,6 +96,11 @@ dimensions:
   anti_pattern_detection: {1-10}
   journey_completeness: {1-10}
   implementation_independence: {1-10}
+weights:                    # the weights actually used (config override or rubric defaults) —
+  intent_coverage: {0-1}    # makes `overall` mechanically recomputable by verify-evidence.sh
+  anti_pattern_detection: {0-1}
+  journey_completeness: {0-1}
+  implementation_independence: {0-1}
 overall: {weighted average, 1 decimal}
 threshold: {from config, default 6.5}
 per_dimension_minimum: {from config, default 4}

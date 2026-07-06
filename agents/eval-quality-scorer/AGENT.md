@@ -33,7 +33,7 @@ You will be told:
    - If no test files found: emit a blocking flag "no test files found" and write a fail scorecard
 5. For each acceptance criterion, find the test(s) that map to it (by name, comment, or logical inference)
 6. Score each of the 7 dimensions against the rubric criteria
-7. Calculate the weighted overall score
+7. Calculate the weighted overall score, and record the weights you actually used in the scorecard's `weights:` block (makes the overall mechanically recomputable by `scripts/verify-evidence.sh`, mirroring the Gate 1 spec-scorer contract)
 8. Determine pass/fail against the threshold
 9. Categorize flags into blocking, recommended, and advisory
 10. Write the completed scorecard to the spec's evidence directory
@@ -76,6 +76,14 @@ dimensions:
   scenario_completeness: {1-10}
   assertion_density: {1-10}
   test_independence: {1-10}
+weights:                    # the weights actually used (config override or rubric defaults) —
+  ac_coverage: {0-1}        # makes `overall` mechanically recomputable by verify-evidence.sh
+  behavioral_specificity: {0-1}
+  intent_fidelity: {0-1}
+  sensitivity: {0-1}
+  scenario_completeness: {0-1}
+  assertion_density: {0-1}
+  test_independence: {0-1}
 overall: {weighted average, 1 decimal}
 threshold: {from config, default 6.5}
 per_dimension_minimum: {from config, default 4}
