@@ -67,4 +67,11 @@ describe("SPEC-052 R2/R4/R6 — skill contracts pinned verbatim", () => {
   test("read-only outside the fence", () => {
     expect(skill).toContain("Outside the markers, prime is read-only");
   });
+
+  test("skeleton caution wording is pinned in lockstep with the --force guard (SPEC-054 AC4)", () => {
+    // The caution spans a line break in the template; pin its two stable fragments.
+    expect(skill).toContain("it refuses without --force");
+    expect(skill).toContain("forcing destroys audited prose");
+    expect(skill).toContain("update with refresh.ts ALONE");
+  });
 });
