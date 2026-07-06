@@ -53,6 +53,14 @@ If the file's indentation deviates from the default layout, read the frontmatter
 - **WARN**: weights sum to anything else — report the actual sum: `⚠️ scoring weights sum to {sum} (expected 1.0) — Gate 1 overall scores will be skewed; fix scoring.weights in .claude/sdlc.local.md`
 - If `scoring.weights` is absent entirely, the plugin defaults apply — no warning.
 
+**Config lint — risk_levels** (run when `sdlc.local.md` is present; predicate reference: `lib/gates.md` "Risk-level binding"). Read every `gates.*` block that defines a `risk_levels:` key and WARN on each of these, naming the offending gate:
+
+- **Out-of-enum value**: any entry not in `{low, medium, high, critical}` — `⚠️ gates.{gate}.risk_levels contains unrecognized value '{value}' — the gate will fail-safe to active for specs it cannot classify; fix the typo (valid: low, medium, high, critical)`
+- **Empty list** (`risk_levels: []`): the gate never runs — `⚠️ gates.{gate}.risk_levels is an empty list (the gate never runs) — use enabled: false if you mean to turn the gate off`
+- **On a required-gate block** (`spec-quality`, `code-quality`, `review`, `evidence-package`): inert — `⚠️ gates.{gate}.risk_levels has no effect: required gates have no enable switch and always run`
+
+A clean config — `risk_levels` only on opt-in gate blocks, values in-enum, non-empty — produces no warnings. Absent `risk_levels` keys are fine (the gate runs at every risk level).
+
 ### 3. Plugin Wiring
 
 The SDLC plugin being loaded is self-evident — if `/sdlc doctor` is running, the plugin is installed and all skills are registered.
@@ -238,18 +246,21 @@ gates:
   evidence-package:
     required: true
 
-  # --- Optional gates (enabled by default since v2.17.0; disable with `enabled: false`) ---
+  # --- Optional gates (enabled by default since v2.17.0; risk-bound by default since v2.18.0; disable with `enabled: false`) ---
   eval-intent:                # Gate 2a: pre-implementation intent capture (v2.8.0)
     enabled: true
+    risk_levels: [medium, high, critical]   # runs only for these spec risk levels; remove to run at every level
     threshold: 6.5
     per_dimension_minimum: 4
     max_eval_retries: 3
   eval-quality:               # Gate 2b: post-implementation eval-quality scoring (v2.7.0)
     enabled: true
+    risk_levels: [medium, high, critical]   # runs only for these spec risk levels; remove to run at every level
     threshold: 6.5
     per_dimension_minimum: 4
   comprehension:              # Gate 2c: as-built comprehension gate (requires bun — https://bun.sh)
     enabled: true
+    risk_levels: [medium, high, critical]   # runs only for these spec risk levels; remove to run at every level
     mode: asbuilt             # validated instrument; `legacy` needs no bun but is uncalibrated
     threshold: 7.0
     per_dimension_minimum: 5
@@ -292,10 +303,15 @@ run:
 This file configures the Speculator plugin for this project. Edit the YAML
 frontmatter above to adjust thresholds, weights, and which gates run.
 
-## Optional gates (enabled by default)
+## Optional gates (enabled by default, risk-bound by default)
 
 Three gates ship enabled by default (since v2.17.0) and are turned off by
-setting `enabled: false` on their blocks under `gates:`:
+setting `enabled: false` on their blocks under `gates:`. Since v2.18.0 each
+block also ships a `risk_levels: [medium, high, critical]` allowlist: the
+gate runs only when the spec's frontmatter `risk_level` (default `medium`)
+is in the list, so low-risk specs skip the optional gates' latency by
+default. Remove the `risk_levels` line to run a gate at every risk level;
+`enabled: false` always wins over any allowlist:
 
 - **Gate 2a — Eval Intent** (`eval-intent`): pre-implementation intent
   capture. For each AC, you author an eval in `docs/specs/{feature}/evals/`
