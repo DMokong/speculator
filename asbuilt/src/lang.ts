@@ -24,6 +24,12 @@ export interface LangContext {
 
 export const ROOT_CONTEXT: LangContext = { owner: null, insideCallable: false };
 
+export interface Callee {
+  name: string;
+  /** true when the callee was reached through member/attribute access (method-style call). */
+  method: boolean;
+}
+
 export interface LanguageAdapter {
   name: string;
   /** git ls-files patterns for this language's sources. */
@@ -43,7 +49,7 @@ export interface LanguageAdapter {
   /** Child context when descending past this node. */
   descend(node: Parser.SyntaxNode, ctx: LangContext): LangContext;
   /** Node types that represent calls, and how to read the callee's bare name. */
-  calls: { types: string[]; callee(node: Parser.SyntaxNode): string };
+  calls: { types: string[]; callee(node: Parser.SyntaxNode): Callee | null };
 }
 
 // ---------------------------------------------------------------------------
@@ -97,11 +103,12 @@ const typescript: LanguageAdapter = {
     types: ["call_expression"],
     callee(call) {
       const fn = call.childForFieldName("function");
-      return fn?.type === "identifier"
-        ? fn.text
-        : fn?.type === "member_expression"
-          ? (fn.childForFieldName("property")?.text ?? "")
-          : "";
+      if (fn?.type === "identifier") return { name: fn.text, method: false };
+      if (fn?.type === "member_expression") {
+        const name = fn.childForFieldName("property")?.text ?? "";
+        return name ? { name, method: true } : null;
+      }
+      return null;
     },
   },
 };
@@ -167,11 +174,12 @@ const go: LanguageAdapter = {
     types: ["call_expression"],
     callee(call) {
       const fn = call.childForFieldName("function");
-      return fn?.type === "identifier"
-        ? fn.text
-        : fn?.type === "selector_expression"
-          ? (fn.childForFieldName("field")?.text ?? "")
-          : "";
+      if (fn?.type === "identifier") return { name: fn.text, method: false };
+      if (fn?.type === "selector_expression") {
+        const name = fn.childForFieldName("field")?.text ?? "";
+        return name ? { name, method: true } : null;
+      }
+      return null;
     },
   },
 };
@@ -226,7 +234,10 @@ const java: LanguageAdapter = {
   calls: {
     types: ["method_invocation"],
     callee(call) {
-      return call.childForFieldName("name")?.text ?? "";
+      const name = call.childForFieldName("name")?.text ?? "";
+      if (!name) return null;
+      // an explicit receiver (obj.m()) is member access; a bare in-class call m() is not
+      return { name, method: call.childForFieldName("object") !== null };
     },
   },
 };
@@ -270,11 +281,12 @@ const python: LanguageAdapter = {
     types: ["call"],
     callee(call) {
       const fn = call.childForFieldName("function");
-      return fn?.type === "identifier"
-        ? fn.text
-        : fn?.type === "attribute"
-          ? (fn.childForFieldName("attribute")?.text ?? "")
-          : "";
+      if (fn?.type === "identifier") return { name: fn.text, method: false };
+      if (fn?.type === "attribute") {
+        const name = fn.childForFieldName("attribute")?.text ?? "";
+        return name ? { name, method: true } : null;
+      }
+      return null;
     },
   },
 };

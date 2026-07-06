@@ -132,18 +132,24 @@ function simpleName(id: string): string {
 interface RawEdge {
   from: string;
   toName: string;
+  method: boolean;
 }
 
 function dedupeEdges(rawEdges: RawEdge[]): RawEdge[] {
-  const seen = new Set<string>();
-  const result: RawEdge[] = [];
+  const byKey = new Map<string, RawEdge>();
   for (const edge of rawEdges) {
     const key = `${edge.from}\0${edge.toName}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(edge);
+    const existing = byKey.get(key);
+    if (existing) {
+      // One bare-identifier occurrence proves the callee is a plain function in
+      // scope; the method-style restriction applies only when EVERY occurrence
+      // was method-style.
+      if (!edge.method) existing.method = false;
+    } else {
+      byKey.set(key, { ...edge });
+    }
   }
-  return result;
+  return [...byKey.values()];
 }
 
 export async function extractGraph(targetRepo: string): Promise<GraphManifest> {
@@ -182,8 +188,8 @@ export async function extractGraph(targetRepo: string): Promise<GraphManifest> {
       if (!EDGE_SOURCE_KINDS.has(kind)) return;
       for (const callType of adapter.calls.types) {
         for (const call of node.descendantsOfType(callType)) {
-          const toName = adapter.calls.callee(call);
-          if (toName) rawEdges.push({ from: id, toName });
+          const callee = adapter.calls.callee(call);
+          if (callee) rawEdges.push({ from: id, toName: callee.name, method: callee.method });
         }
       }
     });
@@ -207,7 +213,19 @@ export async function extractGraph(targetRepo: string): Promise<GraphManifest> {
       const fromFile = e.from.split("#")[0];
       const sameFile = (byName.get(e.toName) ?? []).filter((id) => id.startsWith(`${fromFile}#`));
       const candidates = sameFile.length ? sameFile : (byName.get(e.toName) ?? []);
-      const resolved = candidates.length === 1 ? candidates[0] : sameFile.length === 1 ? sameFile[0] : null;
+      // claw-cs26: a method-style callee's receiver type is unprovable here, so a
+      // cross-file bare-name match is a guess (Semaphore.release vs pg
+      // PoolClient.release). Method-style callees resolve same-file only;
+      // bare-identifier callees keep same-file-then-global-unique resolution.
+      const resolved = e.method
+        ? sameFile.length === 1
+          ? sameFile[0]
+          : null
+        : candidates.length === 1
+          ? candidates[0]
+          : sameFile.length === 1
+            ? sameFile[0]
+            : null;
       return { from: e.from, toName: e.toName, resolved };
     })
     .sort((a, b) => {

@@ -139,6 +139,15 @@ describe("SPEC-053 AC5 — mixed-language union", () => {
   });
 });
 
+test("collision: method-style callees never resolve cross-file (claw-cs26)", async () => {
+  const m = await extractGraph(stage("collision"));
+  expect(edgeRows(m)).toEqual([
+    { from: "pool.ts#Pool.drain", toName: "helper", resolved: "util.ts#helper" }, // identifier, cross-file unique: still resolves
+    { from: "pool.ts#Pool.drain", toName: "tidy", resolved: "pool.ts#Pool.tidy" }, // method, same-file unique: still resolves
+    { from: "pool.ts#connect", toName: "release", resolved: null }, // method, only candidate is cross-file: null (was the false edge)
+  ]);
+});
+
 describe("SPEC-053 — unsupported-only repo names the supported set", () => {
   test("empty discovery, and the CLI says so instead of failing silently", () => {
     const dir = mkdtempSync(join(tmpdir(), "lang-none-"));
