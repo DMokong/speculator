@@ -209,7 +209,14 @@ function renderConceptContent(
   const resource = typeof p.frontmatter.resource === "string" ? p.frontmatter.resource : "";
   const matchingSymbols = allCitedSymbols.filter((sym) => sym.split("#")[0] === resource);
   const existingExplains = Array.isArray(p.frontmatter.explains) ? p.frontmatter.explains.map(String) : [];
-  const explains = [...new Set([...existingExplains, ...matchingSymbols])].sort();
+  // claw-nybt: ids absent from the committed manifest are dead — their symbol was
+  // deleted — and retaining them keeps refresh flagging the concept stale forever
+  // (no re-audit can clear it). Manifest-present ids all survive, so a partial
+  // re-audit never shrinks live coverage. With no manifest on disk there is
+  // nothing to validate against: the merge is preserved unchanged.
+  const merged = [...new Set([...existingExplains, ...matchingSymbols])].sort();
+  const manifestIds = graphManifest ? new Set(graphManifest.symbols.map((s) => s.id)) : null;
+  const explains = manifestIds ? merged.filter((id) => manifestIds.has(id)) : merged;
 
   const existingFrom = Array.isArray(p.frontmatter.from) ? p.frontmatter.from.map(String) : [];
   const from = existingFrom.includes(opts.specId) ? existingFrom : [...existingFrom, opts.specId];

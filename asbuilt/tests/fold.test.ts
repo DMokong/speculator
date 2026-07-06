@@ -7,6 +7,7 @@ import { join, relative } from "node:path";
 import { parse } from "yaml";
 import { extractGraph } from "../src/extract";
 import { fold } from "../src/fold";
+import { saveManifest } from "../src/manifest";
 import { generateBundle } from "../src/skeleton";
 import { verifyBundle } from "../src/verify";
 
@@ -21,6 +22,11 @@ function ev(name: string): string {
 // Computed once — generateBundle (called fresh per test below) is a pure,
 // cheap function of this manifest.
 const manifest = await extractGraph(FIXTURE);
+
+// claw-nybt: the src/alpha.ts symbol cited by fixtures/evidence/pass-artifact.yml's
+// sole comprehension_entries code_location ("src/alpha.ts#alphaMain") — used below
+// as the id we simulate deleting from the committed manifest.
+const DEAD_ID = "src/alpha.ts#alphaMain";
 
 const tmpDirs: string[] = [];
 function freshBundle(): string {
@@ -452,6 +458,36 @@ describe("Unreadable evidence file produces a refusal, not a raw ENOENT", () => 
     expect(result.exitCode).toBe(1);
     expect(result.stderr.toString("utf8")).toContain("refusing to fold: cannot read");
     expect(result.stderr.toString("utf8")).not.toContain("ENOENT");
+  });
+});
+
+describe("claw-nybt: explains dead-id reconciliation", () => {
+  test("re-fold drops explains ids absent from the committed manifest", async () => {
+    const dir = freshBundle();
+    // manifest present on disk -> fold filters against it
+    saveManifest(join(dir, "docs/asbuilt/.graph-manifest.json"), manifest);
+    await fold({ evidencePath: ev("pass-evidence.yml"), targetRepo: dir, specId: "SPEC-T1", provenance: "fully-audited", date: "2026-07-06" });
+    const before = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(before.explains).toContain(DEAD_ID); // DEAD_ID = the cited id you chose as B
+
+    // symbol B is deleted from the code: prune it from the committed manifest
+    const pruned = { ...manifest, symbols: manifest.symbols.filter((s) => s.id !== DEAD_ID) };
+    saveManifest(join(dir, "docs/asbuilt/.graph-manifest.json"), pruned);
+
+    await fold({ evidencePath: ev("pass-evidence.yml"), targetRepo: dir, specId: "SPEC-T1", provenance: "fully-audited", date: "2026-07-06" });
+    const after = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(after.explains).not.toContain(DEAD_ID);
+    // every OTHER previously-present id survives (partial-audit safety)
+    for (const id of (before.explains as string[]).filter((i) => i !== DEAD_ID)) {
+      expect(after.explains).toContain(id);
+    }
+  });
+
+  test("no manifest on disk -> merge behavior unchanged (dead id retained)", async () => {
+    const dir = freshBundle(); // no .graph-manifest.json written
+    await fold({ evidencePath: ev("pass-evidence.yml"), targetRepo: dir, specId: "SPEC-T1", provenance: "fully-audited", date: "2026-07-06" });
+    const fm = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(fm.explains).toContain(DEAD_ID); // preserved: nothing to validate against
   });
 });
 
