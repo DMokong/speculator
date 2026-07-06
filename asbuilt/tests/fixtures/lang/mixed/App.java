@@ -23,3 +23,8 @@ class Internal {
 interface Api {
     void serve();
 }
+
+public enum Mode {
+    FAST,
+    SLOW
+}

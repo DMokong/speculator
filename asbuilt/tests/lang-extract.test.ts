@@ -64,6 +64,7 @@ const JAVA_SYMBOLS = [
   { id: "App.java#App.start", kind: "method", span: [10, 12], exported: true },
   { id: "App.java#Internal", kind: "class", span: [19, 21], exported: false },
   { id: "App.java#Internal.run", kind: "method", span: [20, 20], exported: false },
+  { id: "App.java#Mode", kind: "enum", span: [27, 30], exported: true },
 ];
 const JAVA_EDGES = [{ from: "App.java#App.start", toName: "helper", resolved: "App.java#App.helper" }];
 
