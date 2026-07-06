@@ -111,6 +111,13 @@ while IFS= read -r row; do
     check "[$id] config key gates.$id.enabled in sdlc-status" "grep -qE '$keyre' '$SDLC_STATUS'"
     check "[$id] config key gates.$id.enabled in evidence-package rubric" "grep -qE '$keyre' '$EVIDENCE_RUBRIC'"
     check "[$id] gate block in sdlc-doctor --init template" "grep -qF '$id:' '$SDLC_DOCTOR'"
+    # SPEC-057: risk-level binding must be handled wherever the enabled key is read
+    # (one predicate — lib/gates.md "Risk-level binding" — read by every surface).
+    check "[$id] risk_levels handled in gate-check" "grep -q 'risk_levels' '$GATE_CHECK'"
+    check "[$id] risk_levels handled in sdlc-status" "grep -q 'risk_levels' '$SDLC_STATUS'"
+    check "[$id] risk_levels handled in evidence-package rubric" "grep -q 'risk_levels' '$EVIDENCE_RUBRIC'"
+    check "[$id] risk_levels default binding in sdlc-doctor --init template" "grep -qF 'risk_levels: [medium, high, critical]' '$SDLC_DOCTOR'"
+    check "[$id] registry marks config key risk_levels-bindable" "grep -qF 'gates.$id.enabled (opt-in; risk_levels-bindable)' '$REGISTRY'"
   fi
 
   # Threshold appears in the doctor --init template for score-thresholded gates
@@ -171,6 +178,26 @@ check "rubrics/comprehension.md contains 'As-Built mode' heading" "grep -q '## A
 check "rubrics/evidence-package.md mentions gate-2c-asbuilt.yml" "grep -qF 'gate-2c-asbuilt.yml' '$EVIDENCE_RUBRIC'"
 check "scripts/verify-evidence.sh mentions gate-2c-asbuilt.yml" "grep -qF 'gate-2c-asbuilt.yml' '$ROOT/scripts/verify-evidence.sh'"
 check "skills/sdlc-status/SKILL.md mentions gate-2c-asbuilt.yml" "grep -qF 'gate-2c-asbuilt.yml' '$SDLC_STATUS'"
+
+bold "=== Risk-Level Binding (SPEC-057) ==="
+# The activation predicate (enabled + risk_levels allowlist) is defined once in
+# lib/gates.md "Risk-level binding" and mirrored into every consumer surface.
+# These assertions catch per-surface predicate drift — the failure mode where a
+# runner skips a bound-out gate but a verifier still demands its evidence.
+check "registry defines the Risk-level binding section" "grep -qF '### Risk-level binding' '$REGISTRY'"
+check "sdlc-run phase guards mention risk_levels" "grep -q 'risk_levels' '$SDLC_RUN'"
+check "phase-evidence.md conditional rows mention risk_levels" "grep -q 'risk_levels' '$ROOT/skills/sdlc-run/references/phase-evidence.md'"
+check "verify-evidence.sh implements the risk-binding predicate" "grep -q 'risk_levels' '$ROOT/scripts/verify-evidence.sh'"
+check "verify-evidence.sh fail-safes on out-of-enum risk_level" "grep -qF 'fail-safe' '$ROOT/scripts/verify-evidence.sh'"
+check "sdlc-status defines the SKIPPED (risk) display" "grep -qF 'SKIPPED (risk)' '$SDLC_STATUS'"
+check "doctor lints risk_levels misuse" "grep -qF 'Config lint — risk_levels' '$SDLC_DOCTOR'"
+check "risk-binding fixture test exists" "[ -f '$ROOT/tests/test-risk-binding.sh' ]"
+check "risk-binding fixture test passes" "bash '$ROOT/tests/test-risk-binding.sh'"
+# Doctor --init template and the prime reference fixture must agree byte-for-byte
+# (the generated-config coupling that has bitten releases before).
+TEMPLATE_EXTRACT="$(awk '/^## --init Flag/{f=1} f && /^```yaml$/{b=1; next} b && /^```$/{exit} b{print}' "$SDLC_DOCTOR")"
+FIXTURE_CONTENT="$(cat "$ROOT/tests/fixtures/prime/doctor-init.reference.md")"
+check "doctor --init template byte-identical to prime reference fixture" "[ \"\$TEMPLATE_EXTRACT\" = \"\$FIXTURE_CONTENT\" ]"
 
 bold "=== System-Spec Layout Consistency (SPEC-003) ==="
 # Single-source rule (SPEC-003 R1 / Risk 2): the split-vs-single-file detection
