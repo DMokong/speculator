@@ -122,6 +122,49 @@ printf 'result: pass\n' > "$D/docs/specs/fx/evidence/gate-2c-comprehension.yml"
 assert_run "present evidence for a bound-out gate is verified" 0 "$D"
 assert_out  "the 2c file was checked" "gate-2c-comprehension\.yml"
 
+echo "=== Case 8 (AC8, Section B): 2a evidence WITH weights recomputes; WITHOUT weights skips ==="
+# The claw-b834 contract: eval-intent/eval-quality scorecards record the weights
+# they used, so check_scorecard recomputes their overall instead of skipping.
+CFG_2A_ON='  eval-intent:
+    enabled: true'
+D="$TMPROOT/c8"; fixture "$D" "$CFG_2A_ON" "medium"
+cat > "$D/docs/specs/fx/evidence/gate-2a-eval-intent.yml" << 'EOF'
+gate: eval-intent
+result: pass
+dimensions:
+  intent_coverage: 7
+  anti_pattern_detection: 9
+  journey_completeness: 6
+  implementation_independence: 7
+weights:
+  intent_coverage: 0.30
+  anti_pattern_detection: 0.25
+  journey_completeness: 0.25
+  implementation_independence: 0.20
+overall: 7.3
+threshold: 6.5
+per_dimension_minimum: 4
+EOF
+assert_run "2a evidence with recorded weights verifies clean" 0 "$D"
+assert_out  "2a overall recomputed from recorded weights (no skip)" "gate-2a-eval-intent\.yml: recorded overall 7\.3 matches recomputed"
+assert_not_out "no 'no weights recorded' skip for the weights-bearing 2a file" "gate-2a-eval-intent\.yml: no weights recorded"
+
+D="$TMPROOT/c8b"; fixture "$D" "$CFG_2A_ON" "medium"
+cat > "$D/docs/specs/fx/evidence/gate-2a-eval-intent.yml" << 'EOF'
+gate: eval-intent
+result: pass
+dimensions:
+  intent_coverage: 7
+  anti_pattern_detection: 9
+  journey_completeness: 6
+  implementation_independence: 7
+overall: 7.3
+threshold: 6.5
+per_dimension_minimum: 4
+EOF
+assert_run "2a evidence without weights still verifies (legacy schema)" 0 "$D"
+assert_out  "weights-less 2a file skips recomputation (the pre-SPEC-057 gap)" "gate-2a-eval-intent\.yml: no weights recorded"
+
 echo
 echo "=== Results ==="
 echo "Passed: $PASSED  Failed: $FAILED"

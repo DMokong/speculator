@@ -191,6 +191,17 @@ check "verify-evidence.sh implements the risk-binding predicate" "grep -q 'risk_
 check "verify-evidence.sh fail-safes on out-of-enum risk_level" "grep -qF 'fail-safe' '$ROOT/scripts/verify-evidence.sh'"
 check "sdlc-status defines the SKIPPED (risk) display" "grep -qF 'SKIPPED (risk)' '$SDLC_STATUS'"
 check "doctor lints risk_levels misuse" "grep -qF 'Config lint — risk_levels' '$SDLC_DOCTOR'"
+# The three lint scenarios are pinned individually — a single header grep would
+# pass even if a scenario were dropped (Gate 2b finding, SPEC-057).
+check "doctor lint scenario: out-of-enum value" "grep -qF \"unrecognized value\" '$SDLC_DOCTOR'"
+check "doctor lint scenario: empty list suggests enabled: false" "grep -qF 'use enabled: false if you mean to turn the gate off' '$SDLC_DOCTOR'"
+check "doctor lint scenario: risk_levels on required gates is inert" "grep -qF 'required gates have no enable switch' '$SDLC_DOCTOR'"
+# Semantic anchors for the predicate's direction (refine, never override) —
+# keyword presence alone would pass with the semantics written backwards.
+check "registry pins refine-never-override direction" "grep -qF 'never overrides an explicit off' '$REGISTRY'"
+check "verify-evidence.sh pins never-re-activates direction" "grep -qF 'never re-activates' '$ROOT/scripts/verify-evidence.sh'"
+check "gate-check phrases activation as 'active for this spec'" "grep -qF 'active for this spec' '$GATE_CHECK'"
+check "evidence rubric pins the risk-binding rationale format" "grep -qF \"risk binding: spec risk_level\" '$EVIDENCE_RUBRIC'"
 check "risk-binding fixture test exists" "[ -f '$ROOT/tests/test-risk-binding.sh' ]"
 check "risk-binding fixture test passes" "bash '$ROOT/tests/test-risk-binding.sh'"
 # Doctor --init template and the prime reference fixture must agree byte-for-byte
@@ -223,4 +234,11 @@ done <<< "$LAYOUT_CONSUMERS"
 bold "=== Results ==="
 TOTAL=$((PASS + FAIL))
 echo "Passed: $PASS / $TOTAL"
+# SPEC-057 AC5: the suite must have GROWN past its pre-risk-binding baseline —
+# a silent mass-deletion of checks must not report success.
+BASELINE=103
+if [ "$TOTAL" -le "$BASELINE" ]; then
+  red "FAIL: total checks ($TOTAL) did not exceed the pre-SPEC-057 baseline ($BASELINE)"
+  exit 1
+fi
 [ "$FAIL" -eq 0 ] && green "All tests passed." || { red "$FAIL test(s) failed."; exit 1; }
