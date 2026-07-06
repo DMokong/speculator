@@ -102,7 +102,7 @@ describe("SPEC-053 AC6 — Go end-to-end through the toolchain", () => {
     // Fold an audited draft into the Go concept.
     writeFileSync(
       join(evidenceDir, "evidence.yml"),
-      `gate: comprehension-asbuilt\nspec_id: E2E-GO\nresult: pass\nmechanical:\n  symbol_exists: []\n  span_valid: []\n  blocking: false\ngenerator:\n  artifact: artifact.yml\n`,
+      "gate: comprehension-asbuilt\nspec_id: E2E-GO\nresult: pass\nmechanical:\n  symbol_exists: []\n  span_valid: []\n  blocking: false\ngenerator:\n  artifact: artifact.yml\n",
     );
     const fold = run([
       join(SRC, "fold.ts"),
