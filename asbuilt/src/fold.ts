@@ -22,7 +22,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { parse } from "yaml";
 import { argValue, hasFlag } from "./cli";
-import { parseFrontmatter, renderFrontmatter, resolveTags, splitConcept } from "./concept";
+import { parseFrontmatter, reclassifyTags, reclassifyType, renderFrontmatter, resolveTags, splitConcept } from "./concept";
 import { type GraphManifest, loadManifest } from "./manifest";
 import { headingLines, isExactHeading } from "./md";
 
@@ -227,11 +227,11 @@ function renderConceptContent(
   // present, else re-derived from the bundle's committed graph manifest (T4,
   // SPEC-049 Task 4) — see concept.ts's `resolveTags`.
   const frontmatterBlock = renderFrontmatter({
-    type: p.frontmatter.type,
+    type: reclassifyType(p.frontmatter.type, resource),
     title: p.frontmatter.title,
     description: p.frontmatter.description,
     resource: p.frontmatter.resource,
-    tags: resolveTags(p.frontmatter, resource, graphManifest),
+    tags: reclassifyTags(resolveTags(p.frontmatter, resource, graphManifest), resource),
     enrichment: opts.provenance,
     from,
     explains,

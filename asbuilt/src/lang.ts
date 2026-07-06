@@ -50,6 +50,13 @@ export interface LanguageAdapter {
   descend(node: Parser.SyntaxNode, ctx: LangContext): LangContext;
   /** Node types that represent calls, and how to read the callee's bare name. */
   calls: { types: string[]; callee(node: Parser.SyntaxNode): Callee | null };
+  /** Language test-source convention: is this repo-relative file a test source? */
+  isTest(file: string): boolean;
+}
+
+/** True when `file` has `dir` as any complete path segment (prefix or interior). */
+function inDir(file: string, dir: string): boolean {
+  return file.startsWith(`${dir}/`) || file.includes(`/${dir}/`);
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +117,9 @@ const typescript: LanguageAdapter = {
       }
       return null;
     },
+  },
+  isTest(file) {
+    return /\.(test|spec)\.ts$/.test(file) || inDir(file, "__tests__") || inDir(file, "tests");
   },
 };
 
@@ -182,6 +192,9 @@ const go: LanguageAdapter = {
       return null;
     },
   },
+  isTest(file) {
+    return file.endsWith("_test.go");
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -240,6 +253,9 @@ const java: LanguageAdapter = {
       return { name, method: call.childForFieldName("object") !== null };
     },
   },
+  isTest(file) {
+    return inDir(file, "src/test") || file.startsWith("src/test/") || /Test\.java$/.test(file);
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -289,6 +305,10 @@ const python: LanguageAdapter = {
       return null;
     },
   },
+  isTest(file) {
+    const base = file.split("/").pop() ?? "";
+    return /^test_.*\.py$/.test(base) || /_test\.py$/.test(base) || inDir(file, "tests");
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -310,3 +330,8 @@ export function adapterForFile(file: string): LanguageAdapter | null {
 }
 
 export const SUPPORTED_LANGUAGES = ADAPTERS.map((a) => a.name);
+
+/** Shared test-source predicate: routes to the owning adapter's convention; false when no adapter claims the file. Every renderer classifies through this one function (claw-wsit). */
+export function isTestSource(file: string): boolean {
+  return adapterForFile(file)?.isTest(file) ?? false;
+}

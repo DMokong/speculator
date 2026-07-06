@@ -36,7 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { argValue } from "./cli";
-import { parseFrontmatter, renderFrontmatter, resolveTags, splitConcept } from "./concept";
+import { parseFrontmatter, reclassifyTags, reclassifyType, renderFrontmatter, resolveTags, splitConcept } from "./concept";
 import { extractGraph } from "./extract";
 import { appendLogBullets } from "./fold";
 import { type GraphManifest, loadManifest, manifestHash, saveManifest } from "./manifest";
@@ -115,11 +115,11 @@ function renderConceptFrontmatter(
   manifest: GraphManifest,
 ): string {
   return renderFrontmatter({
-    type: fm.type,
+    type: reclassifyType(fm.type, resource),
     title: fm.title,
     description: fm.description,
     resource: fm.resource,
-    tags: resolveTags(fm, resource, manifest),
+    tags: reclassifyTags(resolveTags(fm, resource, manifest), resource),
     enrichment: fm.enrichment,
     from: fm.from,
     explains: fm.explains,

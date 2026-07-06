@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { argValue, hasFlag } from "./cli";
-import { deriveTags, renderFrontmatter } from "./concept";
+import { conceptType, deriveTags, renderFrontmatter } from "./concept";
 import { type CallEdge, type GraphManifest, type SymbolEntry, loadManifest, manifestHash } from "./manifest";
 
 const OKF_VERSION = "0.1";
@@ -161,7 +161,7 @@ export function renderConcept(file: string, manifest: GraphManifest): string {
   const symbols = symbolsOf(file, manifest);
   const hash = manifestHash(manifest);
   const frontmatter = renderFrontmatter({
-    type: "Module",
+    type: conceptType(file),
     title: file,
     description: description(file, symbols.length),
     resource: file,

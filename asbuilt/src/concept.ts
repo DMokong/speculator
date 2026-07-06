@@ -12,6 +12,7 @@
 // copies.
 
 import { parse, stringify } from "yaml";
+import { isTestSource } from "./lang";
 import type { GraphManifest } from "./manifest";
 import { headingLines, isExactHeading } from "./md";
 
@@ -157,7 +158,35 @@ export function deriveTags(resource: string, manifest: GraphManifest | null): st
   const kinds = manifest
     ? [...new Set(manifest.symbols.filter((s) => s.file === resource).map((s) => s.kind))].sort()
     : [];
-  return [firstSegment, "module", ...kinds];
+  return [firstSegment, "module", ...(isTestSource(resource) ? ["test"] : []), ...kinds];
+}
+
+/** Machine-derived concept type: "Test" for test sources (OKF v0.1 §4.1 producer-defined type), else "Module". */
+export function conceptType(resource: string): "Test" | "Module" {
+  return isTestSource(resource) ? "Test" : "Module";
+}
+
+/**
+ * Reclassifies a machine-vocabulary type ("Module"/"Test"/absent) from the resource's
+ * test convention; any other producer-defined type is preserved untouched.
+ */
+export function reclassifyType(existing: unknown, resource: string): unknown {
+  if (existing === "Module" || existing === "Test" || existing === undefined || existing === null) {
+    return conceptType(resource);
+  }
+  return existing;
+}
+
+/** Ensures the `test` tag matches the resource's classification while preserving every other tag and their order. */
+export function reclassifyTags(tags: string[], resource: string): string[] {
+  const isTest = isTestSource(resource);
+  const has = tags.includes("test");
+  if (isTest && !has) {
+    const i = tags.indexOf("module");
+    return i === -1 ? [...tags, "test"] : [...tags.slice(0, i + 1), "test", ...tags.slice(i + 1)];
+  }
+  if (!isTest && has) return tags.filter((t) => t !== "test");
+  return tags;
 }
 
 /**
