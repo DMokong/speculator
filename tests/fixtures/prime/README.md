@@ -11,7 +11,8 @@ assertion step CI-style tooling can run.
    dir as the project root, in this order:
    - `fx-ts` — first prime, then save `cp CLAUDE.md CLAUDE.md.run1`, then prime AGAIN
      (idempotency probe; same plugin version + date).
-   - `fx-nots` — non-TS, no config; the user **declines** doctor scaffolding.
+   - `fx-nots` — unsupported language (Ruby), no config; the user **declines** doctor scaffolding.
+   - `fx-go` — Go project (go.mod), no config; user declines scaffolding; expects the full as-built block (SPEC-053).
    - `fx-none` — no CLAUDE.md; user declines scaffolding.
    - `fx-bad` / `fx-bad2` — malformed fences (start-without-end / end-before-start);
      the skill must refuse and write nothing.

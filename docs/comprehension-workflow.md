@@ -19,7 +19,7 @@ real code-graph manifest before any judge saw it. Enrichment state is a one-way 
 
 | Requirement | Why |
 |---|---|
-| Target is a **TypeScript** project | The extractor loads a single tree-sitter TypeScript grammar. Non-TS projects can run judge-only audits (`--graph-unavailable`) but get no manifest, no skeleton bundle, and no mechanical citation layer — which is where the measured advantage is unconditional. |
+| Target is in a **supported language** — TypeScript, Go, Java, or Python (SPEC-053) | The extractor routes each source file to its language's tree-sitter grammar via a thin adapter (definitions, names, visibility rules, calls); one manifest unions all supported languages in the repo. Projects in no supported language can run judge-only audits (`--graph-unavailable`) but get no manifest, no skeleton bundle, and no mechanical citation layer — which is where the measured advantage is unconditional. |
 | `bun`, `git` | The toolchain is bun-native and reads diffs/HEAD from git. |
 | One-time: `cd <plugin>/asbuilt && bun install` | node_modules don't ship in the plugin cache. |
 | Nothing installed in the target | Only `fold.ts` ever writes there, and only under `docs/asbuilt/`. |

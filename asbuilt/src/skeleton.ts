@@ -51,7 +51,16 @@ export function conceptPath(file: string): string {
   if (RESERVED_STEMS.has(stem)) {
     return `${file}.md`;
   }
-  return file.replace(/\.ts$/, ".md");
+  // TypeScript keeps the original replace-extension mapping byte-identical
+  // (src/alpha.ts -> src/alpha.md; existing bundles depend on it). Every
+  // other language appends ".md" to the FULL filename (svc.go -> svc.go.md,
+  // tool.py -> tool.py.md) — the same shape as the reserved-stem rule — so a
+  // repo containing api.ts and api.py can never fold two languages' concepts
+  // into one file (SPEC-053).
+  if (file.endsWith(".ts")) {
+    return file.replace(/\.ts$/, ".md");
+  }
+  return `${file}.md`;
 }
 
 function qualifiedName(id: string): string {
