@@ -131,7 +131,7 @@ reliability record.
    `refresh.ts` ALONE — it extracts internally and diffs against the on-disk manifest as
    its drift baseline, so running `extract.ts` first silently erases staleness detection
    (found live twice: the skeleton form on r2mcp, the extract-first form on the slack-bot
-   fix). Tracked for refuse-or-preserve guards.
+   fix). The refresh baseline guard remains tracked separately.
 2. **Never let a generator infer cross-module consumption from manifest call edges alone.**
    Edge resolution is by bare name and produces false positives (e.g. a `Semaphore.release`
    ↔ pg `PoolClient.release()` collision produced a false consumer claim that a judge had
