@@ -310,6 +310,138 @@ describe("SPEC-049 T7 dogfood: refresh on a reserved-name concept (src/index.ts.
   });
 });
 
+// claw-nybt: the src/alpha.ts symbol cited by fixtures/evidence/refresh-helper-evidence.yml's
+// sole comprehension_entries code_location — the function we delete below to
+// exercise the live slack-bot journey end to end (delete dead code, re-audit,
+// converge back to clean).
+const HELPER_ID = "src/alpha.ts#helper";
+
+/**
+ * Removes exactly the `helper` function refresh-helper-evidence.yml cites,
+ * leaving the rest of alpha.ts (including AlphaService.run's now-dangling
+ * `helper(x)` call) untouched — extract.ts parses structurally via
+ * tree-sitter and never type-checks, so a dangling reference doesn't break
+ * extraction.
+ */
+function stripHelperFunction(src: string): string {
+  const stripped = src.replace(/\n\nfunction helper\(x: number\): number \{\n {2}return x \* 2;\n\}\n$/, "\n");
+  if (stripped === src) {
+    throw new Error("stripHelperFunction: helper block not found in src/alpha.ts — fixture drifted");
+  }
+  return stripped;
+}
+
+describe("claw-nybt/AC1: deletion + re-audit converges to clean", () => {
+  test("dead id drops from explains and refresh reports the concept clean", async () => {
+    const dir = freshRepoCopy();
+    await buildInitialBundle(dir);
+    fold({
+      evidencePath: ev("refresh-helper-evidence.yml"),
+      targetRepo: dir,
+      specId: "SPEC-T2",
+      provenance: "fully-audited",
+      date: "2026-07-06",
+    });
+
+    // delete the cited helper function from src/alpha.ts entirely, commit
+    const src = join(dir, "src/alpha.ts");
+    writeFileSync(src, stripHelperFunction(readFileSync(src, "utf8")));
+    gitCommit(dir, "delete helper", ["-a"]);
+
+    // refresh #1: concept goes stale naming the dead id — correct: prose cites deleted code
+    const r1 = await refresh({ targetRepo: dir, date: "2026-07-06" });
+    expect(r1.stale).toContain("src/alpha.md");
+    const mid = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(String(mid.stale_reason)).toContain(HELPER_ID);
+
+    // re-audit: fold fresh evidence citing only a symbol of src/alpha.ts that
+    // still exists (alphaMain — untouched by the deletion above), modeled on
+    // refresh-helper-evidence.yml / refresh-helper-artifact.yml but written
+    // to a tmp path.
+    const tmpArtifactPath = join(dir, "tmp-live-artifact.yml");
+    const tmpEvidenceCitingLiveSymbol = join(dir, "tmp-live-evidence.yml");
+    writeFileSync(
+      tmpArtifactPath,
+      [
+        "comprehension_entries:",
+        "  - ac_id: AC1",
+        '    ac_text: "Alpha module doubles input via gamma and uppercases it."',
+        '    implementation_summary: "src/alpha.ts#alphaMain calls gamma(input) then uppercases the result."',
+        "    code_locations:",
+        '      - symbol: "src/alpha.ts#alphaMain"',
+        '        lines: "3-5"',
+        "    coverage: full",
+        '    gap_notes: ""',
+        "",
+        "enrichment_drafts:",
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling; the private helper indirection was removed."',
+        '    decisions: "re-audited after helper deletion; alphaMain is the only symbol still cited"',
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      tmpEvidenceCitingLiveSymbol,
+      [
+        "gate: comprehension-asbuilt",
+        "mode: shadow",
+        "result: pass",
+        "spec_id: SPEC-T2B",
+        "mechanical:",
+        "  blocking: false",
+        "generator:",
+        "  artifact: tmp-live-artifact.yml",
+        "",
+      ].join("\n"),
+    );
+    fold({
+      evidencePath: tmpEvidenceCitingLiveSymbol,
+      targetRepo: dir,
+      specId: "SPEC-T2B",
+      provenance: "fully-audited",
+      date: "2026-07-06",
+    });
+    const post = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(post.explains).not.toContain(HELPER_ID); // Task 1's filter, against the refreshed manifest
+
+    // refresh #2: the alarm clears
+    const r2 = await refresh({ targetRepo: dir, date: "2026-07-06" });
+    expect(r2.stale).not.toContain("src/alpha.md");
+    const fin = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(fin.stale).toBe(false);
+    expect(String(fin.stale_reason ?? "")).not.toContain(HELPER_ID);
+
+    // Isolating refresh.ts's own merge fix (claw-nybt, refresh.ts:216): fold
+    // ALWAYS resets stale_reason to "" on every write it makes — the same
+    // write that drops a dead id from explains also wipes stale_reason — so
+    // refresh #2 above converges cleanly regardless of whether the
+    // parseChangedIds filter is applied; it never sees a non-empty
+    // stale_reason to (mis)carry forward. To pin the actual merge behavior,
+    // hand-poison alpha.md's on-disk stale_reason back to "changed: <dead
+    // id>" (simulating a reason string a refresh had recorded earlier and
+    // no fold has cleared since), then force a SEPARATE, legitimate drift
+    // (alphaMain's own body changes) so `merged` is non-empty — and a fresh
+    // stale_reason gets written — regardless of the fix; this isolates
+    // whether the dead helper id rides along with that legitimate rewrite.
+    const alphaMdPath = join(dir, "docs/asbuilt/src/alpha.md");
+    const cleanAlphaMd = readFileSync(alphaMdPath, "utf8");
+    const poisonedAlphaMd = cleanAlphaMd.replace('stale_reason: ""', `stale_reason: "changed: ${HELPER_ID}"`);
+    expect(poisonedAlphaMd).not.toBe(cleanAlphaMd);
+    writeFileSync(alphaMdPath, poisonedAlphaMd);
+
+    const alphaTsPath = join(dir, "src/alpha.ts");
+    writeFileSync(alphaTsPath, readFileSync(alphaTsPath, "utf8").replace("toUpperCase()", 'toUpperCase() + ""'));
+    gitCommit(dir, "touch alphaMain", ["-a"]);
+
+    const r3 = await refresh({ targetRepo: dir, date: "2026-07-06" });
+    expect(r3.stale).toContain("src/alpha.md"); // alphaMain's own drift legitimately flags it
+    const fin3 = frontmatterOf(readFileSync(alphaMdPath, "utf8"));
+    expect(fin3.stale).toBe(true);
+    expect(String(fin3.stale_reason)).toContain("src/alpha.ts#alphaMain");
+    expect(String(fin3.stale_reason)).not.toContain(HELPER_ID); // the dead helper id must not ride along
+  });
+});
+
 describe("CLI", () => {
   test("exits 1 with usage when --target is missing", () => {
     const ASBUILT_ROOT = new URL("..", import.meta.url).pathname;

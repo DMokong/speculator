@@ -213,7 +213,13 @@ export async function refresh(opts: RefreshOptions): Promise<RefreshResult> {
         if (nh === undefined) return true;
         return nh !== oldSymbolHashes.get(id);
       });
-      const merged = [...new Set([...parseChangedIds(staleReason), ...driftIds])].sort();
+      // claw-nybt (stale_reason side): a previously-recorded changed-id whose symbol
+      // no longer exists in the new manifest must not keep the concept stale by
+      // itself — if its id is still in explains, driftIds re-adds it (correct:
+      // the prose still cites deleted code); once a re-audit fold drops it from
+      // explains, nothing re-adds it and the alarm clears.
+      const carried = parseChangedIds(staleReason).filter((id) => newSymbolHashes.has(id));
+      const merged = [...new Set([...carried, ...driftIds])].sort();
       if (merged.length > 0) {
         staleFlag = true;
         staleReason = `changed: ${merged.join(", ")}`;
