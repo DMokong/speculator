@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.16.0 — As-built toolchain hardening: dead-id fold reconciliation, skeleton refusal guard, conservative call edges, test-source classification (2026-07-06)
+
+Four live-reproduced defects fixed (SPEC-054, claudeclaw pipeline — gates 1/2a/2/2b/2c-shadow/3/4 all passed):
+
+- **fold.ts** drops `explains` ids absent from the committed graph manifest at fold time (claw-nybt) — deleted symbols no longer keep concepts stale forever; partial re-audits still never shrink live coverage; no-manifest folds unchanged.
+- **refresh.ts** stale_reason merge filters ids absent from the new manifest (claw-nybt, stale-reason side) — deletion + re-audit now converges to a clean concept end-to-end.
+- **skeleton.ts** refuses to overwrite bundles containing enriched concepts, listing what it would destroy; new `--force` flag restores regeneration (claw-i7fn). CLI reference, comprehension-workflow "two don'ts", and the prime caution updated in lockstep (drift + prime pins).
+- **extract.ts/lang.ts**: method-style callees (member/attribute access) resolve same-file only; adapters return `{name, method}` (claw-cs26). Declared migration: edge `resolved` values move, `symbols` section stays byte-identical (A/B-verified against r2mcp: 17 false-positive edges removed, 15 declared precision losses, 0 other deltas).
+- **Test-source classification** (claw-wsit): per-language test-convention predicates (`isTestSource`); concepts render `type: Test` + `test` tag from skeleton/refresh/fold alike; manifest untouched. Viz prototype groups/badges by classification.
+- **Backfill self-sufficiency**: verbatim generator/judge dispatch templates, edge-trust warning, citation-universe line, git precondition, and evidence-dir convention embedded in `asbuilt-gate/SKILL.md` § Backfill mode, pinned by tests.
+
+Post-release migration (tracked): coordinated refresh pass across the three live bundles + slack-bot file-handler.md dead-id cleanup.
+
 ## 2.15.0 — Multi-language as-built extraction: Go, Java, Python (2026-07-06)
 
 ### Added
