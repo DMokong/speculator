@@ -467,17 +467,37 @@ describe("claw-nybt: explains dead-id reconciliation", () => {
     // manifest present on disk -> fold filters against it
     saveManifest(join(dir, "docs/asbuilt/.graph-manifest.json"), manifest);
     await fold({ evidencePath: ev("pass-evidence.yml"), targetRepo: dir, specId: "SPEC-T1", provenance: "fully-audited", date: "2026-07-06" });
-    const before = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    const alphaPath = join(dir, "docs/asbuilt/src/alpha.md");
+
+    // Review fix (claw-nybt re-audit): pass-artifact.yml cites only DEAD_ID,
+    // so at this point explains == [DEAD_ID] and the "every OTHER
+    // previously-present id survives" loop below would run zero iterations
+    // — silently passing regardless of whether survival actually works.
+    // Seed a second, manifest-present id that this fold's evidence does NOT
+    // cite (src/alpha.ts#AlphaService, a real symbol from `manifest`)
+    // directly into alpha.md's frontmatter so the loop has a real case to
+    // check: a partial re-audit must not drop ids it simply didn't touch.
+    const SURVIVOR_ID = "src/alpha.ts#AlphaService";
+    const withSurvivor = readFileSync(alphaPath, "utf8").replace(
+      "explains:\n  - src/alpha.ts#alphaMain\n",
+      `explains:\n  - src/alpha.ts#alphaMain\n  - ${SURVIVOR_ID}\n`,
+    );
+    expect(withSurvivor).toContain(SURVIVOR_ID); // guard: the string surgery above actually matched
+    writeFileSync(alphaPath, withSurvivor);
+
+    const before = frontmatterOf(readFileSync(alphaPath, "utf8"));
     expect(before.explains).toContain(DEAD_ID); // DEAD_ID = the cited id you chose as B
+    expect(before.explains).toContain(SURVIVOR_ID); // guard against the vacuity coming back
 
     // symbol B is deleted from the code: prune it from the committed manifest
     const pruned = { ...manifest, symbols: manifest.symbols.filter((s) => s.id !== DEAD_ID) };
     saveManifest(join(dir, "docs/asbuilt/.graph-manifest.json"), pruned);
 
     await fold({ evidencePath: ev("pass-evidence.yml"), targetRepo: dir, specId: "SPEC-T1", provenance: "fully-audited", date: "2026-07-06" });
-    const after = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    const after = frontmatterOf(readFileSync(alphaPath, "utf8"));
     expect(after.explains).not.toContain(DEAD_ID);
-    // every OTHER previously-present id survives (partial-audit safety)
+    // every OTHER previously-present id survives (partial-audit safety) —
+    // now a real, non-vacuous check thanks to SURVIVOR_ID above.
     for (const id of (before.explains as string[]).filter((i) => i !== DEAD_ID)) {
       expect(after.explains).toContain(id);
     }
