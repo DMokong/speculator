@@ -524,6 +524,16 @@ describe("SPEC-055: refresh clears exhausted changed: flags (claw-dkxq)", () => 
     expect(r.stale).toContain("src/alpha.md");
   });
 
+  test("test_ac2b: a hand-set stale flag with an empty reason is preserved, not normalized", async () => {
+    // stale: true with no reason is a state the recomputation can't explain —
+    // it is preserved for a human, never silently cleared.
+    const dir = await poisonedBundle("");
+    const p = join(dir, "docs/asbuilt/src/alpha.md");
+    await refresh({ targetRepo: dir, date: "2026-07-07" });
+    const fm = frontmatterOf(readFileSync(p, "utf8"));
+    expect(fm.stale).toBe(true);
+  });
+
   test("test_ac2: a source-removed reason passes through untouched", async () => {
     const dir = await poisonedBundle("source removed");
     const p = join(dir, "docs/asbuilt/src/alpha.md");
