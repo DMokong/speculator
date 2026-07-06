@@ -18,9 +18,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractGraph, listSourceFiles } from "../src/extract";
 import { SUPPORTED_LANGUAGES, adapterForFile } from "../src/lang";
-import type { GraphManifest } from "../src/manifest";
+import type { GraphManifest, SymbolKind } from "../src/manifest";
 
 const FIXTURES = new URL("./fixtures/lang", import.meta.url).pathname;
+
+interface PinnedSymbol {
+  id: string;
+  kind: SymbolKind;
+  span: [number, number];
+  exported: boolean;
+}
 
 /** Stage a fixture tree into a fresh git repo (uncommitted — headSha's deterministic fallback). */
 function stage(name: string): string {
@@ -39,7 +46,7 @@ function edgeRows(m: GraphManifest) {
   return m.edges.map((e) => ({ from: e.from, toName: e.toName, resolved: e.resolved }));
 }
 
-const GO_SYMBOLS = [
+const GO_SYMBOLS: PinnedSymbol[] = [
   { id: "svc.go#Handler", kind: "interface", span: [11, 13], exported: true },
   { id: "svc.go#MaxConn", kind: "const", span: [3, 3], exported: true },
   { id: "svc.go#NewServer", kind: "function", span: [15, 20], exported: true },
@@ -55,7 +62,7 @@ const GO_EDGES = [
   { from: "util.go#Helper", toName: "inner", resolved: null },
 ];
 
-const JAVA_SYMBOLS = [
+const JAVA_SYMBOLS: PinnedSymbol[] = [
   { id: "App.java#Api", kind: "interface", span: [23, 25], exported: false },
   { id: "App.java#Api.serve", kind: "method", span: [24, 24], exported: false },
   { id: "App.java#App", kind: "class", span: [3, 17], exported: true },
@@ -68,7 +75,7 @@ const JAVA_SYMBOLS = [
 ];
 const JAVA_EDGES = [{ from: "App.java#App.start", toName: "helper", resolved: "App.java#App.helper" }];
 
-const PY_SYMBOLS = [
+const PY_SYMBOLS: PinnedSymbol[] = [
   { id: "tool.py#Client", kind: "class", span: [6, 14], exported: true },
   { id: "tool.py#Client.__init__", kind: "method", span: [7, 8], exported: false },
   { id: "tool.py#Client._internal", kind: "method", span: [13, 14], exported: false },
