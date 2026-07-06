@@ -224,6 +224,15 @@ export async function refresh(opts: RefreshOptions): Promise<RefreshResult> {
         staleFlag = true;
         staleReason = `changed: ${merged.join(", ")}`;
         stale.push(cPath);
+      } else if (staleFlag && staleReason.startsWith("changed: ")) {
+        // claw-dkxq (SPEC-055): a changed:-shaped flag is a pure function of
+        // current facts (explains × manifest hashes) — when recomputation finds
+        // no surviving drift, refresh clears its own flag instead of latching
+        // until some other tool's write happens to reset it. Non-changed
+        // reasons ("source removed", hand-set states) belong to other paths
+        // and pass through untouched.
+        staleFlag = false;
+        staleReason = "";
       }
     }
 

@@ -466,3 +466,70 @@ describe("CLI", () => {
 process.on("exit", () => {
   for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true });
 });
+
+describe("SPEC-055: refresh clears exhausted changed: flags (claw-dkxq)", () => {
+  /** Enrich alpha.md via fold, poison its stale fields to the given values,
+   * then touch an unrelated file so the manifest hash moves (defeating the
+   * no-op short-circuit) — the setup every test in this block shares. */
+  async function poisonedBundle(staleReason: string): Promise<string> {
+    const dir = freshRepoCopy();
+    await buildInitialBundle(dir);
+    fold({
+      evidencePath: ev("refresh-helper-evidence.yml"),
+      targetRepo: dir,
+      specId: "SPEC-T55",
+      provenance: "fully-audited",
+      date: "2026-07-07",
+    });
+    const p = join(dir, "docs/asbuilt/src/alpha.md");
+    const poisoned = readFileSync(p, "utf8")
+      .replace("stale: false", "stale: true")
+      .replace('stale_reason: ""', `stale_reason: "${staleReason}"`);
+    expect(poisoned).toContain(`stale_reason: "${staleReason}"`); // surgery guard
+    writeFileSync(p, poisoned);
+    // move the manifest hash without drifting any of alpha.md's cited symbols
+    const beta = join(dir, "src/beta.ts");
+    writeFileSync(beta, `${readFileSync(beta, "utf8")}\nexport const spec055 = 55;\n`);
+    gitCommit(dir, "unrelated change", ["-a"]);
+    return dir;
+  }
+
+  test("test_ac1: a changed:-shaped flag with no surviving drift clears on refresh", async () => {
+    // the recorded id is dead (absent from the manifest) and explains has no
+    // drift -> zero surviving drift. NB a changed-id still PRESENT in the
+    // manifest is carried until re-audit by design (sticky staleness) — the
+    // clear applies only to exhausted flags like this one.
+    const dir = await poisonedBundle("changed: src/alpha.ts#deletedGhost");
+    const p = join(dir, "docs/asbuilt/src/alpha.md");
+    const proseBefore = enrichedZoneOf(readFileSync(p, "utf8"));
+    const r = await refresh({ targetRepo: dir, date: "2026-07-07" });
+    const after = readFileSync(p, "utf8");
+    const fm = frontmatterOf(after);
+    expect(fm.stale).toBe(false);
+    expect(fm.stale_reason ?? "").toBe("");
+    expect(enrichedZoneOf(after)).toBe(proseBefore); // audited prose byte-identical
+    expect(r.stale).not.toContain("src/alpha.md");
+  });
+
+  test("test_ac1b: mixed populations — dead ids drop, a still-present id keeps the flag", async () => {
+    // one dead id + one live (carried-by-design) id: the flag must SURVIVE,
+    // rewritten to name only the surviving id — the clear never fires while
+    // any recorded id is still present in the manifest.
+    const dir = await poisonedBundle("changed: src/alpha.ts#alphaMain, src/alpha.ts#deletedGhost");
+    const p = join(dir, "docs/asbuilt/src/alpha.md");
+    const r = await refresh({ targetRepo: dir, date: "2026-07-07" });
+    const fm = frontmatterOf(readFileSync(p, "utf8"));
+    expect(fm.stale).toBe(true);
+    expect(fm.stale_reason).toBe("changed: src/alpha.ts#alphaMain");
+    expect(r.stale).toContain("src/alpha.md");
+  });
+
+  test("test_ac2: a source-removed reason passes through untouched", async () => {
+    const dir = await poisonedBundle("source removed");
+    const p = join(dir, "docs/asbuilt/src/alpha.md");
+    await refresh({ targetRepo: dir, date: "2026-07-07" });
+    const fm = frontmatterOf(readFileSync(p, "utf8"));
+    expect(fm.stale).toBe(true);
+    expect(fm.stale_reason).toBe("source removed");
+  });
+});
