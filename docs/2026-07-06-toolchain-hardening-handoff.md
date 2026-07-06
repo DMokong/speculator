@@ -33,7 +33,7 @@
   concepts), claude-code-slack-bot `docs/asbuilt/` (35, on branch `claw-gxzq-continuous-relay`),
   claudeclaw `docs/asbuilt/` (52). Their frontmatter pins `graph_hash` (whole-manifest hash).
 
-## The three issues (scope of SPEC-054)
+## The issues (scope of SPEC-054)
 
 ### 1. `claw-nybt` — fold.ts explains-merge retains dead symbol ids (functional bug, bites every repo that deletes code)
 
@@ -100,6 +100,20 @@ content-hash-based and should NOT churn — verify that claim on one bundle befo
 three), (c) the SPEC-053-style old-vs-new byte-identity check will legitimately FAIL for
 edges — the spec must say so and pin the *symbols* section as unchanged instead. Also decide
 whether viz's file-links (built from resolved edges) need a rebuild note.
+
+### 4. Test-source classification (Dustin's find, filed same day — fits the same migration)
+
+Concepts don't classify test sources: co-located tests (slack-bot `src/file-handler.test.md`)
+render as `type: Module, tags: [src, …]` — indistinguishable from business logic to any
+structured consumer; r2mcp's tests are distinguishable only by directory-name accident. Fix
+via per-language test-convention predicates in `lang.ts` (TS `*.test.ts`/`*.spec.ts`/test
+dirs; Go `*_test.go`; Java `src/test/`/`*Test.java`; Python `test_*.py`/`tests/`), stamped
+either in the manifest (schema evolution — same migration class as cs26, decide together) or
+at render time (`type: Test` + `test` tag; OKF §4.1 permits producer-defined types; needs the
+same coordinated bundle-regeneration pass cs26 already requires). Viz must then badge/group by
+classification, not its `startsWith("tests/")` path heuristic. See the beads issue filed
+2026-07-06 for the full write-up. **Recommendation: make this the 4th AC — it rides cs26's
+migration for free.**
 
 ## Out of scope (tracked, don't scope-creep — unless the session finds them nearly free)
 
