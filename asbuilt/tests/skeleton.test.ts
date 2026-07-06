@@ -1,15 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { extractGraph } from "../src/extract";
 import { manifestHash, saveManifest } from "../src/manifest";
-import { conceptPath, generateBundle } from "../src/skeleton";
+import { conceptPath, generateBundle, listEnrichedConcepts } from "../src/skeleton";
 import { verifyBundle } from "../src/verify";
 
 const FIXTURE = new URL("fixtures/fixture-repo", import.meta.url).pathname;
+const SKELETON_CLI = new URL("../src/skeleton.ts", import.meta.url).pathname;
 execSync(`bash ${join(FIXTURE, "seed.sh")}`);
 
 function frontmatterOf(raw: string): Record<string, unknown> {
@@ -247,6 +248,44 @@ describe("SPEC-049 T7 dogfood: reserved-name concept path collision (index.ts / 
       rmSync(repoDir, { recursive: true, force: true });
       rmSync(bundleRoot, { recursive: true, force: true });
     }
+  });
+});
+
+describe("claw-i7fn: skeleton refuses enriched bundles", () => {
+  function enrichedBundle(): string {
+    const d = mkdtempSync(join(tmpdir(), "asbuilt-skel-guard-"));
+    generateBundle(d, manifest);
+    // simulate a folded concept: flip enrichment + append an enriched zone
+    const p = join(d, "docs/asbuilt/src/alpha.md");
+    writeFileSync(p, `${readFileSync(p, "utf8").replace("enrichment: none", "enrichment: accuracy-audited")}\n# Explanation\nAudited prose.\n`);
+    return d;
+  }
+
+  test("listEnrichedConcepts finds the enriched concept, virgin bundle yields []", () => {
+    expect(listEnrichedConcepts(enrichedBundle())).toEqual(["src/alpha.md"]);
+    const virgin = mkdtempSync(join(tmpdir(), "asbuilt-skel-virgin-"));
+    generateBundle(virgin, manifest);
+    expect(listEnrichedConcepts(virgin)).toEqual([]);
+  });
+
+  test("CLI refuses without --force: exit 1, nothing modified, names the concept", () => {
+    const d = enrichedBundle();
+    saveManifest(join(d, "docs/asbuilt/.graph-manifest.json"), manifest); // CLI requires a manifest
+    const before = readFileSync(join(d, "docs/asbuilt/src/alpha.md"), "utf8");
+    const r = spawnSync("bun", [SKELETON_CLI, "--target", d], { encoding: "utf8" });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("src/alpha.md");
+    expect(readFileSync(join(d, "docs/asbuilt/src/alpha.md"), "utf8")).toBe(before); // byte-identical
+  });
+
+  test("CLI with --force regenerates a virgin skeleton", () => {
+    const d = enrichedBundle();
+    saveManifest(join(d, "docs/asbuilt/.graph-manifest.json"), manifest);
+    const r = spawnSync("bun", [SKELETON_CLI, "--target", d, "--force"], { encoding: "utf8" });
+    expect(r.status).toBe(0);
+    const fm = frontmatterOf(readFileSync(join(d, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(fm.enrichment).toBe("none");
+    expect(readFileSync(join(d, "docs/asbuilt/src/alpha.md"), "utf8")).not.toContain("Audited prose");
   });
 });
 

@@ -134,8 +134,9 @@ For an existing codebase, the backfill workflow bootstraps and audits a
 knowledge bundle at docs/asbuilt/ with no spec required — see the plugin's
 docs/comprehension-workflow.md and skills/asbuilt-gate/SKILL.md § Backfill
 mode. Two cautions: never re-run skeleton.ts on a bundle that already has
-enrichment (it destroys audited prose — update with refresh.ts ALONE,
-which extracts internally; extract.ts first erases the drift baseline),
+enrichment (it refuses without --force; forcing destroys audited prose —
+update with refresh.ts ALONE, which extracts internally; extract.ts first
+erases the drift baseline),
 and never trust manifest call edges for "X is consumed by Y" claims
 (bare-name false positives — verify by reading the consumer).
 

@@ -8,9 +8,9 @@
 // docs/specs/asbuilt-knowledge-system/spec.md R2/AC2 and task-3-brief.md for
 // the exact shape.
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { argValue } from "./cli";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { argValue, hasFlag } from "./cli";
 import { deriveTags, renderFrontmatter } from "./concept";
 import { type CallEdge, type GraphManifest, type SymbolEntry, loadManifest, manifestHash } from "./manifest";
 
@@ -329,7 +329,32 @@ export function generateBundle(targetRepo: string, manifest: GraphManifest): voi
   writeFileSync(join(bundleDir, ".gitignore"), ".graph/\n");
 }
 
-export const CLI_USAGE = "bun asbuilt/src/skeleton.ts --target <repo>";
+/** Bundle-relative concept paths whose frontmatter records enrichment != none.
+ * Concept frontmatter is machine-written (concept.ts renderFrontmatter), so
+ * `enrichment` is always a plain single-line scalar — a line match is exact. */
+export function listEnrichedConcepts(targetRepo: string): string[] {
+  const bundleDir = join(targetRepo, "docs/asbuilt");
+  if (!existsSync(bundleDir)) return [];
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, entry.name);
+      if (entry.isDirectory()) walk(abs);
+      else if (entry.name.endsWith(".md") && entry.name !== "index.md" && entry.name !== "log.md") {
+        const text = readFileSync(abs, "utf8");
+        if (!text.startsWith("---\n")) continue;
+        const end = text.indexOf("\n---\n", 4);
+        if (end === -1) continue;
+        const m = text.slice(4, end).match(/^enrichment: (.+)$/m);
+        if (m && m[1].trim() !== "none") out.push(relative(bundleDir, abs));
+      }
+    }
+  };
+  walk(bundleDir);
+  return out.sort();
+}
+
+export const CLI_USAGE = "bun asbuilt/src/skeleton.ts --target <repo> [--force]";
 
 // CLI entry guard — no module-level side effects (importing this file for
 // tests must never trigger a CLI run; see claw-8cjf.2 / extract.ts).
@@ -337,6 +362,16 @@ if (import.meta.main) {
   const target = argValue("--target");
   if (!target) {
     console.error(CLI_USAGE);
+    process.exit(1);
+  }
+  const force = hasFlag("--force");
+  const enriched = listEnrichedConcepts(target);
+  if (enriched.length > 0 && !force) {
+    console.error(`Refusing to overwrite ${enriched.length} enriched concept(s) in ${join(target, "docs/asbuilt")}:`);
+    for (const c of enriched) console.error(`  - ${c}`);
+    console.error(
+      "Re-running skeleton destroys enrichment frontmatter and audited prose. Update existing bundles with refresh.ts; pass --force to regenerate everything as a virgin skeleton.",
+    );
     process.exit(1);
   }
   const manifestPath = join(target, "docs/asbuilt/.graph-manifest.json");

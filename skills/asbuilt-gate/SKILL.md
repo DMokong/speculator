@@ -39,7 +39,7 @@ invoking session prefixes `${CLAUDE_PLUGIN_ROOT}/` onto the path, since this
 skill isn't necessarily running from inside the plugin's own directory.
 
 - Extract: `bun asbuilt/src/extract.ts --target <repo> [--out <path>]`
-- Skeleton: `bun asbuilt/src/skeleton.ts --target <repo>`
+- Skeleton: `bun asbuilt/src/skeleton.ts --target <repo> [--force]`
 - Verify: `bun asbuilt/src/verify.ts --target <repo>`
 - Slice: `bun asbuilt/src/slice.ts --target <repo> --manifest <path> --diff-range <range>`
 - Check: `bun asbuilt/src/check.ts --manifest <p> --artifact <p> --target <repo> --diff-range <r> [--exclude <json>]`

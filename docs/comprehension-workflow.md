@@ -125,8 +125,9 @@ reliability record.
 
 ## The two don'ts
 
-1. **Never re-run `skeleton.ts` on a bundle that has enrichment.** It re-renders every
-   concept as a virgin skeleton and silently destroys audited prose. Updates are
+1. **Never re-run skeleton.ts on a bundle that has enrichment.** The tool now refuses on
+   its own (exit 1, listing the enriched concepts) unless --force is passed; --force
+   re-renders every concept as a virgin skeleton and destroys audited prose. Updates are
    `refresh.ts` ALONE — it extracts internally and diffs against the on-disk manifest as
    its drift baseline, so running `extract.ts` first silently erases staleness detection
    (found live twice: the skeleton form on r2mcp, the extract-first form on the slack-bot
