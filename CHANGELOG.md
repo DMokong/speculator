@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.17.0 — All seven gates on by default for new projects (2026-07-06)
+
+The `doctor --init` template now generates every gate enabled — the three optional gates (2a eval-intent, 2b eval-quality, 2c comprehension) ship `enabled: true` instead of commented out, with Gate 2c defaulting to `mode: asbuilt` (the validated instrument; requires bun, which the doctor already checks). Disable any optional gate with `enabled: false`.
+
+Existing projects are unaffected: configs that omit the optional blocks still treat them as disabled — only newly generated configs change. README, doctor prose, and the prime doctor-init fixture updated in lockstep (gate-wiring suite 103/103).
+
 ## 2.16.0 — As-built toolchain hardening: dead-id fold reconciliation, skeleton refusal guard, conservative call edges, test-source classification (2026-07-06)
 
 Four live-reproduced defects fixed (SPEC-054, claudeclaw pipeline — gates 1/2a/2/2b/2c-shadow/3/4 all passed):

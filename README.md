@@ -8,9 +8,9 @@
 
 # Speculator
 
-A Claude Code plugin that enforces a 7-stage quality pipeline (4 required + 3 opt-in gates) on agentic development workflows with LLM-as-judge spec scoring, git worktree isolation, and in-repo evidence artifacts. *Spec + Evaluator = Speculator.*
+A Claude Code plugin that enforces a 7-stage quality pipeline (4 required + 3 default-on gates) on agentic development workflows with LLM-as-judge spec scoring, git worktree isolation, and in-repo evidence artifacts. *Spec + Evaluator = Speculator.*
 
-Speculator is being built toward an explicit goal: an **anti-dark-code pipeline** — a workflow that won't ship code unless intent, behavior, and comprehension can all be evidenced. Today it covers spec quality (Gate 1), eval intent (Gate 2a), code quality (Gate 2), eval quality (Gate 2b), comprehension (Gate 2c, experimental), code review (Gate 3), and evidence packaging (Gate 4). Gate 2c closes the last gap between *"tests pass"* and *"any human or agent could explain what shipped"* — its calibration corpus shipped in v2.12.0, and v2.13.0 added an opt-in As-Built mode with measured judge reliability (see `rubrics/comprehension.md` § As-Built mode). See [ROADMAP.md](ROADMAP.md).
+Speculator is being built toward an explicit goal: an **anti-dark-code pipeline** — a workflow that won't ship code unless intent, behavior, and comprehension can all be evidenced. Today it covers spec quality (Gate 1), eval intent (Gate 2a), code quality (Gate 2), eval quality (Gate 2b), comprehension (Gate 2c), code review (Gate 3), and evidence packaging (Gate 4). Gate 2c closes the last gap between *"tests pass"* and *"any human or agent could explain what shipped"* — its calibration corpus shipped in v2.12.0, and v2.13.0 added an opt-in As-Built mode with measured judge reliability (see `rubrics/comprehension.md` § As-Built mode). See [ROADMAP.md](ROADMAP.md).
 
 ## Prerequisites
 
@@ -217,40 +217,40 @@ Speculator: Scoring spec...
 
 ```
 Gate 1: Spec        ┌──── Gate 2a: Eval Intent ────┐  Gate 2: Code   ┌──── Gate 2b: Eval Quality ────┐  ┌── Gate 2c: Comprehension ──┐  Gate 3: Code   Gate 4: Evidence
-       Quality       │       (opt-in, v2.8.0)       │      Quality    │       (opt-in, v2.7.0)        │  │  (opt-in, experimental)    │      Review        Package
+       Quality       │       (on by default)        │      Quality    │       (on by default)         │  │  (on by default)           │      Review        Package
   (LLM-as-judge)  ──>│   pre-impl intent capture    │ ──>(tests + ──>│   instrument-quality on       │─>│  cold-read per-AC artifact │ ──>(6-point  ──>(all gates pass
                      │   per AC, scored 4 dims      │    coverage)    │   shipped tests, scored 7d)   │  │  on diff, scored 4 dims    │    review +      → merge or PR)
                      └──────────────────────────────┘                 └───────────────────────────────┘  └────────────────────────────┘    secrets +
                                                                                                                                             skill desc.)
 ```
 
-Seven gate stages — four always-on, three opt-in:
+Seven gate stages — four always-required, three on by default (configurable):
 
 | Gate | Stage | Default | Evidence file |
 |------|-------|---------|---------------|
 | 1 — Spec Quality | pre-implementation | required | `gate-1-scorecard.yml` |
-| 2a — Eval Intent | between plan and implementation | **opt-in** (`gates.eval-intent.enabled`) | `gate-2a-eval-intent.yml` |
+| 2a — Eval Intent | between plan and implementation | **on by default** (`gates.eval-intent.enabled`) | `gate-2a-eval-intent.yml` |
 | 2 — Code Quality | post-implementation | required | `gate-2-quality.yml` |
-| 2b — Eval Quality | between code and review | **opt-in** (`gates.eval-quality.enabled`) | `gate-2b-eval-quality.yml` |
-| 2c — Comprehension | between eval quality and review | **opt-in, experimental** (`gates.comprehension.enabled`) | `gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `mode: asbuilt`) |
+| 2b — Eval Quality | between code and review | **on by default** (`gates.eval-quality.enabled`) | `gate-2b-eval-quality.yml` |
+| 2c — Comprehension | between eval quality and review | **on by default** (`gates.comprehension.enabled`) | `gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `mode: asbuilt`) |
 | 3 — Code Review | post-implementation | required | `gate-3-review.yml` |
 | 4 — Evidence Package | pre-merge | required | `gate-4-summary.yml` |
 
 Each gate produces a YAML evidence artifact in `docs/specs/{feature}/evidence/`. All gates have dedicated rubrics in `rubrics/` that define scoring criteria, checklists, and pass/fail thresholds.
 
-### Gate 2a: Eval Intent (opt-in, v2.8.0)
+### Gate 2a: Eval Intent (on by default, v2.8.0)
 
-Pre-implementation intent capture. For each acceptance criterion, the author writes an *eval* — a markdown artifact in `docs/specs/{feature}/evals/` describing the observable user outcome. The `eval-intent-scorer` agent scores the eval set on 4 dimensions (intent coverage, anti-pattern detection, journey completeness, implementation independence), checks SYSTEM-SPEC.md for behavioral conflicts, and scans prior specs for regression signals. Default threshold: 6.5. Disabled by default; enable with `gates.eval-intent.enabled: true`.
+Pre-implementation intent capture. For each acceptance criterion, the author writes an *eval* — a markdown artifact in `docs/specs/{feature}/evals/` describing the observable user outcome. The `eval-intent-scorer` agent scores the eval set on 4 dimensions (intent coverage, anti-pattern detection, journey completeness, implementation independence), checks SYSTEM-SPEC.md for behavioral conflicts, and scans prior specs for regression signals. Default threshold: 6.5. On by default since v2.17.0; disable with `gates.eval-intent.enabled: false`.
 
 Why pre-implementation? Catching letter-vs-spirit gaming requires measuring intent *before* the implementation creates an attractor. Evals authored after seeing the code tend to ratify whatever the code does.
 
-### Gate 2c: Comprehension (opt-in, experimental)
+### Gate 2c: Comprehension (on by default since v2.17.0)
 
-The anti-dark-code gate. The `comprehension-scorer` agent reads the spec and the diff **cold** — no access to the implementing agent's reasoning, plan, or in-session context (the implementing agent cannot be its own judge) — generates a per-AC explanation artifact naming the implementing code, then scores that artifact on 4 dimensions (AC coverage, accuracy, spec fidelity, scope containment). Spec fidelity is the dark-code detector: an implementation can satisfy every AC literally and still defeat the spec's intent (soft-delete where the spec demanded erasure). Default threshold: 7.0, per-dimension minimum 5. Disabled by default; enable with `gates.comprehension.enabled: true`.
+The anti-dark-code gate. The `comprehension-scorer` agent reads the spec and the diff **cold** — no access to the implementing agent's reasoning, plan, or in-session context (the implementing agent cannot be its own judge) — generates a per-AC explanation artifact naming the implementing code, then scores that artifact on 4 dimensions (AC coverage, accuracy, spec fidelity, scope containment). Spec fidelity is the dark-code detector: an implementation can satisfy every AC literally and still defeat the spec's intent (soft-delete where the spec demanded erasure). Default threshold: 7.0, per-dimension minimum 5. On by default since v2.17.0, in `mode: asbuilt`; disable with `gates.comprehension.enabled: false`.
 
 The artifact doubles as durable context: per-AC documentation answering *"why was this written this way?"* that the Gate 3 reviewer consumes as preamble. **Experimental (legacy mode)** — the calibration corpus shipped in v2.12.0 (47 band-verified examples), but the legacy single-dispatch scorer has never been calibrated against it, so treat legacy-mode scores as advisory. The As-Built mode below is the measured path.
 
-**As-Built mode (opt-in, v2.13.0):** `gates.comprehension.mode: asbuilt` routes Gate 2c to a different instrument — a mechanically-validated citation gate (deterministic code-graph checks) plus a blinded judge that never sees the pass threshold. See `rubrics/comprehension.md`'s As-Built mode section for the measured reliability record, and **[`docs/comprehension-workflow.md`](docs/comprehension-workflow.md)** for the full operator's guide — including the backfill workflow that bootstraps and audits a knowledge bundle for an *existing* codebase, no spec required. Default mode is `legacy` (above) — no behavior change unless you opt in:
+**As-Built mode (v2.13.0):** `gates.comprehension.mode: asbuilt` routes Gate 2c to a different instrument — a mechanically-validated citation gate (deterministic code-graph checks) plus a blinded judge that never sees the pass threshold. See `rubrics/comprehension.md`'s As-Built mode section for the measured reliability record, and **[`docs/comprehension-workflow.md`](docs/comprehension-workflow.md)** for the full operator's guide — including the backfill workflow that bootstraps and audits a knowledge bundle for an *existing* codebase, no spec required. When the `mode` key is absent the routing default is `legacy` (above); configs generated by `--init` since v2.17.0 set `mode: asbuilt` explicitly:
 
 ```yaml
 gates:
@@ -275,7 +275,7 @@ Gate 3 runs three checks — all blocking on failure:
 | `/spec start` | Create spec from template + git worktree + beads epic |
 | `/spec create` | Alias for `/spec start` — formalize a brainstormed plan into spec.md |
 | `/spec score` | Gate 1: LLM-as-judge spec quality scoring (6 dimensions) |
-| `/spec eval` | Gate 2a (opt-in): Pre-implementation eval authoring + intent scoring (4 dimensions) |
+| `/spec eval` | Gate 2a (on by default): Pre-implementation eval authoring + intent scoring (4 dimensions) |
 | `/spec implement` | Create implementation plan + beads stories + execute tasks |
 | `/spec gate` | Check or run any specific gate (1, 2, 2a, 2b, 2c, 3, 4) |
 | `/spec review` | Gate 3: Automated code review (incl. mandatory secrets scan + skill description eval) |
@@ -354,7 +354,7 @@ A run's cost is measured in agent dispatches. The retry caps below are derivable
 | Gate 2b *(if enabled)* | `eval-quality-scorer` ×1, plus 1 re-dispatch after the self-fix cycle |
 | Gate 2c *(if enabled)* | `comprehension-scorer` ×1, plus at most 1 re-dispatch after an artifact-quality failure |
 
-Order of magnitude: a Full Auto run is **tens of agent invocations, not a few**. The shipped defaults — opt-in gates off — *are* the minimal configuration; the four required gates cannot be disabled by design.
+Order of magnitude: a Full Auto run is **tens of agent invocations, not a few**. The shipped defaults since v2.17.0 enable all seven gates; the minimal configuration is the four required gates (set the optional gates' `enabled: false`) — those four cannot be disabled by design.
 
 **When not to use the pipeline:** sub-spec-sized changes — typo fixes, one-liners, mechanical renames — belong in the normal Claude Code flow, not `/spec run`. Reach for the pipeline when there's intent worth specifying and verifying.
 
@@ -406,7 +406,7 @@ For existing projects adopting drift detection:
 
 ## Configuration
 
-Project-side config lives in `.claude/sdlc.local.md` (YAML frontmatter). `/spec doctor --init` generates a default file; edit the YAML to tune thresholds, enable opt-in gates, or change scoring weights.
+Project-side config lives in `.claude/sdlc.local.md` (YAML frontmatter). `/spec doctor --init` generates a default file; edit the YAML to tune thresholds, disable optional gates, or change scoring weights.
 
 ### Required gates (always on)
 
@@ -462,28 +462,28 @@ run:
     - payment
 ```
 
-### Opt-in gates
+### Optional gates (on by default since v2.17.0)
 
-Three additional gates are opt-in. They are disabled by default and have to be turned on explicitly by adding their config blocks under `gates:` in `.claude/sdlc.local.md`:
+Three additional gates ship enabled in the generated config. Disable any of them by setting `enabled: false` on their blocks under `gates:` in `.claude/sdlc.local.md`:
 
 ```yaml
-# Add these blocks under `gates:` to enable
 gates:
   # ... required gates above ...
 
   eval-intent:                    # Gate 2a — pre-implementation intent capture (v2.8.0)
-    enabled: true                 # default: false. Set true to run /spec eval as a phase.
+    enabled: true                 # on by default since v2.17.0; set false to skip /spec eval
     threshold: 6.5                # minimum overall score (1-10) to pass
     per_dimension_minimum: 4      # any dimension below this fails the gate
     max_eval_retries: 3           # auto-improvement attempts before escalating
 
   eval-quality:                   # Gate 2b — post-implementation eval quality (v2.7.0)
-    enabled: true                 # default: false. Runs after Gate 2.
+    enabled: true                 # on by default since v2.17.0. Runs after Gate 2.
     threshold: 6.5
     per_dimension_minimum: 4
 
-  comprehension:                  # Gate 2c — cold-read comprehension gate (experimental)
-    enabled: true                 # default: false. Runs after Gate 2b (or Gate 2), before Gate 3.
+  comprehension:                  # Gate 2c — comprehension gate. Runs after Gate 2b, before Gate 3.
+    enabled: true                 # on by default since v2.17.0
+    mode: asbuilt                 # validated instrument (requires bun); `legacy` needs no bun but is uncalibrated
     threshold: 7.0
     per_dimension_minimum: 5
 ```
@@ -494,11 +494,11 @@ When enabled, these gates insert into the pipeline as follows:
 Gate 1 → [Gate 2a if enabled] → Plan → Impl → Gate 2 → [Gate 2b if enabled] → [Gate 2c if enabled] → Gate 3 → Gate 4
 ```
 
-You can enable them independently — any one, any pair, or all three. See the per-gate sections under [Gate Pipeline](#gate-pipeline) for what each gate evaluates.
+You can disable them independently — any one, any pair, or all three. See the per-gate sections under [Gate Pipeline](#gate-pipeline) for what each gate evaluates.
 
 ### Bootstrapping
 
-Run `/spec doctor --init` in a fresh project to generate a default `.claude/sdlc.local.md`. The default file ships the required-gate blocks only; uncomment or add the opt-in blocks above when you want to turn on Gate 2a / 2b / 2c for that project.
+Run `/spec doctor --init` in a fresh project to generate a default `.claude/sdlc.local.md`. Since v2.17.0 the default file ships all seven gates enabled (Gate 2c in `mode: asbuilt`); set `enabled: false` on any optional block to slim the pipeline for that project.
 
 ## Plugin Structure
 
@@ -508,7 +508,7 @@ speculator/
 │   ├── sdlc/SKILL.md                # Master orchestrator (routes /spec subcommands)
 │   ├── spec-create/SKILL.md         # /spec start    — spec + worktree + beads epic
 │   ├── spec-score/SKILL.md          # /spec score    — Gate 1 via spec-scorer agent
-│   ├── eval-authoring/SKILL.md      # /spec eval     — Gate 2a authoring loop (opt-in, v2.8.0)
+│   ├── eval-authoring/SKILL.md      # /spec eval     — Gate 2a authoring loop (default-on, v2.8.0)
 │   ├── sdlc-implement/SKILL.md      # /spec implement — plan + beads stories + execution handoff
 │   ├── gate-check/SKILL.md          # /spec gate     — check/run any gate
 │   ├── sdlc-run/SKILL.md            # /spec run      — autonomous pipeline orchestrator
