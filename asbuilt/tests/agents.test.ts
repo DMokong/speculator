@@ -173,6 +173,43 @@ describe("SPEC-049 Task 6: backfill mode + spec-worktree manifest path pins", ()
   });
 });
 
+describe("SPEC-054 R6/AC7: backfill self-sufficiency block (cold-session dispatch templates)", () => {
+  const text = readFileSync(SKILL_PATH, "utf8");
+  const backfill = text.slice(text.indexOf("## Backfill mode"), text.indexOf("## Gate 3 consumption"));
+
+  test("documents the git precondition mechanically (extract.ts's git ls-files discovery)", () => {
+    expect(backfill).toContain("git ls-files");
+    expect(backfill).toContain("git init && git add -A && git commit");
+  });
+
+  test("embeds the citation-universe line (manifest replaces the diff slice in backfill mode)", () => {
+    expect(backfill).toContain("citation universe");
+    expect(backfill).toContain("in place of a slice, the full graph manifest");
+  });
+
+  test("embeds the edge-trust warning verbatim (claw-cs26 wording)", () => {
+    expect(backfill).toContain(
+      "symbol existence/spans reliable; call edges may carry bare-name false positives — consumption claims verified by reading source",
+    );
+  });
+
+  test("embeds both dispatch templates verbatim (generator + judge prompt bodies)", () => {
+    expect(backfill).toContain("backfill dispatch: enrich these concepts for a future cold reader");
+    expect(backfill).toContain("This is a BACKFILL accuracy-only audit: there is no spec.");
+  });
+
+  test("documents the standalone per-batch evidence-dir file-set convention", () => {
+    expect(backfill).toMatch(/-\{?artifact,\s*mechanical,\s*judge,\s*evidence\}?/);
+  });
+
+  test("Gate 3 consumption stays after Backfill mode (ordering pin, unaffected by this block)", () => {
+    const backfillIdx = text.indexOf("## Backfill mode");
+    const gate3Idx = text.indexOf("## Gate 3 consumption");
+    expect(backfillIdx).toBeGreaterThan(-1);
+    expect(gate3Idx).toBeGreaterThan(backfillIdx);
+  });
+});
+
 describe("SPEC-050 Task 1: Gate 3 consumption section", () => {
   const text = readFileSync(SKILL_PATH, "utf8");
 

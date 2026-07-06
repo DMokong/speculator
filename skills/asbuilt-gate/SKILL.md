@@ -278,6 +278,14 @@ there is no spec driving the work — a standalone knowledge-base pass, not a
 gate run against a diff. It reuses the same generator → judge → evidence →
 fold pipeline as Steps 3/5/6/(fold), with three deliberate differences:
 
+**Precondition:** the target must be a git repository with at least one
+commit. `extract.ts` discovers source files via `git ls-files`, which needs
+both a `.git` directory and a first commit to enumerate anything — an
+uncommitted working tree yields an empty file list and a degenerate
+manifest. If auditing an uncommitted tree, make it git-native first:
+`git init && git add -A && git commit` a throwaway copy, then point
+backfill at that copy.
+
 1. **Dispatch asbuilt-generator with no spec.** Give it the concepts to
    enrich instead of a `spec_path`, plus this instruction verbatim:
    *"backfill dispatch: enrich these concepts for a future cold reader;
@@ -313,6 +321,74 @@ marked `fully-audited` — backfill only fills empty shelves, it never
 repaints ones a real spec has already audited. A later gate fold for a
 spec that touches the same concept upgrades it to `fully-audited` through
 the normal Step 6 flow.
+
+### Cold-session dispatch templates (verbatim)
+
+Everything above describes the *shape* of the two dispatches; a cold
+session with only this plugin installed — no access to any prior
+campaign's evidence directory — needs the actual prompt text to run one.
+The two templates below are copied verbatim from a real production
+dispatch record (`BACKFILL-r2mcp-02`), with only the campaign-specific
+paths and concept list swapped for placeholders (`<repo>`, `<N>`,
+`<slug>`, `<file>`) — the instructional wording itself is untouched. The
+generator template also carries the edge-trust warning wording that later
+campaigns (starting with `BACKFILL-slackbot-01`, claw-cs26) add to every
+dispatch; `r2mcp-02` predates it, but no cold-session dispatch should go
+out without it — method-style call edges across files always resolve to
+`null` in the manifest now (same-file matches only; a member call's
+receiver type can't be proven from a bare name alone), so an unresolved
+edge is not evidence of "no caller," and a *resolved* one still deserves
+the same scrutiny the warning describes.
+
+**Generator dispatch:**
+
+```
+backfill dispatch: enrich these concepts for a future cold reader; there are no ACs; produce enrichment_drafts plus one comprehension_entry per concept citing its main symbols.
+
+There is no spec and no diff for this dispatch (diff_range HEAD...HEAD, empty by design — you are explaining code as it stands, not a change).
+
+Concepts to enrich (one comprehension_entry per concept, ac_id BACKFILL-1 through BACKFILL-<N> in this order, ac_text "backfill: explain <source file> for a future cold reader"; one enrichment_drafts entry per concept):
+1. <file> — concept <concept-doc-path>
+   ... (one numbered line per concept in the batch)
+
+Inputs:
+- spec_path: NONE (backfill)
+- diff_range: HEAD...HEAD (empty by design; read the source files directly, cold)
+- target_repo: <repo>
+- citation universe: in place of a slice, the full graph manifest at <repo>/docs/asbuilt/.graph-manifest.json — every code_locations[].symbol you cite must be an id that exists there verbatim (file#name), and every cited line range must sit inside that symbol's span. The batch's concept files' Structure zones list each file's symbols and spans — a convenient starting index, but the manifest is authoritative.
+- bundle_dir: <repo>/docs/asbuilt
+- output_path: <evidence-dir>/<slug>NN-artifact.yml
+- edge-trust warning: symbol existence/spans reliable; call edges may carry bare-name false positives — consumption claims verified by reading source.
+
+Write the comprehension artifact per your role's output contract (comprehension_entries, unexplained_behaviors, enrichment_drafts). For unexplained_behaviors: with no diff, treat it as "substantive behaviors in these <N> files that your entries do not explain" — list any you deliberately skipped, or [] if your entries cover the files' real behavior. Enrichment drafts are the durable product here: decision-level explanations a future cold reader needs (why the module is shaped this way, cross-module relationships, gotchas), not restatements of the Structure zone. Return a one-line confirmation when done.
+```
+
+**Judge dispatch:**
+
+```
+This is a BACKFILL accuracy-only audit: there is no spec. Score spec_fidelity as substance-of-explanation (does the prose deliver durable, decision-level understanding a future cold reader needs) rather than fidelity to a spec document. The artifact's diff_touched advisories are expected and harmless (empty diff by design — the artifact explains code as it stands).
+
+Inputs for this dispatch:
+- artifact_path: <evidence-dir>/<slug>NN-artifact.yml
+- spec_path: NONE (backfill — audit accuracy of the explanations against the source, and substance)
+- diff_range: HEAD...HEAD (empty by design; read the cited source files directly)
+- target_repo: <repo>
+- mechanical_report_path: <evidence-dir>/<slug>NN-mechanical.json
+- output_path: <evidence-dir>/<slug>NN-judge.yml
+
+Score the artifact per your role's process and output contract — your output YAML contains ONLY dimensions, flags, and reasoning. Return a one-line confirmation when done.
+```
+
+**Evidence layout:** each batch writes one standalone
+`<slug>NN-{artifact,mechanical,judge,evidence}` file set into
+`<evidence-dir>` — a directory in the *orchestrating* repo (never the
+target repo, and never a spec's own `evidence/`), e.g.
+`docs/specs/<campaign>/evidence/slackbot01-artifact.yml`,
+`slackbot01-mechanical.json`, `slackbot01-judge.yml`, and
+`slackbot01-evidence.yml` for the first batch, `slackbot02-*` for the
+second, and so on. This is the same "one file set per batch" convention
+`docs/comprehension-workflow.md` documents for the dispatch trail
+(artifacts, mechanical reports, judge outputs, stamped evidence).
 
 ## Gate 3 consumption
 
