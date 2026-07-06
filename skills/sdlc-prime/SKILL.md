@@ -42,7 +42,9 @@ Run from the target project root. Collect, in one pass:
    find.
 2. **Config state** — does `.claude/sdlc.local.md` exist? If yes, read its `gates:`
    block and note which opt-in gates (`eval-intent`, `eval-quality`,
-   `comprehension`) are enabled, and the `comprehension.mode` if set.
+   `comprehension`) are enabled, any `risk_levels:` allowlists on those blocks
+   (risk binding — see `lib/gates.md` "Risk-level binding"), and the
+   `comprehension.mode` if set.
 3. **Language detection** — the target counts as as-built-supported when any
    supported language is present: TypeScript (`tsconfig.json` at the root, or
    `.ts`/`.tsx` sources outside `node_modules`), Go (`go.mod` or `.go` sources),
@@ -90,7 +92,10 @@ requirement, not a style preference. Substitutions:
   enabled (e.g. "Opt-in gates enabled here: eval-intent, eval-quality, comprehension
   (asbuilt mode)."), or "No opt-in gates enabled yet." when none, or "Config not yet
   initialized — run `/sdlc doctor --init`." when sdlc.local.md is absent. Never
-  describe a gate as enabled that the config does not enable.
+  describe a gate as enabled that the config does not enable. When a gate block
+  carries a `risk_levels:` allowlist, name the binding in the same line (e.g.
+  "comprehension (asbuilt mode; runs for medium/high/critical specs)") — a primed
+  summary that omits the binding would misstate when the gate actually runs.
 - `{ASBUILT_BLOCK}` — for targets in a **supported language** (TypeScript, Go,
   Java, Python), the full block from the template (enablement snippet + backfill
   pointer + the two cautions). For targets in **no supported language**, replace

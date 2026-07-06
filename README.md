@@ -229,10 +229,10 @@ Seven gate stages — four always-required, three on by default (configurable):
 | Gate | Stage | Default | Evidence file |
 |------|-------|---------|---------------|
 | 1 — Spec Quality | pre-implementation | required | `gate-1-scorecard.yml` |
-| 2a — Eval Intent | between plan and implementation | **on by default** (`gates.eval-intent.enabled`) | `gate-2a-eval-intent.yml` |
+| 2a — Eval Intent | between plan and implementation | **on by default** (`gates.eval-intent.enabled`, risk-bindable via `risk_levels`) | `gate-2a-eval-intent.yml` |
 | 2 — Code Quality | post-implementation | required | `gate-2-quality.yml` |
-| 2b — Eval Quality | between code and review | **on by default** (`gates.eval-quality.enabled`) | `gate-2b-eval-quality.yml` |
-| 2c — Comprehension | between eval quality and review | **on by default** (`gates.comprehension.enabled`) | `gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `mode: asbuilt`) |
+| 2b — Eval Quality | between code and review | **on by default** (`gates.eval-quality.enabled`, risk-bindable via `risk_levels`) | `gate-2b-eval-quality.yml` |
+| 2c — Comprehension | between eval quality and review | **on by default** (`gates.comprehension.enabled`, risk-bindable via `risk_levels`) | `gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `mode: asbuilt`) |
 | 3 — Code Review | post-implementation | required | `gate-3-review.yml` |
 | 4 — Evidence Package | pre-merge | required | `gate-4-summary.yml` |
 
@@ -240,13 +240,13 @@ Each gate produces a YAML evidence artifact in `docs/specs/{feature}/evidence/`.
 
 ### Gate 2a: Eval Intent (on by default, v2.8.0)
 
-Pre-implementation intent capture. For each acceptance criterion, the author writes an *eval* — a markdown artifact in `docs/specs/{feature}/evals/` describing the observable user outcome. The `eval-intent-scorer` agent scores the eval set on 4 dimensions (intent coverage, anti-pattern detection, journey completeness, implementation independence), checks SYSTEM-SPEC.md for behavioral conflicts, and scans prior specs for regression signals. Default threshold: 6.5. On by default since v2.17.0; disable with `gates.eval-intent.enabled: false`.
+Pre-implementation intent capture. For each acceptance criterion, the author writes an *eval* — a markdown artifact in `docs/specs/{feature}/evals/` describing the observable user outcome. The `eval-intent-scorer` agent scores the eval set on 4 dimensions (intent coverage, anti-pattern detection, journey completeness, implementation independence), checks SYSTEM-SPEC.md for behavioral conflicts, and scans prior specs for regression signals. Default threshold: 6.5. On by default since v2.17.0; disable with `gates.eval-intent.enabled: false`, or bind it to consequential specs only with a `risk_levels:` allowlist (default since v2.18.0: `[medium, high, critical]`).
 
 Why pre-implementation? Catching letter-vs-spirit gaming requires measuring intent *before* the implementation creates an attractor. Evals authored after seeing the code tend to ratify whatever the code does.
 
 ### Gate 2c: Comprehension (on by default since v2.17.0)
 
-The anti-dark-code gate. The `comprehension-scorer` agent reads the spec and the diff **cold** — no access to the implementing agent's reasoning, plan, or in-session context (the implementing agent cannot be its own judge) — generates a per-AC explanation artifact naming the implementing code, then scores that artifact on 4 dimensions (AC coverage, accuracy, spec fidelity, scope containment). Spec fidelity is the dark-code detector: an implementation can satisfy every AC literally and still defeat the spec's intent (soft-delete where the spec demanded erasure). Default threshold: 7.0, per-dimension minimum 5. On by default since v2.17.0, in `mode: asbuilt`; disable with `gates.comprehension.enabled: false`.
+The anti-dark-code gate. The `comprehension-scorer` agent reads the spec and the diff **cold** — no access to the implementing agent's reasoning, plan, or in-session context (the implementing agent cannot be its own judge) — generates a per-AC explanation artifact naming the implementing code, then scores that artifact on 4 dimensions (AC coverage, accuracy, spec fidelity, scope containment). Spec fidelity is the dark-code detector: an implementation can satisfy every AC literally and still defeat the spec's intent (soft-delete where the spec demanded erasure). Default threshold: 7.0, per-dimension minimum 5. On by default since v2.17.0, in `mode: asbuilt`; disable with `gates.comprehension.enabled: false`, or bind it to consequential specs only with a `risk_levels:` allowlist (default since v2.18.0: `[medium, high, critical]` — the most expensive gate is exactly the one you want risk-bound).
 
 The artifact doubles as durable context: per-AC documentation answering *"why was this written this way?"* that the Gate 3 reviewer consumes as preamble. **Experimental (legacy mode)** — the calibration corpus shipped in v2.12.0 (47 band-verified examples), but the legacy single-dispatch scorer has never been calibrated against it, so treat legacy-mode scores as advisory. The As-Built mode below is the measured path.
 
@@ -462,7 +462,7 @@ run:
     - payment
 ```
 
-### Optional gates (on by default since v2.17.0)
+### Optional gates (on by default since v2.17.0, risk-bound by default since v2.18.0)
 
 Three additional gates ship enabled in the generated config. Disable any of them by setting `enabled: false` on their blocks under `gates:` in `.claude/sdlc.local.md`:
 
@@ -472,33 +472,38 @@ gates:
 
   eval-intent:                    # Gate 2a — pre-implementation intent capture (v2.8.0)
     enabled: true                 # on by default since v2.17.0; set false to skip /spec eval
+    risk_levels: [medium, high, critical]   # runs only for these spec risk levels; remove to run at every level
     threshold: 6.5                # minimum overall score (1-10) to pass
     per_dimension_minimum: 4      # any dimension below this fails the gate
     max_eval_retries: 3           # auto-improvement attempts before escalating
 
   eval-quality:                   # Gate 2b — post-implementation eval quality (v2.7.0)
     enabled: true                 # on by default since v2.17.0. Runs after Gate 2.
+    risk_levels: [medium, high, critical]
     threshold: 6.5
     per_dimension_minimum: 4
 
   comprehension:                  # Gate 2c — comprehension gate. Runs after Gate 2b, before Gate 3.
     enabled: true                 # on by default since v2.17.0
+    risk_levels: [medium, high, critical]
     mode: asbuilt                 # validated instrument (requires bun); `legacy` needs no bun but is uncalibrated
     threshold: 7.0
     per_dimension_minimum: 5
 ```
 
-When enabled, these gates insert into the pipeline as follows:
+**Risk-level binding (v2.18.0).** Each optional gate block accepts an optional `risk_levels:` allowlist: the gate runs only when the spec frontmatter's `risk_level` (default `medium` when absent) is in the list — so a `risk_level: low` one-liner skips the optional gates' latency while consequential specs get the full pipeline. The binding *refines* enablement and never overrides it: `enabled: false` keeps a gate off regardless of any allowlist, and a gate without a `risk_levels` key runs at every level (all pre-v2.18.0 configs behave exactly as before). Out-of-enum risk_level values are fail-safe — the gate runs and the pipeline warns. Gate 4 records a risk-bound-out gate as `n/a` with a rationale naming the binding, never as missing evidence. Predicate reference: `lib/gates.md` "Risk-level binding".
+
+When active for a spec, these gates insert into the pipeline as follows:
 
 ```
-Gate 1 → [Gate 2a if enabled] → Plan → Impl → Gate 2 → [Gate 2b if enabled] → [Gate 2c if enabled] → Gate 3 → Gate 4
+Gate 1 → [Gate 2a if active] → Plan → Impl → Gate 2 → [Gate 2b if active] → [Gate 2c if active] → Gate 3 → Gate 4
 ```
 
-You can disable them independently — any one, any pair, or all three. See the per-gate sections under [Gate Pipeline](#gate-pipeline) for what each gate evaluates.
+You can disable or risk-bind them independently — any one, any pair, or all three. See the per-gate sections under [Gate Pipeline](#gate-pipeline) for what each gate evaluates.
 
 ### Bootstrapping
 
-Run `/spec doctor --init` in a fresh project to generate a default `.claude/sdlc.local.md`. Since v2.17.0 the default file ships all seven gates enabled (Gate 2c in `mode: asbuilt`); set `enabled: false` on any optional block to slim the pipeline for that project.
+Run `/spec doctor --init` in a fresh project to generate a default `.claude/sdlc.local.md`. Since v2.17.0 the default file ships all seven gates enabled (Gate 2c in `mode: asbuilt`); since v2.18.0 the three optional gates also ship `risk_levels: [medium, high, critical]`, so low-risk specs run only the four required gates. Set `enabled: false` on any optional block to slim the pipeline for that project, or edit its `risk_levels` to retune the binding.
 
 ## Plugin Structure
 
