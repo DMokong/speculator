@@ -1,6 +1,6 @@
 # Speculator Roadmap
 
-> Last updated: 2026-06-12 (v2.8.1)
+> Last updated: 2026-07-07 (v2.17.1)
 >
 > The MANIFESTO defines the *thesis*. The CHANGELOG records *what shipped*. This document covers *what's next* and *what we deliberately deferred*.
 
@@ -20,7 +20,7 @@ Jones proposed three fixes. Speculator's pipeline maps to all three:
 | Jones's fix | Speculator gate | Status |
 |-------------|------------------|--------|
 | **Spec-driven dev** — comprehension lives in the spec | Gate 1 (Spec Quality) + Gate 2a (Eval Intent) | ✅ Shipped |
-| **Comprehension gates** — PRs blocked unless human can explain what the code does | **Gate 2c (Comprehension Gate)** | ✅ **Shipped experimental 2026-06-12; corpus shipped v2.12.0; measured As-Built mode shipped v2.13.0 (opt-in `mode: asbuilt`)** |
+| **Comprehension gates** — PRs blocked unless human can explain what the code does | **Gate 2c (Comprehension Gate)** | ✅ **Graduated: measured As-Built mode (v2.13.0) is on by default for new projects since v2.17.0** |
 | **Context engineering** — failure modes + why-wired-this-way on high-risk modules | Gate 2c artifact (durable per-AC explanation, not just a gate) | 🚧 Same artifact, dual purpose |
 
 Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass while testing the wrong thing — and was always **Phase 1 of a two-phase anti-dark-code expansion**. Gate 2c is **Phase 2**.
@@ -35,7 +35,7 @@ Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass whi
 
 ---
 
-## Where we are (2026-06-12)
+## Where we are (2026-07-07)
 
 | Pillar | Status |
 |---|---|
@@ -52,6 +52,12 @@ Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass whi
 | Impact awareness validation | ✅ Shipped, decision matrix in `rubrics/impact-awareness.md` |
 | Spec-Bench harness | ✅ Shipped, 67/67 tests passing, 3-round results published |
 | Spec-Bench calibration protocol (human-vs-judge) | ✅ Shipped, divergence flagging in place |
+| SYSTEM-SPEC split layout (index + per-domain files) | ✅ Shipped v2.11.0 (SPEC-042), compactor routes by `domain:` |
+| As-Built living KB (fold / refresh / backfill / verify / graphify lane) | ✅ Shipped v2.13.0, hardened v2.16.0 (SPEC-054: dead-id reconciliation, skeleton refusal guard, conservative call edges, test-source classification) |
+| Multi-language extraction (TS, Go, Java, Python) | ✅ Shipped v2.15.0 (SPEC-053), TS byte-identical to prior extractor |
+| `/spec prime` — CLAUDE.md onboarding | ✅ Shipped v2.14.0 (SPEC-052) |
+| Validation campaign (test-retest sigma, feedback-vs-control ablation, outcome matrix) | ✅ Landed — see `benchmarks/results/` |
+| **All seven gates enabled by default in `doctor --init`** | ✅ **Shipped v2.17.0** (2c in `mode: asbuilt`; existing configs unaffected) |
 
 ---
 
@@ -59,7 +65,7 @@ Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass whi
 
 **Goal:** close the dark-code pathway between "tests pass" and "code ships." The comprehension agent reads the spec + diff *cold* (no access to the implementing agent's reasoning — the implementing agent cannot be its own judge), generates a per-AC explanation artifact, then scores it.
 
-**Status:** wired and shipped 2026-06-12 as an opt-in experimental gate (`gates.comprehension.enabled: true`, default off, global flag — risk-level binding deferred to v3, see backlog). **Update (v2.12.0–v2.13.0):** the calibration corpus shipped in v2.12.0 (47 band-verified examples), and v2.13.0 shipped `gates.comprehension.mode: asbuilt` — a split generator/blinded-judge instrument with mechanically validated citations whose reliability has been measured against that corpus (calibration mean divergence 0.5, no `needs_tuning` flags, test-retest sigma 0.162; see `rubrics/comprehension.md` § As-Built mode). The legacy single-dispatch scorer remains uncalibrated and advisory. Remaining measurement follow-ups (band-edge sigma, human anchoring of the accuracy subset, 9-10-band coverage) are tracked in the consuming project's issue tracker.
+**Status:** shipped experimental 2026-06-12; calibration corpus v2.12.0 (47 band-verified examples); `mode: asbuilt` v2.13.0 — a split generator/blinded-judge instrument with mechanically validated citations, measured against the corpus (calibration mean divergence 0.5, no `needs_tuning` flags, test-retest sigma 0.162, band-edge sigma follow-up completed; see `rubrics/comprehension.md` § As-Built mode). **Since v2.17.0 the gate is enabled by default for new projects, in `mode: asbuilt`** — the first blocking production run scored 8.9 and caught a real invoker error (wrong diff-range base) during its own smoke test (SPEC-055, v2.17.1). The legacy single-dispatch scorer remains uncalibrated and is no longer the generated default. Remaining measurement follow-ups (human anchoring of the accuracy subset, 9-10-band coverage, non-TS calibration) are tracked in the consuming project's issue tracker; risk-level binding is now Active Priority 2.
 
 The artifact has dual value:
 - **As a gate** — catches dark code (implementations that satisfy tests while missing spec intent).
@@ -74,7 +80,7 @@ The artifact has dual value:
 | Rubric | `rubrics/comprehension.md` — 4 dimensions |
 | Evidence | `evidence/gate-2c-comprehension.yml` |
 | Threshold | Overall ≥ 7.0, every dimension ≥ 5, no blocking flags |
-| Config | `gates.comprehension.enabled: true` in `sdlc.local.md` (default off) |
+| Config | `gates.comprehension.enabled` + `mode` in `sdlc.local.md` (enabled + `mode: asbuilt` by default in generated configs since v2.17.0) |
 | Phase detection | Row 3b in `sdlc-run/SKILL.md` between rows 3a (eval-quality) and 4 (review) |
 
 ### Scoring rubric — 4 dimensions
@@ -113,82 +119,56 @@ The agent code was mostly mechanical, as predicted. **Calibration is the remaini
 
 ---
 
-## Active priorities (next 1–2 minor releases, after Gate 2c)
+## Active priorities (next 1–2 minor releases)
 
-### 1½. Validation campaign — first results landed (2026-06-12)
+> Re-baselined 2026-07-07 (v2.17.1). The previous edition's active list is mostly shipped:
+> the validation campaign landed (test-retest sigma, feedback-vs-control ablation, and the
+> outcome matrix — all in `benchmarks/results/`), the SYSTEM-SPEC domain split shipped as
+> the supported split layout (SPEC-042), and Gate 2c graduated from opt-in experimental to
+> **on by default (`mode: asbuilt`) for new projects** in v2.17.0.
 
-The "does this actually work?" question now has its first controlled data:
+### 1. Spec drift detection (`/sdlc audit`) — precondition now met
 
-- **Test-retest sigma study** (`benchmarks/results/test-retest-sigma.yml`): scorer sigma 0.18–0.24 on polished specs, 0.86 on a rough draft. The trust ladder's old 0.2 full-auto band gap was inside noise — this repo's config moved to `full_auto_threshold: 8.3` / `self_improvement_trigger: 8.5`. **Resolved (v2.12.0):** the doctor `--init` template ships 8.3/8.5 defaults sized to the measured sigma.
-- **Feedback-vs-control ablation** (`benchmarks/results/feedback-vs-control-ablation.yml`): paired arms, n=3, pinned scorer, production rubric. Feedback: mean lift +2.23, 3/3 passed in one iteration. Control (generic revision): +0.63, 0/3 passed in three. **Scorer feedback content — not revision compute — drives the lift.** This replaces the uncontrolled 18-point claim as the citable evidence.
-- **Outcome matrix** (spec score → implementation quality): in flight on the repaired harness (configurable judge timeouts, per-target error isolation, real token accounting). This is the thesis's remaining open link.
+**Goal:** measure divergence between the living spec (SYSTEM-SPEC) and the living code, over time. SYSTEM-SPEC captures *what we said the system does*; this tool flags when the code stops matching it, amendment-aware (`amends` knows which behaviors are intentionally drifting).
 
-### 2. Spec-Bench × mutation testing validation
-
-**Goal:** test the predictive validity of Gate 2b (and eventually 2c) scores against an independent ground truth.
-
-**Why:** Gate 2b claims to score test suites as detection instruments. The honest validation is mutation testing — Stryker (JS), Pitest (JVM), or equivalent injects bugs and measures kill rate. **High Gate 2b scores should predict high mutation kill rates on AC-relevant mutations.** This is a directly testable hypothesis.
-
-**Shape:**
-- Run Spec-Bench against PRDs that ship with mutation testing baselines.
-- Correlate Gate 2b dimension scores with kill rates per AC.
-- Publish the correlation matrix in `benchmarks/results/`.
-- If correlation is weak: Gate 2b's rubric needs re-tuning. If strong: Gate 2b can be promoted from advisory to load-bearing in dev workflows.
-
-**Prerequisite:** Gate 2b has never produced an evidence artifact, and the bench corpus contains zero test files. The correlation work first requires the constant-implementer arm to ship test suites and Gate 2b to run on them — there is nothing to correlate until both exist.
-
-**Status:** opportunity called out in the Phase 1 design doc; not started. This is the single highest-leverage research move because it gives us the empirical answer to *"does this actually work?"*
-
-### 3. Spec drift detection
-
-**Goal:** measure divergence between the living spec (SYSTEM-SPEC.md) and the living code, over time.
-
-**Why:** the MANIFESTO's "Specs as Living Organisms" section needs an evidence track. SYSTEM-SPEC.md captures *what we said the system does*; we need a tool that flags when the code stops matching it. [Spec-Kit-Antigravity](https://github.com/compnew2006/Spec-Kit-Antigravity-Skills) has explored a `/util-speckit.diff` primitive; we can take it further by being amendment-aware (`amends` field knows which behaviors are intentionally drifting).
+**Why now:** the deferral condition — "drift detection cannot ship before the living spec has a corpus to drift against" — is satisfied. The reference consuming project's SYSTEM-SPEC now spans an index plus 6 domain files covering ~50 compacted specs. An early exploration stalled in that repo (its SPEC-013, 2026-03, pre-split-layout); a restart should build on the split layout + `amends` machinery, and can share bones with the as-built staleness system — drift at the spec level parallels `refresh.ts` staleness at the code level, and the graph manifest gives `audit` a deterministic code-side anchor the March design never had.
 
 **Shape (proposed):**
-- A new `/sdlc audit` skill that, given a SYSTEM-SPEC.md and a worktree, surfaces per-behavior drift signals (missing implementation, divergent implementation, orphaned implementation).
+- A new `/sdlc audit` skill: given the SYSTEM-SPEC layout and a worktree, surface per-behavior drift signals (missing implementation, divergent implementation, orphaned implementation).
 - Output: `evidence/audit-{date}.yml` summarizing drift per domain section.
-- Integrates with Spec-Bench so we can measure drift-rate as a property of teams/harnesses.
+- Integrates with Spec-Bench so drift-rate becomes measurable as a property of teams/harnesses.
 
-**Precondition:** deferred behind in-repo SYSTEM-SPEC dogfooding — drift detection cannot ship before the living spec has a corpus to drift against. SYSTEM-SPEC.md is one fold-in (~35 lines) today.
+### 2. Risk-level-bound gate enablement — promoted from backlog by v2.17.0
 
-**Status:** not started. Design notes welcome via issue.
+Optional gates are global on/off per project. With all seven gates on by default since v2.17.0, the latency tax on trivial specs is no longer hypothetical — binding gate enablement to `risk_level` (e.g. per-gate `risk_levels:` allowlists in `sdlc.local.md`) lets projects keep the full pipeline where it matters without paying three scorer dispatches plus a generator/judge pair on a one-line fix. The doctor `--init` template should ship a sensible default binding.
 
-### 4. SYSTEM-SPEC.md domain split
+### 3. Spec-Bench × mutation testing validation
 
-**Goal:** prepare for scale. The compactor agent has a hardcoded `<500-line` sizing constraint as a known cliff. The first fold-in is one domain (eval quality, ~35 lines from SPEC-001). Once 5–10 specs accumulate, single-file SYSTEM-SPEC.md will start to feel cramped.
+**Goal:** test the predictive validity of Gate 2b (and eventually 2c) scores against an independent ground truth: mutation kill rates (Stryker/Pitest). High 2b scores should predict high kill rates on AC-relevant mutations.
 
-**Shape:**
-- Split into `system-spec/` directory with per-domain files + `index.md`.
-- Compactor agent reads/writes domain files; `[from: ...]` provenance trails preserved.
-- Existing tooling (impact validation, eval-intent regression scan) updated to glob the directory.
+**Why it got more urgent:** Gate 2b now runs by default for every new project (v2.17.0) — its predictive validity is a live product question, not a research nicety.
 
-**Trigger:** when SYSTEM-SPEC.md crosses ~300 lines, plan the split. We're at ~35 today.
+**Prerequisite unchanged:** the bench corpus contains zero test files and Gate 2b has never produced a bench evidence artifact; the constant-implementer arm must ship test suites first. Still the single highest-leverage research move.
 
-### 5. Calibration guide
+### 4. Calibration guide
 
-**Goal:** published default tunings per project profile, backed by Spec-Bench distributions.
-
-**Why:** v2.x ships with a lot of dials (~12 thresholds across `sdlc.local.md`). Reasonable defaults exist, but there's no published guidance on *when to retune*. A greenfield startup spec, an enterprise compliance spec, and a refactor spec have different reasonable thresholds.
-
-**Shape:**
-- `docs/calibration-guide.md` showing the empirical pass/fail distribution from Spec-Bench runs.
-- Three to four named project profiles with per-profile `sdlc.local.md` examples.
-- Decision tree: "your specs are scoring 7.5–7.8 consistently, your team is junior, your features touch payments — try profile X."
-
-**Status:** Spec-Bench data needed first.
-
----
+**Goal:** published default tunings per project profile, backed by empirical distributions. Partially unblocked — sigma, ablation, and outcome-matrix data now exist in `benchmarks/results/`; what's missing is per-profile pass/fail distributions. Heavier defaults (v2.17.0) make this MORE urgent: new adopters now need "when to turn things off / retune" guidance more than "what to enable."
 
 ## Backlog (prioritized but not scheduled)
+
+> Tactical open issues live in the consuming project's tracker (`bd ready`), grouped roughly as: refresh guardrails (hash-gate reclassification bypass — the P2; extract-first baseline guard), viz productization (which absorbs the NUL-byte hygiene fix), judge-calibration follow-ups (9-10-band, human anchoring), and docs hygiene (comprehension.md EXPERIMENTAL banner + machine-local pointers; evidence-provenance corrections).
+
 
 - **Spec-Bench public dataset + leaderboard** *(moved from active priorities, 2026-06-12)*. Community-contributed PRDs with openly scored results — the MANIFESTO's "we need a spec quality benchmark" call. The harness and calibration protocol ship today; what's missing is curation and operations. **Trigger: deferred until ≥5 PRDs exist organically — a leaderboard with one PRD and no community is an operations sinkhole.** Re-activate when contributions arrive (see "How to contribute"), not by building ahead of them.
 - **Post-implementation quality tracing.** Connect Gate 2 failures, Gate 3 blockers, and post-merge bugs back to the originating spec so we can answer "what spec gaps cost us?" empirically. Requires a thin telemetry layer over the existing evidence files.
 - **Risk-level-bound gate enablement.** Today opt-in gates are global on/off via `sdlc.local.md`. Binding Gate 2c to `risk_level: high` (and similar) lets teams adopt it where it matters most without paying the latency tax on trivial specs.
 - **NBJ "Explanation Artifact" 4-question template** as an optional Gate 2c output mode. The Apr 21 follow-up describes a labor-market-friendly format ("what is this code doing / what assumptions / what could break / what would I change") that doubles as a hiring signal. Gate 2c could emit either the structured YAML *or* the 4-question prose, configurable per project.
 - **Add a `Makefile`** target for `test`, `lint`, and the full structural validation pass — currently each suite is a separate manual command.
-- **Hard-block mode for the pre-commit hook.** Today it's warning-only (`hooks/hooks.json`); v3 could let users opt into a hard block once the warning has trained the workflow.
-- **Test-runner-driven discovery in `eval-quality-scorer`.** Today the agent globs for fixed patterns (`**/test_*.py`, `**/*.test.ts`, etc.). Reading `pytest.ini` / `vitest.config.ts` / `cargo.toml` would generalize discovery without hardcoded language assumptions.
+- **Hard-block mode for the pre-commit hook — robustness first.** Today it's warning-only (`hooks/hooks.json`). Observed 2026-07-07: the hook misfired on a cross-repo commit (couldn't resolve `sdlc.local.md` from a worktree cwd and blocked an unrelated repo's release commit). Fix cwd/repo resolution before any hard-block mode.
+- **Test-runner-driven discovery in `eval-quality-scorer`.** Today the agent globs for fixed patterns (`**/test_*.py`, `**/*.test.ts`, etc.). Reading `pytest.ini` / `vitest.config.ts` / `cargo.toml` would generalize discovery without hardcoded language assumptions. Elevated by default-on 2b: a glob miss on an unconventional layout now reads as a false low score for every new adopter.
+- **2a/2b scorers record their dimension weights in evidence.** `verify-evidence.sh` fully recomputes Gate 1 and 2c overalls but must skip the recomputation for 2a/2b (weights absent from their evidence files — every Gate 4 run shows 2 skips). Recording weights makes the whole package mechanically recomputable.
+- **`prime --compact` variant.** A shorter prime block for projects that want the marker-fenced section under ~25 lines (from the SPEC-054 handoff).
+- **Non-TS judge calibration campaign.** The asbuilt judge's reliability record (divergence 0.5, sigma 0.162) was measured on TypeScript targets; Go/Java/Python bundles (extractable since v2.15.0) have no measured record yet.
 
 ### Shipped from backlog
 
@@ -203,7 +183,7 @@ The "does this actually work?" question now has its first controlled data:
 
 These have come up in discussion and we've consciously *not* picked them up:
 
-- **A separate "epic" type in beads.** Using `feature` with child deps works fine at our scale; introducing a new type adds tooling burden without solving a real problem.
+- ~~A separate "epic" type in beads.~~ Overtaken by events — bd grew native epics (`--type=epic` + `--parent` hierarchy + `bd epic status`) and the consuming project's pipeline uses them for every spec. The `sdlc-implement` skill's `dep add --blocked-by {epic}` instruction predates this and should be updated to `--parent` (bd rejects task↔epic blocking).
 - **Cross-spec automated conflict detection beyond `amends` validation.** The MANIFESTO names it as a long-term aspiration, but right now `impact-awareness` validation handles the most common case (modifying behavior captured in SYSTEM-SPEC.md). Going broader would require either much larger SYSTEM-SPEC corpora or fundamentally different machinery.
 - **Per-spec persistent trust scores.** Trust is per-spec, not historical, and we're keeping it that way. Every spec starts fresh — too many factors vary between features for accumulated trust to be safe to carry forward.
 - **Automatic merging without human approval, even at Full Auto + low risk.** The "headless cleanly exits with instructions" pattern in Guided mode is intentional — it's what lets Speculator be safe to run in a long-running headless session.
@@ -215,7 +195,7 @@ These have come up in discussion and we've consciously *not* picked them up:
 
 The most valuable contributions today are:
 
-1. **Calibration examples for Gate 2c.** The gate shipped experimental — calibration is what remains. If you can articulate "this comprehension entry looks plausible but contradicts the diff" with a real example, you're directly graduating the gate out of experimental status.
+1. **Calibration examples for Gate 2c.** The As-Built mode is measured and on by default; what remains is coverage at the edges — 9-10-band examples for spec_fidelity/ac_coverage/scope_containment, human anchoring of the accuracy subset, and any non-TypeScript examples. "This comprehension entry looks plausible but contradicts the diff" cases are still the most valuable.
 2. **PRDs for Spec-Bench.** Drop a PRD + functional tests in `benchmarks/prds/` and run the harness. Submit the results. We need diversity of domains.
 3. **Mutation testing baselines.** If you have an open-source project with Stryker/Pitest baselines, point us at it — it's the validation move for Gate 2b.
 4. **Calibration data.** Run `spec-bench calibrate` against your own runs and contribute the calibration artifacts. They're how we tune the LLM-as-judge over time.
