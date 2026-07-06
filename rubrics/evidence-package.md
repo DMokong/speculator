@@ -27,33 +27,36 @@ How to verify:
 The eval intent gate is opt-in. When enabled, it must have passed before the package is complete.
 
 How to verify:
-1. Read `gates.eval-intent.enabled` from `.claude/sdlc.local.md`
-2. If `false` or absent, result is `n/a` and does not block
-3. If `true`, look for `{spec_dir}/{spec_name}/evidence/gate-2a-eval-intent.yml`
-4. Parse the YAML and check that the `result` field is `pass` or `override-pass`
-5. If the file is missing, result is `missing`. If present but `result` is neither `pass` nor `override-pass`, result is `fail`
+1. Read `gates.eval-intent.enabled` (and any `risk_levels:` allowlist on the block) from `.claude/sdlc.local.md`
+2. If `enabled` is `false` or absent, result is `n/a` and does not block
+3. If `true` but the gate is risk-bound-out for this spec (`risk_levels` present AND the spec's effective risk_level — frontmatter `risk_level`, default `medium`; out-of-enum ⇒ fail-safe active + warn — is not in the list), result is `n/a` with a rationale naming both sides, e.g. `n/a — risk binding: spec risk_level 'low' not in risk_levels [medium, high, critical]`; does not block (see `lib/gates.md` "Risk-level binding")
+4. If active for this spec, look for `{spec_dir}/{spec_name}/evidence/gate-2a-eval-intent.yml`
+5. Parse the YAML and check that the `result` field is `pass` or `override-pass`
+6. If the file is missing, result is `missing`. If present but `result` is neither `pass` nor `override-pass`, result is `fail`
 
 ### 4. Gate 2b Evidence Exists (conditional — required if eval-quality is enabled)
 
 The eval quality gate is opt-in. When enabled, it must have passed before the package is complete.
 
 How to verify:
-1. Read `gates.eval-quality.enabled` from `.claude/sdlc.local.md`
-2. If `false` or absent, result is `n/a` and does not block
-3. If `true`, look for `{spec_dir}/{spec_name}/evidence/gate-2b-eval-quality.yml`
-4. Parse the YAML and check that the `result` field is `pass`
-5. If the file is missing, result is `missing`. If present but `result` is not `pass`, result is `fail`
+1. Read `gates.eval-quality.enabled` (and any `risk_levels:` allowlist on the block) from `.claude/sdlc.local.md`
+2. If `enabled` is `false` or absent, result is `n/a` and does not block
+3. If `true` but the gate is risk-bound-out for this spec (same predicate as check 3), result is `n/a` with the risk-binding rationale; does not block
+4. If active for this spec, look for `{spec_dir}/{spec_name}/evidence/gate-2b-eval-quality.yml`
+5. Parse the YAML and check that the `result` field is `pass`
+6. If the file is missing, result is `missing`. If present but `result` is not `pass`, result is `fail`
 
 ### 5. Gate 2c Evidence Exists (conditional — required if comprehension is enabled)
 
-The comprehension gate is opt-in (experimental). When enabled, it must have passed before the package is complete.
+The comprehension gate is opt-in. When active for a spec, it must have passed before the package is complete.
 
 How to verify:
-1. Read `gates.comprehension.enabled` from `.claude/sdlc.local.md`
-2. If `false` or absent, result is `n/a` and does not block
-3. If `true`, look for `{spec_dir}/{spec_name}/evidence/gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `gates.comprehension.mode: asbuilt` is configured — that file satisfies this check when its `result` field is `pass`; see `rubrics/comprehension.md` § As-Built mode)
-4. Parse the YAML and check that the `result` field is `pass`
-5. If the file is missing, result is `missing`. If present but `result` is not `pass`, result is `fail`
+1. Read `gates.comprehension.enabled` (and any `risk_levels:` allowlist on the block) from `.claude/sdlc.local.md`
+2. If `enabled` is `false` or absent, result is `n/a` and does not block
+3. If `true` but the gate is risk-bound-out for this spec (same predicate as check 3), result is `n/a` with the risk-binding rationale; does not block
+4. If active for this spec, look for `{spec_dir}/{spec_name}/evidence/gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `gates.comprehension.mode: asbuilt` is configured — that file satisfies this check when its `result` field is `pass`; see `rubrics/comprehension.md` § As-Built mode)
+5. Parse the YAML and check that the `result` field is `pass`
+6. If the file is missing, result is `missing`. If present but `result` is not `pass`, result is `fail`
 
 ### 6. Gate 3 Evidence Exists (required)
 
@@ -106,7 +109,7 @@ Two grace rules keep this checklist from retroactively failing specs that closed
 All checks must pass (or be legitimately `n/a`) for the pipeline result to be `pass`:
 
 - Checks 1, 2, 6, 7, 8 must each be `pass`
-- Checks 3, 4, 5 must each be `pass` (when their gate is enabled) or `n/a` (when disabled)
+- Checks 3, 4, 5 must each be `pass` (when their gate is active for this spec) or `n/a` (when disabled, or risk-bound-out with the risk-binding rationale recorded)
 - Check 9 must be `pass` or `n/a`
 - If any check is `fail` or `missing`, the pipeline result is `fail`
 
@@ -127,6 +130,8 @@ gates:
   eval-intent:
     evidence_file: gate-2a-eval-intent.yml
     result: pass | override-pass | fail | missing | n/a
+    # n/a examples: "gate disabled", "gate enabled post-closure", or
+    # rationale: "risk binding: spec risk_level 'low' not in risk_levels [medium, high, critical]"
   eval-quality:
     evidence_file: gate-2b-eval-quality.yml
     result: pass | fail | missing | n/a
