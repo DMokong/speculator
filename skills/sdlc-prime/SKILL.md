@@ -134,9 +134,10 @@ For an existing codebase, the backfill workflow bootstraps and audits a
 knowledge bundle at docs/asbuilt/ with no spec required — see the plugin's
 docs/comprehension-workflow.md and skills/asbuilt-gate/SKILL.md § Backfill
 mode. Two cautions: never re-run skeleton.ts on a bundle that already has
-enrichment (it destroys audited prose — use extract.ts + refresh.ts to
-update), and never trust manifest call edges for "X is consumed by Y"
-claims (bare-name false positives — verify by reading the consumer).
+enrichment (it destroys audited prose — update with refresh.ts ALONE,
+which extracts internally; extract.ts first erases the drift baseline),
+and never trust manifest call edges for "X is consumed by Y" claims
+(bare-name false positives — verify by reading the consumer).
 
 Treat any single-run gate score within 6.3–7.7 as borderline: re-run
 median-of-3 or get human review before acting on it.
