@@ -21,7 +21,7 @@ Read `close.strategy` from the project config (`.claude/sdlc.local.md`). Default
      Stories:        {N} completed (closed during the close workflow, before Gate 4)
      Delivery:       {close_strategy} (merge or pr)
    ```
-   The Gate 2a row is included only when `gates.eval-intent.enabled: true` in `.claude/sdlc.local.md`; the Gate 2b row only when `gates.eval-quality.enabled: true`; the Gate 2c row only when `gates.comprehension.enabled: true`. Omit the rows for disabled opt-in gates — do not show them as skipped.
+   The Gate 2a row is included only when the gate is active for this spec (`gates.eval-intent.enabled: true` and, when `risk_levels:` is present, the spec's risk_level is in the list); the Gate 2b row only when gate 2b is active (`gates.eval-quality.enabled` + `risk_levels`); the Gate 2c row only when gate 2c is active (`gates.comprehension.enabled` + `risk_levels`). Omit the rows for disabled and risk-bound-out opt-in gates — do not show them as skipped (Gate 4's evidence package records why a bound-out gate didn't run).
 
    Then ask:
    ```

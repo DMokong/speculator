@@ -1,7 +1,7 @@
 # Phase 3b: Comprehension (Gate 2c)
 
-This phase runs when `gates.comprehension.enabled: true` in `.claude/sdlc.local.md`.
-It executes after Gate 2 (Code Quality) and Gate 2b (Eval Quality, if enabled),
+This phase runs when the gate is active for this spec: `gates.comprehension.enabled: true` in `.claude/sdlc.local.md` and, when the block carries a `risk_levels:` allowlist, the spec's effective risk_level is in the list (see `lib/gates.md` "Risk-level binding").
+It executes after Gate 2 (Code Quality) and Gate 2b (Eval Quality, if active),
 and before Gate 3 (Code Review).
 
 > **Why a separate phase, not part of Gate 3?** Gate 3 evaluates *code quality*
@@ -37,7 +37,7 @@ to dispatch.
 Before dispatching, confirm:
 
 1. `evidence/gate-2-quality.yml` exists with `result: pass`
-2. Either `gates.eval-quality.enabled: false` (or absent) **OR**
+2. Either gate 2b is not active for this spec (`gates.eval-quality.enabled: false`/absent, or risk-bound-out by its `risk_levels` allowlist) **OR**
    `evidence/gate-2b-eval-quality.yml` exists with `result: pass`
 
 If a precondition is missing, do not dispatch — surface which prior gate is

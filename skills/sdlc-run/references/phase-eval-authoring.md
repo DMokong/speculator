@@ -1,6 +1,6 @@
 # Phase 2a: Eval Authoring (Gate 2a)
 
-This phase runs when `gates.eval-intent.enabled: true` in `.claude/sdlc.local.md`.
+This phase runs when the gate is active for this spec: `gates.eval-intent.enabled: true` in `.claude/sdlc.local.md` and, when the block carries a `risk_levels:` allowlist, the spec's effective risk_level is in the list (see `lib/gates.md` "Risk-level binding").
 It executes after Phase 2 (Plan Creation) and before Phase 3 (Implementation).
 
 1. **Check for existing gate-2a evidence**: If `evidence/gate-2a-eval-intent.yml` already exists with `result: pass` or `result: override-pass`, skip this phase and proceed to Phase 3.

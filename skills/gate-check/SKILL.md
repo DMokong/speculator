@@ -36,11 +36,11 @@ You are helping the user verify or run a quality gate for a specification.
 3. **Check gate status**: Look in `{spec_dir}/{spec_name}/evidence/` for the gate's evidence artifact:
    - Gate 1: `gate-1-scorecard.yml` with `result: pass`
    - Gate 2: `gate-2-quality.yml` with all required checks passing
-   - Gate 2a: `gate-2a-eval-intent.yml` with `result: pass` or `result: override-pass` (only checked if `gates.eval-intent.enabled: true`)
-   - Gate 2b: `gate-2b-eval-quality.yml` with `result: pass` (only checked if `gates.eval-quality.enabled: true`)
-   - Gate 2c: `gate-2c-comprehension.yml` with `result: pass` (only checked if `gates.comprehension.enabled: true`)
+   - Gate 2a: `gate-2a-eval-intent.yml` with `result: pass` or `result: override-pass` (only checked if the gate is active for this spec: `gates.eval-intent.enabled: true` AND, when `risk_levels:` is present on the block, the spec's risk_level is in that list — see `lib/gates.md` "Risk-level binding")
+   - Gate 2b: `gate-2b-eval-quality.yml` with `result: pass` (only checked if the gate is active for this spec — same `gates.eval-quality.enabled` + `risk_levels` predicate)
+   - Gate 2c: `gate-2c-comprehension.yml` with `result: pass` (only checked if the gate is active for this spec — same `gates.comprehension.enabled` + `risk_levels` predicate)
    - Gate 3: `gate-3-review.yml` with approval recorded
-   - Gate 4: `gate-4-summary.yml` with all required gates listed as passed and all enabled opt-in gates (2a/2b/2c per `gates.*.enabled` in `.claude/sdlc.local.md`) passed (disabled opt-in gates report `n/a`)
+   - Gate 4: `gate-4-summary.yml` with all required gates listed as passed and all opt-in gates active for this spec (2a/2b/2c per `gates.*.enabled` + `risk_levels` in `.claude/sdlc.local.md`) passed (disabled opt-in gates report `n/a`; enabled-but-risk-bound-out gates report `n/a` with a risk-binding rationale)
 
 4. **If gate evidence is missing**: Offer to help produce it:
    - Gate 1 missing → suggest `/sdlc score`
@@ -81,7 +81,7 @@ Checks marked `false` by default are **optional** — they only run when explici
 
 ## Gate 2b: Collecting Eval Quality Evidence
 
-This gate is opt-in. Only run it when `gates.eval-quality.enabled: true` in `.claude/sdlc.local.md`.
+This gate is opt-in. Only run it when it is active for this spec: `gates.eval-quality.enabled: true` in `.claude/sdlc.local.md` AND, when the block carries a `risk_levels:` allowlist, the spec's effective risk_level (frontmatter `risk_level`, default `medium`; out-of-enum values are fail-safe-active with a warning) is in the list. When the gate is enabled but risk-bound-out, record nothing here — Gate 4 records the `n/a` with its risk-binding rationale.
 
 When running Gate 2b:
 
@@ -100,7 +100,7 @@ When running Gate 2b:
 
 ## Gate 2c: Collecting Comprehension Evidence
 
-This gate is opt-in and experimental. Only run it when `gates.comprehension.enabled: true` in `.claude/sdlc.local.md`.
+This gate is opt-in. Only run it when it is active for this spec: `gates.comprehension.enabled: true` in `.claude/sdlc.local.md` AND, when the block carries a `risk_levels:` allowlist, the spec's effective risk_level is in the list (same predicate as Gate 2b above; see `lib/gates.md` "Risk-level binding"). When the gate is enabled but risk-bound-out, record nothing here — Gate 4 records the `n/a` with its risk-binding rationale.
 
 **Mode routing (v2.13.0):** read `gates.comprehension.mode` from `.claude/sdlc.local.md` (default `legacy` — no behavior change for existing configs). When `gates.comprehension.mode: asbuilt` is configured, dispatch per `${CLAUDE_PLUGIN_ROOT}/skills/asbuilt-gate/SKILL.md` instead of the steps below — the invoking skill reads the threshold and stamps `result` itself (see that skill's Step 6); the evidence file is `evidence/gate-2c-asbuilt.yml` and satisfies Gate 2c when `result: pass`. When `mode` is absent or `legacy`, continue with the steps below unchanged.
 
@@ -148,11 +148,12 @@ When running Gate 4:
 2. **Run the mechanical verifier**: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-evidence.sh" {spec_dir}/{spec_name}`. The script ships inside the plugin — invoke it via `${CLAUDE_PLUGIN_ROOT}`, not a project-relative path. A non-zero exit is a blocking finding — record it and the gate fails. If the script is not present at that path (e.g. a distribution that strips `scripts/`), report "mechanical verifier not found — skipping" and continue (the rubric checks below still apply); never skip silently.
 3. Read all prior gate evidence files.
 4. Verify all required gates (from project config) have `result: pass`.
-5. **Verify opt-in gates per the project config** (`.claude/sdlc.local.md`):
-   - If `gates.eval-intent.enabled: true` → `gate-2a-eval-intent.yml` must exist with `result: pass` or `result: override-pass`
-   - If `gates.eval-quality.enabled: true` → `gate-2b-eval-quality.yml` must exist with `result: pass`
-   - If `gates.comprehension.enabled: true` → `gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `mode: asbuilt`) must exist with `result: pass`
+5. **Verify opt-in gates per the project config** (`.claude/sdlc.local.md`), using the activation predicate from `lib/gates.md` "Risk-level binding" — a gate is active for this spec iff its `enabled: true` AND (`risk_levels` absent OR the spec's effective risk_level ∈ the list; effective risk_level = frontmatter `risk_level`, default `medium`; out-of-enum ⇒ fail-safe active + warn):
+   - If `gates.eval-intent.enabled: true` and the gate is active for this spec → `gate-2a-eval-intent.yml` must exist with `result: pass` or `result: override-pass`
+   - If `gates.eval-quality.enabled: true` and the gate is active for this spec → `gate-2b-eval-quality.yml` must exist with `result: pass`
+   - If `gates.comprehension.enabled: true` and the gate is active for this spec → `gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `mode: asbuilt`) must exist with `result: pass`
    - Disabled or absent opt-in gates are `n/a` and do not block
+   - **Risk-bound-out gates**: an enabled gate whose `risk_levels` excludes this spec's risk_level is recorded as `n/a` with a rationale naming both sides, e.g. `n/a — risk binding: spec risk_level 'low' not in risk_levels [medium, high, critical]` — never treated as missing
    - **Historical-evidence grace**: for an opt-in gate that was enabled AFTER the spec closed, the evidence file may record `result: n/a` with the rationale `"gate enabled post-closure"` instead of being treated as missing — accept it and note the rationale in the summary
 6. **Verify Gate 1 scorecard has no unaddressed blocking flags.** If the scorecard contains blocking flags that were not resolved, the evidence package fails.
 7. **If a beads epic exists for this spec, verify all child stories are closed.** Open stories indicate incomplete work.

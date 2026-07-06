@@ -69,20 +69,20 @@ After resolving the spec, determine where the pipeline left off by checking evid
 |-------|-----------|----------------|
 | 1 | No `evidence/gate-1-scorecard.yml` | Phase 1: Scoring |
 | 2 | Scorecard exists, no plan in `docs/plans/` matching this spec | Phase 2: Planning |
-| 2a | Plan exists, `eval-intent.enabled: true`, no `evidence/gate-2a-eval-intent.yml` | Phase 2a: Eval Authoring |
+| 2a | Plan exists, gate 2a active for this spec (`gates.eval-intent.enabled: true` + `risk_levels` match), no `evidence/gate-2a-eval-intent.yml` | Phase 2a: Eval Authoring |
 | 2a-retry | `evidence/gate-2a-eval-intent.yml` exists but `result` is not `pass`/`override-pass` (e.g. `fail` after a previous escalation) | Phase 2a: Eval Authoring |
 | 3 | Plan exists, gate 2a satisfied (or disabled), no `evidence/gate-2-quality.yml` | Phase 3: Implementation + Gate 2 |
-| 3a | Gate 2 exists, `eval-quality.enabled: true`, no `evidence/gate-2b-eval-quality.yml` | Phase 3a: Eval Quality (Gate 2b) |
+| 3a | Gate 2 exists, gate 2b active for this spec (`gates.eval-quality.enabled: true` + `risk_levels` match), no `evidence/gate-2b-eval-quality.yml` | Phase 3a: Eval Quality (Gate 2b) |
 | 3a-retry | `evidence/gate-2b-eval-quality.yml` exists but `result` is not `pass` | Phase 3a: Eval Quality (Gate 2b) |
-| 3b | Gate 2b satisfied (or disabled), `gates.comprehension.enabled: true`, no `evidence/gate-2c-comprehension.yml` (or `evidence/gate-2c-asbuilt.yml` when `mode: asbuilt`) | Phase 3b: Comprehension (Gate 2c) |
+| 3b | Gate 2b satisfied (or not active), gate 2c active for this spec (`gates.comprehension.enabled: true` + `risk_levels` match), no `evidence/gate-2c-comprehension.yml` (or `evidence/gate-2c-asbuilt.yml` when `mode: asbuilt`) | Phase 3b: Comprehension (Gate 2c) |
 | 3b-retry | `evidence/gate-2c-comprehension.yml` (or `evidence/gate-2c-asbuilt.yml` when `mode: asbuilt`) exists but `result` is not `pass` | Phase 3b: Comprehension (Gate 2c) |
-| 4 | Gate 2 exists (and 2b/2c each satisfied if enabled), no `evidence/gate-3-review.yml` | Phase 4: Review |
+| 4 | Gate 2 exists (and 2b/2c each satisfied if active for this spec), no `evidence/gate-3-review.yml` | Phase 4: Review |
 | 5 | Gate 3 exists, no `evidence/gate-4-summary.yml` | Phase 5: Close |
 | 6 | All required gates exist | Pipeline complete — nothing to do |
 
-"Gate 2a satisfied" means: either `gates.eval-intent.enabled` is false/absent in sdlc.local.md, OR `evidence/gate-2a-eval-intent.yml` exists with `result: pass` or `result: override-pass`.
+"Gate 2a satisfied" means: the gate is **not active for this spec** — `gates.eval-intent.enabled` false/absent in sdlc.local.md, OR the block's `risk_levels:` allowlist excludes the spec's effective risk_level (frontmatter `risk_level`, default `medium`; out-of-enum ⇒ fail-safe active — see `lib/gates.md` "Risk-level binding") — OR `evidence/gate-2a-eval-intent.yml` exists with `result: pass` or `result: override-pass`.
 
-"Gate 2b satisfied" and "Gate 2c satisfied" follow the same pattern: the gate's `enabled` key is false/absent in sdlc.local.md, OR its evidence file exists with `result: pass` (2b and 2c have no `override-pass`).
+"Gate 2b satisfied" and "Gate 2c satisfied" follow the same pattern: the gate is not active for this spec (`enabled` false/absent, or risk-bound-out by `risk_levels`), OR its evidence file exists with `result: pass` (2b and 2c have no `override-pass`).
 
 Announce which phase will start:
 ```
@@ -147,7 +147,7 @@ Create implementation plan via `writing-plans` skill, generate beads stories, ha
 → Read `references/phase-planning.md` for detailed steps.
 
 ### Phase 2a: Eval Authoring (Gate 2a)
-Run only when `gates.eval-intent.enabled: true` in `.claude/sdlc.local.md`.
+Run only when the gate is active for this spec: `gates.eval-intent.enabled: true` in `.claude/sdlc.local.md` and, when `risk_levels:` is present, the spec's risk_level is in the list.
 Authors pre-implementation intent evals, scores them, checks SYSTEM-SPEC.md compatibility, and validates prior spec regression signals.
 → Read `references/phase-eval-authoring.md` for detailed steps.
 
@@ -157,13 +157,13 @@ Execute plan via `subagent-driven-development`, run Gate 2 (code quality), self-
 
 ### Phase 3a: Eval Quality (Gate 2b)
 
-Run only when `gates.eval-quality.enabled: true` in `.claude/sdlc.local.md`.
+Run only when the gate is active for this spec: `gates.eval-quality.enabled: true` in `.claude/sdlc.local.md` and, when `risk_levels:` is present, the spec's risk_level is in the list.
 
 Follow the steps in `${CLAUDE_PLUGIN_ROOT}/skills/sdlc-run/references/phase-eval-quality.md`.
 
 ### Phase 3b: Comprehension (Gate 2c)
 
-Run only when `gates.comprehension.enabled: true` in `.claude/sdlc.local.md` (experimental, default off).
+Run only when the gate is active for this spec: `gates.comprehension.enabled: true` in `.claude/sdlc.local.md` and, when `risk_levels:` is present, the spec's risk_level is in the list.
 
 Follow the steps in `${CLAUDE_PLUGIN_ROOT}/skills/sdlc-run/references/phase-comprehension.md`.
 

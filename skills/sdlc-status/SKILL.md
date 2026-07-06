@@ -18,7 +18,7 @@ Show the user where their spec currently stands in the quality pipeline.
    - If in a worktree: `Worktree: {name} (branch: {branch})`
    - If on main: `Workspace: main`
 
-2. **Read project config**: Get `spec_dir` from `.claude/sdlc.local.md`. Also read the opt-in gate switches: `gates.eval-intent.enabled` (Gate 2a), `gates.eval-quality.enabled` (Gate 2b), and `gates.comprehension.enabled` (Gate 2c) — these control which conditional rows appear in the status display (step 5).
+2. **Read project config**: Get `spec_dir` from `.claude/sdlc.local.md`. Also read the opt-in gate switches: `gates.eval-intent.enabled` (Gate 2a), `gates.eval-quality.enabled` (Gate 2b), and `gates.comprehension.enabled` (Gate 2c), plus any `risk_levels:` allowlist on those blocks — together with each spec's frontmatter `risk_level` (default `medium`) these control which conditional rows appear and how they render in the status display (step 5; predicate in `lib/gates.md` "Risk-level binding").
 
 3. **Find active specs — including across worktrees**:
    a. List specs in the local `{spec_dir}/` (current workspace).
@@ -35,8 +35,9 @@ Show the user where their spec currently stands in the quality pipeline.
 4. **For each spec, check gate evidence**: Look in the spec's evidence directory using the correct base path (worktree or main). Evidence files per gate: `gate-1-scorecard.yml`, `gate-2a-eval-intent.yml`, `gate-2-quality.yml`, `gate-2b-eval-quality.yml`, `gate-2c-comprehension.yml` (or `gate-2c-asbuilt.yml` when `gates.comprehension.mode: asbuilt`), `gate-3-review.yml`, `gate-4-summary.yml`.
 
 5. **Display status**: Show a clear pipeline view for each active spec. Rows appear in pipeline execution order: Gate 1, Gate 2a, Gate 2, Gate 2b, Gate 2c, Gate 3, Gate 4. Opt-in gate rows (2a/2b/2c) are conditional:
-   - Config block present with `enabled: true` → render the row with PASS/FAIL/PENDING based on evidence
-   - Config block present with `enabled: false` → render the row as SKIPPED
+   - Config block present with `enabled: true` and the gate active for this spec (no `risk_levels`, or the spec's risk_level is in the list) → render the row with PASS/FAIL/PENDING based on evidence
+   - Config block present with `enabled: true` but risk-bound-out for this spec (`risk_levels` present and the spec's risk_level not in it) → render the row as `SKIPPED (risk)`
+   - Config block present with `enabled: false` → render the row as SKIPPED (any `risk_levels` key is inert on a disabled gate)
    - Config block absent → omit the row entirely
 
 ```
@@ -67,5 +68,6 @@ Use these indicators:
 - FAIL — evidence exists, result is fail
 - PENDING — no evidence yet
 - SKIPPED — gate not required in project config (also used for opt-in gates with `enabled: false`)
+- SKIPPED (risk) — opt-in gate enabled but risk-bound-out for this spec: the block's `risk_levels` allowlist excludes the spec's effective risk_level (out-of-enum risk_level values are fail-safe: treat the gate as active and render PENDING, noting the unrecognized value)
 
 6. **Suggest next action**: Based on the first pending gate for each spec, suggest what the user should do next. If on main, remind them to switch to the appropriate worktree (or launch a new session there) to continue work.

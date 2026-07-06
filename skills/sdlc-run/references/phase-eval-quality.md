@@ -1,6 +1,6 @@
 # Phase 3a: Eval Quality (Gate 2b)
 
-This phase runs only when `gates.eval-quality.enabled: true` in `.claude/sdlc.local.md`.
+This phase runs only when the gate is active for this spec: `gates.eval-quality.enabled: true` in `.claude/sdlc.local.md` and, when the block carries a `risk_levels:` allowlist, the spec's effective risk_level is in the list (see `lib/gates.md` "Risk-level binding").
 
 1. **Dispatch the `eval-quality-scorer` agent** from `${CLAUDE_PLUGIN_ROOT}/agents/eval-quality-scorer/AGENT.md` with:
    - Spec path
