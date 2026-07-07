@@ -2,7 +2,7 @@
 
 You are scoring a **comprehension artifact** — a YAML file produced by the `comprehension-scorer` agent in Phase A of its dispatch. The agent reads the spec and the diff cold (no access to the implementing agent's reasoning), generates per-AC explanations, lists unexplained behaviors, and then runs *this rubric* against what it just generated. The artifact lives at `docs/specs/{feature}/evidence/gate-2c-comprehension.yml` and is not the spec.
 
-> **Status:** EXPERIMENTAL. The gate is wired (opt-in via `gates.comprehension.enabled`, default off), but the calibration examples below are seed examples derived from the Phase 2 design (see `docs/superpowers/specs/2026-04-15-anti-dark-code-pipeline-design.md` in the parent ClaudeClaw workspace). The rubric is not fully calibrated until each dimension has 10–15 calibrated examples, with explicit "plausible-but-wrong" cases for the Accuracy dimension.
+> **Status:** legacy mode is EXPERIMENTAL; As-Built mode is the measured instrument. The calibration examples below are seed examples for the **legacy single-dispatch scorer** (`mode: legacy`), which has never been calibrated against the v2.12.0 corpus — legacy-mode bands are not fully calibrated until each dimension has 10–15 calibrated examples, with explicit "plausible-but-wrong" cases for the Accuracy dimension. This caveat does NOT extend to `mode: asbuilt` (v2.13.0+, the generated default since v2.17.0): As-Built mode has its own validated bands and measured reliability record — see the As-Built mode section below.
 
 ## What the artifact looks like
 
@@ -478,7 +478,7 @@ Unlike `legacy` mode's judge-only scoring, `asbuilt` mode runs deterministic mec
 
 ### Measured reliability record
 
-The numbers below are reproduced from the SPEC-050 validation campaign and its claw-u806 band-edge follow-up — reference implementation evidence: `docs/specs/asbuilt-validation/evidence/{calibration-run.yml, judge-sigma.yml, band-edge-sigma.yml, VALIDATION.md}` (claudeclaw reference repo). They are recomputable from raw integers via that repo's `sigma-stats.ts`; do not restate them more strongly than the source:
+The numbers below are reproduced from the SPEC-050 validation campaign and its claw-u806 band-edge follow-up — the raw campaign evidence files (`calibration-run.yml`, `judge-sigma.yml`, `band-edge-sigma.yml`, `VALIDATION.md`) live in the campaign's own repository, not in this plugin. They are recomputable from raw integers via the plugin's own tool, `bun asbuilt/src/sigma-stats.ts --runs <runs.yml>`; do not restate them more strongly than the source:
 
 - **Calibration mean point-divergence: 0.5** across the four judged dimensions against a 14-example blinded corpus — no dimension flagged `needs_tuning`.
 - **Miss direction is strict, not charitable**: 4 of 5 out-of-band calibration scores were harsher than the verified band; no charitable inflation was observed on either of the two Accuracy plausible-but-wrong traps or the two Spec Fidelity letter-vs-spirit traps.
