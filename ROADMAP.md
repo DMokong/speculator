@@ -1,6 +1,6 @@
 # Speculator Roadmap
 
-> Last updated: 2026-07-07 (v2.17.1)
+> Last updated: 2026-07-07 (v2.18.0)
 >
 > The MANIFESTO defines the *thesis*. The CHANGELOG records *what shipped*. This document covers *what's next* and *what we deliberately deferred*.
 
@@ -58,6 +58,7 @@ Gate 2b (Eval Quality) addresses a separate failure mode — tests that pass whi
 | `/spec prime` — CLAUDE.md onboarding | ✅ Shipped v2.14.0 (SPEC-052) |
 | Validation campaign (test-retest sigma, feedback-vs-control ablation, outcome matrix) | ✅ Landed — see `benchmarks/results/` |
 | **All seven gates enabled by default in `doctor --init`** | ✅ **Shipped v2.17.0** (2c in `mode: asbuilt`; existing configs unaffected) |
+| **Risk-level-bound gate enablement** (per-gate `risk_levels:` allowlists) | ✅ **Shipped v2.18.0** (SPEC-057: one predicate in `lib/gates.md`, read by every surface; doctor default binding `[medium, high, critical]`; 2a/2b evidence records weights — Gate 4 recomputes all scored gates) |
 
 ---
 
@@ -115,7 +116,7 @@ The agent code was mostly mechanical, as predicted. **Calibration is the remaini
 
 1. **Accuracy drift.** The Accuracy dimension carries 0.30 weight; getting it wrong undermines the whole gate. Mitigation: build calibration explicitly around "plausible-but-wrong" examples.
 2. **Gaming.** Teams aware of the rubric might add explanation language without substance. Mitigation: Spec Fidelity is hard to game by adding text — it requires the implementation to actually match the spec's intent. Calibration examples should explicitly identify gaming patterns.
-3. **Latency.** Cold-read of spec + diff + generation + scoring is the most expensive gate by far. The cost is acceptable for high-stakes specs (`risk_level: high`) and may be too high for trivial changes. Suggestion: bind enablement to `risk_level` rather than a global flag, in v3.
+3. **Latency.** Cold-read of spec + diff + generation + scoring is the most expensive gate by far. ~~Suggestion: bind enablement to `risk_level` rather than a global flag, in v3.~~ Shipped v2.18.0 (SPEC-057): per-gate `risk_levels:` allowlists, `[medium, high, critical]` by default in generated configs.
 
 ---
 
@@ -138,9 +139,9 @@ The agent code was mostly mechanical, as predicted. **Calibration is the remaini
 - Output: `evidence/audit-{date}.yml` summarizing drift per domain section.
 - Integrates with Spec-Bench so drift-rate becomes measurable as a property of teams/harnesses.
 
-### 2. Risk-level-bound gate enablement — promoted from backlog by v2.17.0
+### 2. ~~Risk-level-bound gate enablement~~ — ✅ shipped v2.18.0 (SPEC-057)
 
-Optional gates are global on/off per project. With all seven gates on by default since v2.17.0, the latency tax on trivial specs is no longer hypothetical — binding gate enablement to `risk_level` (e.g. per-gate `risk_levels:` allowlists in `sdlc.local.md`) lets projects keep the full pipeline where it matters without paying three scorer dispatches plus a generator/judge pair on a one-line fix. The doctor `--init` template should ship a sensible default binding.
+Per-gate `risk_levels:` allowlists on the opt-in gate blocks, activation predicate defined once in `lib/gates.md` "Risk-level binding" and mirrored into every consumer surface (gate-check, sdlc-run + references, sdlc-status, evidence-package rubric, verify-evidence.sh), enforced by the wiring suite (135 checks, mechanically guarded >103 baseline). `doctor --init` ships `risk_levels: [medium, high, critical]` by default; binding refines but never overrides `enabled: false`; missing/invalid risk metadata fails safe. Rider: 2a/2b scorecards now record their dimension weights, so `verify-evidence.sh` recomputes all four scored gates (the standing "2 skipped" is gone).
 
 ### 3. Spec-Bench × mutation testing validation
 
@@ -161,12 +162,10 @@ Optional gates are global on/off per project. With all seven gates on by default
 
 - **Spec-Bench public dataset + leaderboard** *(moved from active priorities, 2026-06-12)*. Community-contributed PRDs with openly scored results — the MANIFESTO's "we need a spec quality benchmark" call. The harness and calibration protocol ship today; what's missing is curation and operations. **Trigger: deferred until ≥5 PRDs exist organically — a leaderboard with one PRD and no community is an operations sinkhole.** Re-activate when contributions arrive (see "How to contribute"), not by building ahead of them.
 - **Post-implementation quality tracing.** Connect Gate 2 failures, Gate 3 blockers, and post-merge bugs back to the originating spec so we can answer "what spec gaps cost us?" empirically. Requires a thin telemetry layer over the existing evidence files.
-- **Risk-level-bound gate enablement.** Today opt-in gates are global on/off via `sdlc.local.md`. Binding Gate 2c to `risk_level: high` (and similar) lets teams adopt it where it matters most without paying the latency tax on trivial specs.
 - **NBJ "Explanation Artifact" 4-question template** as an optional Gate 2c output mode. The Apr 21 follow-up describes a labor-market-friendly format ("what is this code doing / what assumptions / what could break / what would I change") that doubles as a hiring signal. Gate 2c could emit either the structured YAML *or* the 4-question prose, configurable per project.
 - **Add a `Makefile`** target for `test`, `lint`, and the full structural validation pass — currently each suite is a separate manual command.
 - **Hard-block mode for the pre-commit hook — robustness first.** Today it's warning-only (`hooks/hooks.json`). Observed 2026-07-07: the hook misfired on a cross-repo commit (couldn't resolve `sdlc.local.md` from a worktree cwd and blocked an unrelated repo's release commit). Fix cwd/repo resolution before any hard-block mode.
 - **Test-runner-driven discovery in `eval-quality-scorer`.** Today the agent globs for fixed patterns (`**/test_*.py`, `**/*.test.ts`, etc.). Reading `pytest.ini` / `vitest.config.ts` / `cargo.toml` would generalize discovery without hardcoded language assumptions. Elevated by default-on 2b: a glob miss on an unconventional layout now reads as a false low score for every new adopter.
-- **2a/2b scorers record their dimension weights in evidence.** `verify-evidence.sh` fully recomputes Gate 1 and 2c overalls but must skip the recomputation for 2a/2b (weights absent from their evidence files — every Gate 4 run shows 2 skips). Recording weights makes the whole package mechanically recomputable.
 - **`prime --compact` variant.** A shorter prime block for projects that want the marker-fenced section under ~25 lines (from the SPEC-054 handoff).
 - **Non-TS judge calibration campaign.** The asbuilt judge's reliability record (divergence 0.5, sigma 0.162) was measured on TypeScript targets; Go/Java/Python bundles (extractable since v2.15.0) have no measured record yet.
 
