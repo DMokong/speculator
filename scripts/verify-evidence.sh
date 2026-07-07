@@ -337,14 +337,22 @@ RISK_ENUM = ("low", "medium", "high", "critical")
 
 
 def spec_effective_risk(spec_dir):
-    """Spec frontmatter risk_level; 'medium' when absent (the pipeline-wide
-    default); None when out-of-enum (caller treats None as fail-safe-active
-    and warns). See lib/gates.md 'Risk-level binding' (SPEC-057)."""
-    fm = load_frontmatter(os.path.join(spec_dir, "spec.md")) or {}
+    """Returns (risk, problem): risk is the spec frontmatter risk_level, or
+    'medium' when the field is absent (the pipeline-wide default); risk is
+    None — with problem naming why — when spec.md is unreadable OR the value
+    is out-of-enum. The caller treats None as fail-safe-active and warns:
+    an unreadable spec is not the same as an absent field, and neither may
+    silently bind a gate out. See lib/gates.md 'Risk-level binding'."""
+    path = os.path.join(spec_dir, "spec.md")
+    fm = load_frontmatter(path)
+    if fm is None:
+        return None, f"spec frontmatter unreadable ({path})"
     rl = str(fm.get("risk_level") or "").strip().lower()
     if not rl:
-        return "medium"
-    return rl if rl in RISK_ENUM else None
+        return "medium", None
+    if rl in RISK_ENUM:
+        return rl, None
+    return None, f"unrecognized risk_level '{rl}'"
 
 
 config = load_frontmatter(config_path) or {}
@@ -390,9 +398,9 @@ for gate_name, fname, kind, alt_fname in (
     bound_out = False
     rls = g.get("risk_levels") if isinstance(g, dict) else None
     if enabled and isinstance(rls, list):
-        spec_risk = spec_effective_risk(spec_dir)
+        spec_risk, risk_problem = spec_effective_risk(spec_dir)
         if spec_risk is None:
-            warn(f"{gate_name}: spec risk_level is not one of {'/'.join(RISK_ENUM)} — "
+            warn(f"{gate_name}: {risk_problem} (valid: {'/'.join(RISK_ENUM)}) — "
                  "fail-safe: treating gate as active")
         else:
             bound_out = spec_risk not in [str(x).strip().lower() for x in rls]

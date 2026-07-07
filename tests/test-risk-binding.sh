@@ -114,6 +114,7 @@ echo "=== Case 6 (AC4b): bound gate, out-of-enum risk_level -> fail-safe active 
 D="$TMPROOT/c6"; fixture "$D" "$CFG_BOUND" "experimental"
 assert_run "out-of-enum risk_level is fail-safe (non-strict exit 0)" 0 "$D"
 assert_out  "fail-safe warning names the situation" "fail-safe: treating gate as active"
+assert_out  "fail-safe warning names the unrecognized value (AC4)" "unrecognized risk_level 'experimental'"
 assert_out  "gate treated active -> missing-evidence warn" "evidence file is missing"
 
 echo "=== Case 7: bound-out but evidence file present -> integrity still verified ==="
@@ -203,6 +204,17 @@ D="$TMPROOT/c9"; fixture "$D" "$CFG_EMPTY" "critical"
 assert_run "empty risk_levels binds out every level (even critical)" 0 "$D"
 assert_out  "empty-list skip recorded as risk binding" "skipped by risk binding"
 assert_not_out "no missing-evidence warn under an empty allowlist" "evidence file is missing"
+
+echo "=== Case 10 (R3): spec.md unreadable -> fail-safe active, never silently bound out ==="
+# An unreadable spec is NOT the same as an absent risk_level field: absence
+# defaults to medium, but a spec the verifier cannot read must not let any
+# allowlist bind the gate out (Gate 3 review finding, SPEC-057).
+D="$TMPROOT/c10"; fixture "$D" "$CFG_BOUND" "low"
+rm "$D/docs/specs/fx/spec.md"
+assert_run "unreadable spec.md is fail-safe (non-strict exit 0)" 0 "$D"
+assert_out  "fail-safe warning names the unreadable spec" "spec frontmatter unreadable"
+assert_out  "gate treated active -> missing-evidence warn (not bound out)" "evidence file is missing"
+assert_not_out "no risk-binding skip when the spec cannot be read" "skipped by risk binding"
 
 echo
 echo "=== Results ==="
