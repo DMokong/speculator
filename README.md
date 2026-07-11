@@ -235,7 +235,7 @@ A deterministic extractor builds a code graph (symbols, spans, call edges) of th
 
 ### 2. Understanding accumulates (the living knowledge base)
 
-Audited explanations don't evaporate after the gate — `/spec close` **folds** them into a per-concept knowledge bundle (`docs/asbuilt/`) with provenance (`fully-audited` vs `accuracy-audited`), and **refresh** tracks staleness as the code moves. A **backfill mode** bootstraps and audits a bundle for an *existing* codebase with no spec at all — comprehension coverage for the code you already have. The result is durable, mechanically-grounded documentation that answers "why is this shaped this way?" — written by cold readers, audited by blinded judges, never by the code's own author. Operator's guide: [`docs/comprehension-workflow.md`](docs/comprehension-workflow.md).
+Audited explanations don't evaporate after the gate — a **fold** step merges them into a per-concept knowledge bundle (`docs/asbuilt/`) with provenance (`fully-audited` vs `accuracy-audited`), and **refresh** tracks staleness as the code moves. (Fold-in is run at spec close; wiring it automatically into `/spec close` is on the roadmap — today it's one CLI invocation, documented in the operator's guide.) A **backfill mode** bootstraps and audits a bundle for an *existing* codebase with no spec at all — comprehension coverage for the code you already have. The result is durable, mechanically-grounded documentation that answers "why is this shaped this way?" — written by cold readers, audited by blinded judges, never by the code's own author. Operator's guide: [`docs/comprehension-workflow.md`](docs/comprehension-workflow.md).
 
 ### 3. Humans get tested too (`asbuilt-quiz`)
 
