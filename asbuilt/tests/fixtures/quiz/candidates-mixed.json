@@ -1,0 +1,83 @@
+{
+  "scope": "pr-diff",
+  "questions": [
+    {
+      "id": "q-valid",
+      "category": "security",
+      "prompt": "What does validateToken do when the token is expired?",
+      "options": [
+        { "text": "Raises an AuthError", "correct": true },
+        { "text": "Returns null silently", "correct": false },
+        { "text": "Refreshes the token automatically", "correct": false },
+        { "text": "Logs a warning and continues", "correct": false }
+      ],
+      "citations": ["src/auth.ts#validateToken"],
+      "explanation": "validateToken raises AuthError on expiry per src/auth.ts#validateToken."
+    },
+    {
+      "id": "q-missing-correct",
+      "category": "security",
+      "prompt": "...",
+      "options": [
+        { "text": "A", "correct": false },
+        { "text": "B", "correct": false },
+        { "text": "C", "correct": false },
+        { "text": "D", "correct": false }
+      ],
+      "citations": ["src/auth.ts#validateToken"],
+      "explanation": "..."
+    },
+    {
+      "id": "q-multiple-correct",
+      "category": "security",
+      "prompt": "...",
+      "options": [
+        { "text": "A", "correct": true },
+        { "text": "B", "correct": true },
+        { "text": "C", "correct": false },
+        { "text": "D", "correct": false }
+      ],
+      "citations": ["src/auth.ts#validateToken"],
+      "explanation": "..."
+    },
+    {
+      "id": "q-empty-option",
+      "category": "security",
+      "prompt": "...",
+      "options": [
+        { "text": "A", "correct": true },
+        { "text": "", "correct": false },
+        { "text": "C", "correct": false },
+        { "text": "D", "correct": false }
+      ],
+      "citations": ["src/auth.ts#validateToken"],
+      "explanation": "..."
+    },
+    {
+      "id": "q-duplicate-option",
+      "category": "security",
+      "prompt": "...",
+      "options": [
+        { "text": "A", "correct": true },
+        { "text": "A", "correct": false },
+        { "text": "C", "correct": false },
+        { "text": "D", "correct": false }
+      ],
+      "citations": ["src/auth.ts#validateToken"],
+      "explanation": "..."
+    },
+    {
+      "id": "q-unknown-citation",
+      "category": "security",
+      "prompt": "...",
+      "options": [
+        { "text": "A", "correct": true },
+        { "text": "B", "correct": false },
+        { "text": "C", "correct": false },
+        { "text": "D", "correct": false }
+      ],
+      "citations": ["src/does-not-exist.ts#fabricated"],
+      "explanation": "..."
+    }
+  ]
+}

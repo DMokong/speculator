@@ -246,3 +246,61 @@ describe("SPEC-050 Task 1: Gate 3 consumption section", () => {
     "[agents.test.ts] Skipping: agents/asbuilt-generator/AGENT.md, agents/asbuilt-judge/AGENT.md, and/or skills/asbuilt-gate/SKILL.md not yet created (SPEC-051 Task 2).",
   );
 }
+
+// SPEC-058 port (claw-klcc): structural pins for the quiz agent pair —
+// the blinding contract (verifier never writes, generator never marks the
+// trap) is prompt prose, so these pins are what keeps it from silently
+// eroding under future edits.
+const QUIZ_GENERATOR_PATH = `${REPO_ROOT}agents/quiz-generator/AGENT.md`;
+const QUIZ_VERIFIER_PATH = `${REPO_ROOT}agents/quiz-verifier/AGENT.md`;
+
+if (existsSync(QUIZ_GENERATOR_PATH) && existsSync(QUIZ_VERIFIER_PATH)) {
+  describe("SPEC-058: quiz-generator AGENT.md", () => {
+    const text = readFileSync(QUIZ_GENERATOR_PATH, "utf8");
+    const { frontmatter, body } = splitFrontmatter(text);
+
+    test("frontmatter parses with name, sonnet model, and a tools array including Write", () => {
+      expect(frontmatter.name).toBe("quiz-generator");
+      expect(frontmatter.model).toBe("sonnet");
+      expect(Array.isArray(frontmatter.tools)).toBe(true);
+      expect(frontmatter.tools).toContain("Read");
+      expect(frontmatter.tools).toContain("Write");
+    });
+
+    test("description discloses it never verifies its own questions", () => {
+      expect(String(frontmatter.description)).toContain("Never verifies");
+    });
+
+    test("body instructs never writing which distractor was intended as the trap", () => {
+      expect(body).toContain('Never write which distractor you intended as the "trap."');
+    });
+  });
+
+  describe("SPEC-058: quiz-verifier AGENT.md", () => {
+    const text = readFileSync(QUIZ_VERIFIER_PATH, "utf8");
+    const { frontmatter, body } = splitFrontmatter(text);
+
+    test("frontmatter parses with name, sonnet model, and a tools array WITHOUT Write", () => {
+      expect(frontmatter.name).toBe("quiz-verifier");
+      expect(frontmatter.model).toBe("sonnet");
+      expect(Array.isArray(frontmatter.tools)).toBe(true);
+      expect(frontmatter.tools).not.toContain("Write");
+      expect(frontmatter.tools).toContain("Bash");
+    });
+
+    test("description discloses blinding: never sees the generator's reasoning", () => {
+      expect(String(frontmatter.description)).toContain("never sees the generator's reasoning");
+    });
+
+    test("body never mentions a threshold or result key being emitted", () => {
+      expect(body).toContain("Never emit a `threshold` or `result` key");
+      expect(body).not.toMatch(/^\s*(threshold|result):\s*\S/m);
+    });
+
+    test("body instructs verifying against source material, not the candidate's own explanation field", () => {
+      expect(body).toContain("Verify against the source, not the question's own explanation");
+    });
+  });
+} else {
+  console.log("[agents.test.ts] Skipping: quiz agent files not present.");
+}

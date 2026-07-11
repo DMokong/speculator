@@ -1,0 +1,25 @@
+verdicts:
+  - id: "q1"
+    keep: true
+    reason: "Confirmed against src/x.ts#a"
+  - id: "q2"
+    keep: true
+    reason: "Confirmed against src/x.ts#a"
+  - id: "q3"
+    keep: true
+    reason: "Confirmed against src/x.ts#b"
+  - id: "q4"
+    keep: true
+    reason: "Confirmed against src/y.ts#c"
+  - id: "q5"
+    keep: true
+    reason: "Confirmed against src/y.ts#c"
+  - id: "q6"
+    keep: true
+    reason: "Confirmed against src/y.ts#d"
+  - id: "q7"
+    keep: true
+    reason: "Confirmed against src/z.ts#e"
+  - id: "q8"
+    keep: false
+    reason: "Distractor B is also defensibly correct per src/z.ts#e"

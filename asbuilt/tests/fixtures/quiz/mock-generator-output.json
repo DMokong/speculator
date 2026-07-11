@@ -1,0 +1,13 @@
+{
+  "scope": "pr-diff",
+  "questions": [
+    { "id": "q1", "category": "security", "prompt": "P1", "options": [{"text":"A","correct":true},{"text":"B","correct":false},{"text":"C","correct":false},{"text":"D","correct":false}], "citations": ["src/x.ts#a"], "explanation": "E1" },
+    { "id": "q2", "category": "security", "prompt": "P2", "options": [{"text":"A","correct":false},{"text":"B","correct":true},{"text":"C","correct":false},{"text":"D","correct":false}], "citations": ["src/x.ts#a"], "explanation": "E2" },
+    { "id": "q3", "category": "security", "prompt": "P3", "options": [{"text":"A","correct":true},{"text":"B","correct":false},{"text":"C","correct":false},{"text":"D","correct":false}], "citations": ["src/x.ts#b"], "explanation": "E3" },
+    { "id": "q4", "category": "db", "prompt": "P4", "options": [{"text":"A","correct":true},{"text":"B","correct":false},{"text":"C","correct":false},{"text":"D","correct":false}], "citations": ["src/y.ts#c"], "explanation": "E4" },
+    { "id": "q5", "category": "db", "prompt": "P5", "options": [{"text":"A","correct":false},{"text":"B","correct":true},{"text":"C","correct":false},{"text":"D","correct":false}], "citations": ["src/y.ts#c"], "explanation": "E5" },
+    { "id": "q6", "category": "db", "prompt": "P6", "options": [{"text":"A","correct":true},{"text":"B","correct":false},{"text":"C","correct":false},{"text":"D","correct":false}], "citations": ["src/y.ts#d"], "explanation": "E6" },
+    { "id": "q7", "category": "frontend", "prompt": "P7", "options": [{"text":"A","correct":true},{"text":"B","correct":false},{"text":"C","correct":false},{"text":"D","correct":false}], "citations": ["src/z.ts#e"], "explanation": "E7" },
+    { "id": "q8", "category": "frontend", "prompt": "P8 unverified", "options": [{"text":"A","correct":true},{"text":"B","correct":false},{"text":"C","correct":false},{"text":"D","correct":false}], "citations": ["src/z.ts#e"], "explanation": "E8" }
+  ]
+}

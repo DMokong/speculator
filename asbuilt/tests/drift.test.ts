@@ -130,3 +130,34 @@ if (existsSync(SKILL_PATH)) {
     "[drift.test.ts] Skipping: skills/asbuilt-gate/SKILL.md not yet created (SPEC-051 Task 2) — findDrift stays exported and unit-tested by import elsewhere once the file lands.",
   );
 }
+
+// SPEC-058 port (claw-klcc): the asbuilt-quiz skill gets the same drift
+// protection as asbuilt-gate — its CLI reference spells out the bare
+// CLI_USAGE strings verbatim; every runnable step in the body goes through
+// `bun ${CLAUDE_PLUGIN_ROOT}/asbuilt/src/...` and is invisible to
+// INVOCATION_RE by construction.
+import { CLI_USAGE as QUIZ_CHECK_USAGE } from "../src/quiz-check";
+import { CLI_USAGE as QUIZ_CONCEPTS_USAGE } from "../src/quiz-concepts";
+import { CLI_USAGE as QUIZ_RENDER_USAGE } from "../src/quiz-render";
+import { CLI_USAGE as QUIZ_SAMPLE_USAGE } from "../src/quiz-sample";
+
+const QUIZ_SKILL_PATH = new URL("../../skills/asbuilt-quiz/SKILL.md", import.meta.url).pathname;
+const QUIZ_USAGES = [QUIZ_CONCEPTS_USAGE, QUIZ_CHECK_USAGE, QUIZ_SAMPLE_USAGE, QUIZ_RENDER_USAGE];
+
+if (existsSync(QUIZ_SKILL_PATH)) {
+  describe("SPEC-058: asbuilt-quiz SKILL.md CLI reference drift", () => {
+    const quizSkillText = readFileSync(QUIZ_SKILL_PATH, "utf8");
+
+    test("every quiz CLI_USAGE string appears verbatim in asbuilt-quiz/SKILL.md", () => {
+      for (const usage of QUIZ_USAGES) {
+        expect(quizSkillText).toContain(usage);
+      }
+    });
+
+    test("no bare `bun asbuilt/src/` invocation in asbuilt-quiz/SKILL.md is unknown to the quiz + slice CLI_USAGE strings", () => {
+      expect(findDrift(quizSkillText, [SLICE_USAGE, ...QUIZ_USAGES])).toEqual([]);
+    });
+  });
+} else {
+  console.log("[drift.test.ts] Skipping: skills/asbuilt-quiz/SKILL.md not present.");
+}
