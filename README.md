@@ -10,7 +10,12 @@
 
 A Claude Code plugin that enforces a 7-stage quality pipeline (4 required + 3 default-on gates) on agentic development workflows with LLM-as-judge spec scoring, git worktree isolation, and in-repo evidence artifacts. *Spec + Evaluator = Speculator.*
 
-Speculator is being built toward an explicit goal: an **anti-dark-code pipeline** — a workflow that won't ship code unless intent, behavior, and comprehension can all be evidenced. Today it covers spec quality (Gate 1), eval intent (Gate 2a), code quality (Gate 2), eval quality (Gate 2b), comprehension (Gate 2c), code review (Gate 3), and evidence packaging (Gate 4). Gate 2c closes the last gap between *"tests pass"* and *"any human or agent could explain what shipped"* — its calibration corpus shipped in v2.12.0, and v2.13.0 added an opt-in As-Built mode with measured judge reliability (see `rubrics/comprehension.md` § As-Built mode). See [ROADMAP.md](ROADMAP.md).
+Speculator stands on **two pillars**:
+
+1. **Spec quality** — intent transfers from human to agent through a measured, iteratively improved specification (Gate 1 and the self-improvement loop).
+2. **Comprehension** — nothing ships unless it can be *explained*. Every change is audited by a cold reader whose citations are mechanically verified against a deterministic code graph (Gate 2c, As-Built mode); the audited explanations accumulate into a living, per-concept knowledge base of the codebase; and the same material generates comprehension quizzes so the *humans* approving changes can prove they understood them too.
+
+Together they form an **anti-dark-code pipeline**: a workflow that won't ship code unless intent, behavior, and comprehension can all be evidenced. "Tests pass" is not the bar — *"any human or agent could explain what shipped, and prove it"* is. The full pipeline covers spec quality (Gate 1), eval intent (Gate 2a), code quality (Gate 2), eval quality (Gate 2b), comprehension (Gate 2c), code review (Gate 3), and evidence packaging (Gate 4). See [Comprehension: The Second Pillar](#comprehension-the-second-pillar) and [ROADMAP.md](ROADMAP.md).
 
 ## Prerequisites
 
@@ -54,6 +59,13 @@ Now **brainstorm before you spec.** Use Claude's [brainstorming skill](https://g
 /spec implement           # create plan + beads stories + execute
 /spec review              # Gate 3: code review
 /spec close               # Gate 4: evidence package + deliver to main (merge or PR)
+```
+
+And before you approve — prove you understood it:
+
+```bash
+# asbuilt-quiz --scope=pr-diff   → self-contained quiz HTML on the change's
+#                                  diff-touched code; fresh questions per refresh
 ```
 
 ### One command
@@ -213,6 +225,24 @@ Speculator: Scoring spec...
   proceed. Address the blocking flags and run /spec score again.
 ```
 
+## Comprehension: The Second Pillar
+
+Most quality tooling stops at *behavior*: tests pass, review approved, ship it. Speculator treats **comprehension** — the ability to explain what shipped and why — as a gated, evidenced quality dimension in its own right. Code nobody can explain is dark code, whatever its test coverage says. Comprehension in Speculator is one system with three surfaces, all built on the same As-Built Knowledge System (the `asbuilt/` package that ships inside the plugin):
+
+### 1. Every change is comprehension-audited (Gate 2c, As-Built mode)
+
+A deterministic extractor builds a code graph (symbols, spans, call edges) of the target repo and slices the diff-touched neighborhood. A **cold-read generator agent** — no access to the implementing session's reasoning, because the implementer cannot be its own judge — writes a per-AC explanation artifact citing real graph node ids. Every citation is then **mechanically validated** (does the symbol exist? is the line span real? was it actually diff-touched?) before a **blinded judge agent** — which never sees the pass threshold — scores the artifact's semantics. Fabricated citations are caught by script, not by trust. The artifact then feeds Gate 3 as reviewer preamble: claims-to-verify, never ground truth.
+
+### 2. Understanding accumulates (the living knowledge base)
+
+Audited explanations don't evaporate after the gate — `/spec close` **folds** them into a per-concept knowledge bundle (`docs/asbuilt/`) with provenance (`fully-audited` vs `accuracy-audited`), and **refresh** tracks staleness as the code moves. A **backfill mode** bootstraps and audits a bundle for an *existing* codebase with no spec at all — comprehension coverage for the code you already have. The result is durable, mechanically-grounded documentation that answers "why is this shaped this way?" — written by cold readers, audited by blinded judges, never by the code's own author. Operator's guide: [`docs/comprehension-workflow.md`](docs/comprehension-workflow.md).
+
+### 3. Humans get tested too (`asbuilt-quiz`)
+
+A judge-passed artifact proves an *agent* understood a change — it says nothing about whether the *human who approved it* did. The `asbuilt-quiz` skill turns the same audited material into a self-contained multiple-choice quiz: a **quiz-generator** agent authors ~50 candidates citing real graph nodes or bundle concepts, a **blinded quiz-verifier** adversarially audits each one (single defensible answer, plausible-but-wrong distractors — it never sees the generator's reasoning or intended traps), a zero-LLM mechanical check drops anything malformed, and the survivors render into one offline HTML file that deals a fresh stratified draw on every page load. Two scopes, two journeys: `--scope=pr-diff` for a reviewer self-check before approving any git range, `--scope=codebase` for onboarding against the knowledge bundle. Nothing is ever committed — no answer key exists to grep. Regeneration is built in: re-deal from the local bank for free, or re-run the pipeline for brand-new questions.
+
+The design principle across all three surfaces is the same: **separate authoring from judging, blind the judge, and verify citations mechanically.** No scorer sees its threshold; no verifier sees the author's reasoning; no claim survives on plausibility alone.
+
 ## Gate Pipeline
 
 ```
@@ -250,7 +280,7 @@ The anti-dark-code gate. The `comprehension-scorer` agent reads the spec and the
 
 The artifact doubles as durable context: per-AC documentation answering *"why was this written this way?"* that the Gate 3 reviewer consumes as preamble. **Experimental (legacy mode)** — the calibration corpus shipped in v2.12.0 (47 band-verified examples), but the legacy single-dispatch scorer has never been calibrated against it, so treat legacy-mode scores as advisory. The As-Built mode below is the measured path.
 
-**As-Built mode (v2.13.0):** `gates.comprehension.mode: asbuilt` routes Gate 2c to a different instrument — a mechanically-validated citation gate (deterministic code-graph checks) plus a blinded judge that never sees the pass threshold. See `rubrics/comprehension.md`'s As-Built mode section for the measured reliability record, and **[`docs/comprehension-workflow.md`](docs/comprehension-workflow.md)** for the full operator's guide — including the backfill workflow that bootstraps and audits a knowledge bundle for an *existing* codebase, no spec required. When the `mode` key is absent the routing default is `legacy` (above); configs generated by `--init` since v2.17.0 set `mode: asbuilt` explicitly:
+**As-Built mode (v2.13.0):** `gates.comprehension.mode: asbuilt` routes Gate 2c to a different instrument — a mechanically-validated citation gate (deterministic code-graph checks) plus a blinded judge that never sees the pass threshold. This is one surface of the comprehension pillar described in [Comprehension: The Second Pillar](#comprehension-the-second-pillar) — the same As-Built system also maintains the living knowledge base and generates the human-facing quizzes. See `rubrics/comprehension.md`'s As-Built mode section for the measured reliability record, and **[`docs/comprehension-workflow.md`](docs/comprehension-workflow.md)** for the full operator's guide — including the backfill workflow that bootstraps and audits a knowledge bundle for an *existing* codebase, no spec required. When the `mode` key is absent the routing default is `legacy` (above); configs generated by `--init` since v2.17.0 set `mode: asbuilt` explicitly:
 
 ```yaml
 gates:
@@ -285,6 +315,15 @@ Gate 3 runs three checks — all blocking on failure:
 | `/spec status` | Cross-worktree pipeline view (all features at a glance) |
 | `/spec doctor` | Diagnostics + auto-fix (prereqs, config, hooks) |
 | `/spec prime` | Write a delimited, idempotent Speculator usage section into the project's CLAUDE.md (commands, gate model, as-built enablement — tailored to the project; re-run after upgrades) |
+
+### Standalone comprehension tools
+
+These ship as skills invoked by name (or by natural language), independent of the `/spec` pipeline:
+
+| Skill | Description |
+|-------|-------------|
+| `asbuilt-quiz` | Generate or regenerate a comprehension quiz from a diff range (`--scope=pr-diff`) or the knowledge bundle (`--scope=codebase`) — bank-mode HTML deals a fresh draw per page load ([details](#3-humans-get-tested-too-asbuilt-quiz)) |
+| `asbuilt-gate` | Run the As-Built comprehension audit directly (the same orchestration Gate 2c `mode: asbuilt` uses), including the no-spec backfill mode for existing codebases |
 
 ## `/spec run` — Autonomous Pipeline
 
@@ -509,7 +548,7 @@ Run `/spec doctor --init` in a fresh project to generate a default `.claude/sdlc
 
 ```
 speculator/
-├── skills/                          # 11 skills
+├── skills/                          # 14 skills
 │   ├── sdlc/SKILL.md                # Master orchestrator (routes /spec subcommands)
 │   ├── spec-create/SKILL.md         # /spec start    — spec + worktree + beads epic
 │   ├── spec-score/SKILL.md          # /spec score    — Gate 1 via spec-scorer agent
@@ -520,9 +559,11 @@ speculator/
 │   ├── sdlc-close/SKILL.md          # /spec close    — Gate 4 evidence + delivery + SYSTEM-SPEC compaction
 │   ├── sdlc-status/SKILL.md         # /spec status   — cross-worktree pipeline view
 │   ├── sdlc-doctor/SKILL.md         # /spec doctor   — diagnostics + auto-fix
+│   ├── sdlc-prime/SKILL.md          # /spec prime    — write Speculator usage section into project CLAUDE.md
 │   ├── spec-compact/SKILL.md        # /spec compact  — bootstrap or single-spec compaction
-│   └── asbuilt-gate/SKILL.md        # As-Built shadow-gate orchestration (Gate 2c mode: asbuilt) (v2.13.0)
-├── agents/                          # 8 agents
+│   ├── asbuilt-gate/SKILL.md        # As-Built comprehension audit orchestration (Gate 2c mode: asbuilt + backfill) (v2.13.0)
+│   └── asbuilt-quiz/SKILL.md        # Comprehension quiz generator — human self-check + onboarding (v2.19.0)
+├── agents/                          # 10 agents
 │   ├── spec-scorer/AGENT.md         # Gate 1 LLM-as-judge for spec quality + impact validation
 │   ├── eval-intent-scorer/AGENT.md  # Gate 2a — scores authored evals (4 dims) + SYSTEM-SPEC conflict + regression check
 │   ├── eval-quality-scorer/AGENT.md # Gate 2b — scores test suites as detection instruments (7 dims)
@@ -530,7 +571,13 @@ speculator/
 │   ├── code-reviewer/AGENT.md       # Gate 3 — 6-point review + mandatory secrets scan + skill-description eval
 │   ├── spec-compactor/AGENT.md      # Folds closed specs into SYSTEM-SPEC.md
 │   ├── asbuilt-generator/AGENT.md   # Gate 2c As-Built mode — cold-read artifact generator (never scores) (v2.13.0)
-│   └── asbuilt-judge/AGENT.md       # Gate 2c As-Built mode — blinded judge (never sees thresholds) (v2.13.0)
+│   ├── asbuilt-judge/AGENT.md       # Gate 2c As-Built mode — blinded judge (never sees thresholds) (v2.13.0)
+│   ├── quiz-generator/AGENT.md      # asbuilt-quiz — authors cited MCQ candidates (never verifies its own) (v2.19.0)
+│   └── quiz-verifier/AGENT.md       # asbuilt-quiz — blinded adversarial reviewer (never sees generator reasoning) (v2.19.0)
+├── asbuilt/                         # As-Built Knowledge System — deterministic comprehension toolchain (bun)
+│   ├── src/                         # extract, slice, check, evidence, fold, refresh, skeleton, verify,
+│   │                                #   graphify-check, sigma-stats + quiz-{concepts,check,sample,render,types}
+│   └── tests/                       # 302 tests incl. drift pins (SKILL.md CLI refs ↔ CLI_USAGE) + blinding pins
 ├── rubrics/                         # 9 rubrics
 │   ├── spec-quality.md              # Gate 1 — 6-dimension rubric (completeness, clarity, testability, intent_verifiability, feasibility, scope)
 │   ├── impact-awareness.md          # Gate 1 sub-validation — impact mismatch decision matrix
