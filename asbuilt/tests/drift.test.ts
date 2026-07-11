@@ -1,7 +1,7 @@
 // Standing drift test (SPEC-049 Task 6, AC9; extended to ten modules by
 // SPEC-050 Task 1): mechanically compares asbuilt-gate/SKILL.md's documented
 // CLI invocations against the actual `CLI_USAGE` strings exported by each of
-// the ten src/*.ts CLI modules. SKILL.md is a prose document a human can
+// the eleven src/*.ts CLI modules (ten SPEC-050 tools + viz, claw-efne). SKILL.md is a prose document a human can
 // edit without touching source, and src/*.ts is source a human can edit
 // without touching prose — this test is what keeps the two from silently
 // drifting apart, on either side.
@@ -28,6 +28,7 @@ import { CLI_USAGE as SIGMA_STATS_USAGE } from "../src/sigma-stats";
 import { CLI_USAGE as SKELETON_USAGE } from "../src/skeleton";
 import { CLI_USAGE as SLICE_USAGE } from "../src/slice";
 import { CLI_USAGE as VERIFY_USAGE } from "../src/verify";
+import { CLI_USAGE as VIZ_USAGE } from "../src/viz";
 
 const SKILL_PATH = new URL("../../skills/asbuilt-gate/SKILL.md", import.meta.url).pathname;
 
@@ -42,6 +43,7 @@ const USAGES = [
   REFRESH_USAGE,
   GRAPHIFY_CHECK_USAGE,
   SIGMA_STATS_USAGE,
+  VIZ_USAGE,
 ];
 
 const INVOCATION_RE = /bun asbuilt\/src\//;
@@ -103,13 +105,13 @@ if (existsSync(SKILL_PATH)) {
   describe("AC9: SKILL.md CLI reference drift", () => {
     const skillText = readFileSync(SKILL_PATH, "utf8");
 
-    test("every CLI_USAGE string (all ten modules) appears verbatim in SKILL.md", () => {
+    test("every CLI_USAGE string (all eleven modules) appears verbatim in SKILL.md", () => {
       for (const usage of USAGES) {
         expect(skillText).toContain(usage);
       }
     });
 
-    test("no `bun scripts/asbuilt/src/` invocation in SKILL.md is unknown to the ten CLI_USAGE strings", () => {
+    test("no `bun scripts/asbuilt/src/` invocation in SKILL.md is unknown to the eleven CLI_USAGE strings", () => {
       expect(findDrift(skillText, USAGES)).toEqual([]);
     });
 

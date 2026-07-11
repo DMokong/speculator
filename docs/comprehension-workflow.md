@@ -114,14 +114,65 @@ From then on:
   downgrade them back (the provenance ratchet is enforced by `fold.ts`).
 - `refresh.ts` marks concepts stale as code moves under them; wire it into the project's
   maintenance cadence.
-- Close-time fold-in is not yet wired into `/sdlc close` — run the fold when a spec closes
-  until that lands.
+- `/sdlc close` runs the fold-in automatically (v2.20.0, claw-r9tc): when `mode: asbuilt`
+  and `gate-2c-asbuilt.yml` shows `result: pass`, close executes refresh → fold → verify →
+  viz regeneration and commits the bundle changes — after the merge lands (merge strategy)
+  or on the feature branch before PR creation (pr strategy). A fold-in failure is logged
+  and never blocks the close; re-run manually per "Keeping everything fresh" below.
 
 **Borderline policy (measured, 2026-07-05):** a single-run overall score inside **6.3–7.7**
 is not a settled verdict — band-edge test-retest sigma is 0.343, and the one artifact
 measured at 6.8/fail retested 7.3–8.3 across five reps. Re-dispatch median-of-3 or get human
 review before acting on a near-bar result. See `rubrics/comprehension.md` § Measured
 reliability record.
+
+## Keeping everything fresh: OKF bundle, graph, and visualize sheet
+
+Three artifacts describe comprehension state, and each has exactly one legitimate updater.
+"When the workflow runs" (a spec passing through `/sdlc run` → `/sdlc close` with
+`mode: asbuilt`), all three update automatically; this section is the contract and the
+manual fallback.
+
+| Artifact | What it is | Updated by | When |
+|---|---|---|---|
+| Graph manifest (`docs/asbuilt/.graph-manifest.json`) | Deterministic symbol/edge graph of the current tree | `refresh.ts` (internally) — never run `extract.ts` against a live bundle | Every gate run rebuilds its own run-scoped manifest; the bundle's on-disk manifest updates at close-time refresh |
+| OKF bundle (`docs/asbuilt/**/*.md`) | Per-concept knowledge base with audited prose + provenance | `refresh.ts` (structure, new files, staleness) + `fold.ts` (audited enrichment) | Automatically at `/sdlc close` (v2.20.0); manually any time via the commands below |
+| Visualize sheet (`docs/asbuilt/viz.html`) | Self-contained knowledge-graph HTML rendered from bundle + manifest | `viz.ts` | Automatically at `/sdlc close`, right after the fold — regenerate whenever the bundle changes |
+
+**Automatic path (nothing to do):** run specs through the pipeline with
+`gates.comprehension.mode: asbuilt`. Gate 2c audits the diff; `/sdlc close` refreshes the
+bundle (creating concepts for spec-new files), folds the passing artifact's enrichment in as
+`fully-audited`, verifies integrity, regenerates `viz.html`, and commits `docs/asbuilt/` —
+per the "Knowledge-base fold-in" section of `skills/sdlc-close/SKILL.md`.
+
+**Manual refresh (between specs, after direct-to-main commits, or on a cadence):**
+
+```bash
+bun <plugin>/asbuilt/src/refresh.ts --target <repo> --date YYYY-MM-DD   # structure + staleness + new-file concepts
+bun <plugin>/asbuilt/src/verify.ts  --target <repo>                     # bundle integrity
+bun <plugin>/asbuilt/src/viz.ts     --target <repo> --date YYYY-MM-DD   # regenerate docs/asbuilt/viz.html
+```
+
+Refresh is safe to run any time — it never touches audited prose, only structure zones,
+staleness flags, and missing concepts. Wire the trio into a maintenance cadence (weekly, or
+post-merge CI) if the repo takes changes outside the pipeline.
+
+**Bootstrapping a repo with no bundle:** Path A above (extract → skeleton → backfill).
+The skeleton step is the ONLY time `extract.ts` runs directly against the bundle directory —
+from then on, refresh owns the manifest.
+
+**Recovering from a partial/failed run:** gate runs are stateless (each rebuilds its own
+manifest and slice from scratch — just re-run). For the bundle, `fold.ts` refusing on a
+missing concept means refresh didn't run first; `verify.ts` failing names the broken concept.
+A close whose fold-in step failed leaves the spec correctly closed — re-run the three
+commands above plus the fold (`fold.ts --evidence <gate-2c-asbuilt.yml> --spec-id SPEC-NNN`)
+at any later point; the provenance ratchet makes replays safe.
+
+**The visualizer distinction:** `viz.ts` is the bundle's own sheet — binary-free, renders
+knowledge state (concepts, audit provenance, staleness, file links). `graphify-check.ts
+--html` is a different artifact: an advisory cross-validation view of raw symbol topology
+that requires the external `graphify` binary and lands in the gitignored `.graph/`
+directory. The close workflow regenerates the former; the latter is on-demand only.
 
 ## The two don'ts
 

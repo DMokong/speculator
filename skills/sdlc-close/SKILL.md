@@ -65,6 +65,41 @@ Determine the autonomy context before delivering — from the spec frontmatter's
 
 Note on executing the merge from a worktree: `git checkout main` **fails inside a feature worktree** (main is checked out in the main worktree). Execute the merge from the main worktree path instead: find it with `git worktree list` (first entry), then `git -C {main-worktree-path} merge {worktree-branch}`.
 
+### Knowledge-base fold-in (asbuilt mode)
+
+Both strategies run this after compaction. It executes only when **both**
+hold: `gates.comprehension.mode: asbuilt` in `.claude/sdlc.local.md`, AND
+`evidence/gate-2c-asbuilt.yml` exists with `result: pass`. Otherwise note
+the skip and move on — legacy mode and a failed/absent Gate 2c have nothing
+audited to fold.
+
+Run the four tools in this order — the ordering is load-bearing:
+
+1. **Refresh first** — `bun ${CLAUDE_PLUGIN_ROOT}/asbuilt/src/refresh.ts --target <repo> --date <YYYY-MM-DD>`
+   creates skeleton concepts for spec-new files (fold refuses citations of
+   concepts that don't exist yet) and re-renders structure zones against the
+   current tree. **Never run `extract.ts` before `refresh.ts`** — refresh
+   extracts internally and diffs against the on-disk manifest as its drift
+   baseline; an extract-first run silently erases staleness detection.
+2. **Fold** — `bun ${CLAUDE_PLUGIN_ROOT}/asbuilt/src/fold.ts --evidence evidence/gate-2c-asbuilt.yml --target <repo> --spec-id <SPEC-NNN> --date <YYYY-MM-DD>`
+   merges the passing artifact's enrichment drafts into the bundle as
+   `fully-audited` (the provenance ratchet upgrades concepts and never
+   downgrades them).
+3. **Verify** — `bun ${CLAUDE_PLUGIN_ROOT}/asbuilt/src/verify.ts --target <repo>`
+   checks bundle integrity; a nonzero exit is reported alongside the fold
+   results, never swallowed.
+4. **Regenerate the visualize sheet** — `bun ${CLAUDE_PLUGIN_ROOT}/asbuilt/src/viz.ts --target <repo> --date <YYYY-MM-DD>`
+   rewrites `docs/asbuilt/viz.html` from the refreshed bundle + manifest so
+   the committed sheet never lags the bundle it visualizes.
+
+Then **commit** the resulting `docs/asbuilt/` changes:
+`chore(sdlc): fold {SPEC-ID} comprehension into knowledge bundle`
+
+Failure policy mirrors compaction: log the failure and continue — a fold-in
+failure never rolls back the delivery and never blocks the close. The spec
+stays at its closed/compacted status and the fold can be re-run manually per
+`docs/comprehension-workflow.md`.
+
 ### Strategy: `merge` (default)
 
 5. **Run the merge** (if Gate 4 passes):
@@ -95,7 +130,9 @@ Note on executing the merge from a worktree: `git checkout main` **fails inside 
    - Commit with message: `chore(sdlc): compact {spec_id} into SYSTEM-SPEC.md`
    - Tell the user: "Two commits created: merge commit + compaction commit. This is by design — compaction only runs for validated, shipped specs."
 
-9. **Remind about shared files**: "If you modified any shared files (.beads/, CLAUDE.md, sdlc.local.md) in the worktree, review those changes carefully during merge."
+9. **Knowledge-base fold-in** (runs after the merge lands on main, same placement as compaction): execute the [Knowledge-base fold-in (asbuilt mode)](#knowledge-base-fold-in-asbuilt-mode) section against the main worktree path.
+
+10. **Remind about shared files**: "If you modified any shared files (.beads/, CLAUDE.md, sdlc.local.md) in the worktree, review those changes carefully during merge."
 
 ### Strategy: `pr`
 
@@ -117,7 +154,9 @@ Note on executing the merge from a worktree: `git checkout main` **fails inside 
    - Stage SYSTEM-SPEC.md (and, in split layout, any modified or created SYSTEM-SPEC-*.md domain files) and the spec's updated frontmatter
    - Commit with message: `chore(sdlc): compact {spec_id} into SYSTEM-SPEC.md`
 
-8. **Create a pull request**:
+8. **Knowledge-base fold-in** (runs on the feature branch, before PR creation — the bundle update rides the PR diff, like compaction): execute the [Knowledge-base fold-in (asbuilt mode)](#knowledge-base-fold-in-asbuilt-mode) section against the worktree path.
+
+9. **Create a pull request**:
    a. Check if we're in a worktree (`git worktree list`)
    b. **Verify `gh` CLI is available**:
       ```bash
@@ -147,6 +186,6 @@ Note on executing the merge from a worktree: `git checkout main` **fails inside 
       If `gh pr create` fails, surface the error and suggest: *"Run `gh auth status` to verify authentication. Ensure you have repo access."*
    f. Report the PR URL to the user.
 
-9. **Remind about shared files**: "If you modified any shared files (.beads/, CLAUDE.md, sdlc.local.md) in the worktree, review those changes carefully — they'll be part of the PR diff."
+10. **Remind about shared files**: "If you modified any shared files (.beads/, CLAUDE.md, sdlc.local.md) in the worktree, review those changes carefully — they'll be part of the PR diff."
 
-10. **Worktree note**: "The worktree stays active until the PR merges. After merge, clean up with `git worktree remove {worktree-path}`."
+11. **Worktree note**: "The worktree stays active until the PR merges. After merge, clean up with `git worktree remove {worktree-path}`."

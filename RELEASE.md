@@ -53,6 +53,7 @@ The marketplace lives at `~/projects/claude-plugins` (published as `dmokong-plug
 ### Known landmines
 
 - **`.claude/` paths can block Bash `mkdir`/`Write` from inside Claude Code sessions** (permission hooks). Workaround: write a small script to `/tmp` and execute it to do the copy.
+- **The `asbuilt/` package needs its dependencies in the cache.** If the copy excludes `node_modules` (rsync habits), run `bun install` inside `<cache>/<version>/asbuilt/` afterwards — `bun.lock` ships with the repo so the install is exact. Without it, every `asbuilt/src/*.ts` invocation fails on missing tree-sitter wasms and Gate 2c silently degrades to LLM-only mode (bit live on the v2.19.0 resync).
 - **Don't delete the old version directory until the new one is verified** — `installed_plugins.json` still points at it until step 3.2.
 - **Restart any long-running Claude Code sessions** after a cache resync; loaded skills are cached per session.
 

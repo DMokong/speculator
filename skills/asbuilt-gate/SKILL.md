@@ -30,7 +30,7 @@ evidence directory, e.g. `docs/specs/{feature}/evidence/` (per
 spec directory) — every path below written as `evidence/asbuilt-*` means that
 directory.
 
-### CLI reference (exact invocations, ten `asbuilt/src/*.ts` modules)
+### CLI reference (exact invocations, eleven `asbuilt/src/*.ts` modules)
 
 The invocations below are each module's own `CLI_USAGE` string, printed
 verbatim — the repo-root-relative form the module itself prints on a usage
@@ -48,6 +48,7 @@ skill isn't necessarily running from inside the plugin's own directory.
 - Refresh: `bun asbuilt/src/refresh.ts --target <repo> [--date YYYY-MM-DD]`
 - Graphify-check: `bun asbuilt/src/graphify-check.ts --target <repo> [--graphify-bin <path>] [--html]`
 - Sigma-stats: `bun asbuilt/src/sigma-stats.ts --runs <runs.yml>`
+- Viz: `bun asbuilt/src/viz.ts --target <repo> --date YYYY-MM-DD [--out <path>]`
 
 The steps below spell these out with concrete paths (`${CLAUDE_PLUGIN_ROOT}`
 prefix, evidence-directory targets) for this gate specifically.

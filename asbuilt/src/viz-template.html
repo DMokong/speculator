@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__PROJECT__ — As-Built Knowledge Graph</title>
+<style>
+/* ================= drafting sheet tokens ================= */
+.viz-root {
+  --paper:        #fcfcfb;
+  --paper-deep:   #f4f3ef;
+  --grid-minor:   rgba(42, 68, 96, 0.055);
+  --grid-major:   rgba(42, 68, 96, 0.10);
+  --ink:          #14140f;
+  --ink-2:        #52514e;
+  --ink-3:        #8f8d85;
+  --hairline:     #c9c7bd;
+  --hairline-2:   #e4e2da;
+  --skeleton:     #8a887f;   /* neutral zero-state (validated vs paper) */
+  --audited:      #2a78d6;   /* ordinal blue 450 */
+  --full:         #0d366b;   /* ordinal blue 700 */
+  --audited-tint: rgba(42, 120, 214, 0.09);
+  --edge:         #6b7787;
+  --panel:        #ffffff;
+  --stamp-rot:    -2deg;
+}
+:root[data-theme="dark"] .viz-root { --forced: dark; }
+@media (prefers-color-scheme: dark) { .viz-root { --scheme: dark; } }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .viz-root {
+    --paper:        #1a1a19;
+    --paper-deep:   #151514;
+    --grid-minor:   rgba(148, 178, 214, 0.05);
+    --grid-major:   rgba(148, 178, 214, 0.09);
+    --ink:          #f2f1ea;
+    --ink-2:        #c3c2b7;
+    --ink-3:        #85847b;
+    --hairline:     #3d3c38;
+    --hairline-2:   #2a2a27;
+    --skeleton:     #6f6d64;
+    --audited:      #3987e5;
+    --full:         #86b6ef;
+    --audited-tint: rgba(57, 135, 229, 0.14);
+    --panel:        #201f1e;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  --paper:        #1a1a19;
+  --paper-deep:   #151514;
+  --grid-minor:   rgba(148, 178, 214, 0.05);
+  --grid-major:   rgba(148, 178, 214, 0.09);
+  --ink:          #f2f1ea;
+  --ink-2:        #c3c2b7;
+  --ink-3:        #85847b;
+  --hairline:     #3d3c38;
+  --hairline-2:   #2a2a27;
+  --skeleton:     #6f6d64;
+  --audited:      #3987e5;
+  --full:         #86b6ef;
+  --audited-tint: rgba(57, 135, 229, 0.14);
+  --panel:        #201f1e;
+}
+:root[data-theme="light"] .viz-root {
+  --paper:        #fcfcfb;
+  --paper-deep:   #f4f3ef;
+  --grid-minor:   rgba(42, 68, 96, 0.055);
+  --grid-major:   rgba(42, 68, 96, 0.10);
+  --ink:          #14140f;
+  --ink-2:        #52514e;
+  --ink-3:        #8f8d85;
+  --hairline:     #c9c7bd;
+  --hairline-2:   #e4e2da;
+  --skeleton:     #8a887f;
+  --audited:      #2a78d6;
+  --full:         #0d366b;
+  --audited-tint: rgba(42, 120, 214, 0.09);
+  --panel:        #ffffff;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+.viz-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  overflow: hidden;
+}
+.serif { font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif; }
+
+/* ================= title block ================= */
+header {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 3px double var(--hairline);
+  background: var(--paper);
+  animation: rise .5s ease-out both;
+}
+.masthead { flex: 1; padding: 18px 24px 14px; border-right: 1px solid var(--hairline); min-width: 0; }
+.masthead .kicker {
+  font-size: 10px; letter-spacing: .28em; color: var(--ink-3); text-transform: uppercase; margin-bottom: 6px;
+}
+.masthead h1 {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  font-size: clamp(20px, 3vw, 30px); font-weight: 600; letter-spacing: .01em; line-height: 1.1;
+}
+.masthead h1 em { font-style: italic; color: var(--audited); }
+.sheetblock { display: grid; grid-template-columns: repeat(4, minmax(86px, auto)); }
+.sheetblock > div { padding: 10px 14px; border-left: 1px solid var(--hairline-2); display: flex; flex-direction: column; justify-content: center; }
+.sheetblock .lbl { font-size: 9px; letter-spacing: .2em; color: var(--ink-3); text-transform: uppercase; margin-bottom: 4px; }
+.sheetblock .val { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+
+/* ================= stat tiles ================= */
+.tiles {
+  display: flex; border-bottom: 1px solid var(--hairline); background: var(--paper);
+  animation: rise .5s .08s ease-out both;
+}
+.tile { padding: 12px 24px; border-right: 1px solid var(--hairline-2); min-width: 130px; }
+.tile .lbl { font-size: 9px; letter-spacing: .22em; color: var(--ink-3); text-transform: uppercase; }
+.tile .num { font-size: 26px; line-height: 1.15; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tile .sub { font-size: 10px; color: var(--ink-3); }
+.meter { height: 3px; background: var(--hairline-2); margin-top: 6px; width: 120px; }
+.meter i { display: block; height: 100%; background: var(--audited); }
+
+/* ================= controls ================= */
+.controls {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 10px 24px; border-bottom: 1px solid var(--hairline); background: var(--paper);
+  animation: rise .5s .16s ease-out both;
+}
+.controls input[type="search"] {
+  font: inherit; color: var(--ink); background: var(--paper-deep);
+  border: 1px solid var(--hairline); padding: 6px 10px; width: 240px; outline: none;
+}
+.controls input[type="search"]:focus { border-color: var(--audited); }
+.chipset { display: flex; border: 1px solid var(--hairline); }
+.chip {
+  font: inherit; font-size: 11px; letter-spacing: .06em; cursor: pointer;
+  background: transparent; color: var(--ink-2); border: 0; border-right: 1px solid var(--hairline-2);
+  padding: 6px 12px; text-transform: uppercase;
+}
+.chip:last-child { border-right: 0; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.spacer { flex: 1; }
+.ghostbtn {
+  font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+  background: transparent; color: var(--ink-2); border: 1px solid var(--hairline); padding: 6px 12px;
+}
+.ghostbtn:hover { color: var(--ink); border-color: var(--ink-3); }
+
+/* ================= stage ================= */
+.stage { position: relative; flex: 1; min-height: 0; display: flex; }
+.canvas-wrap { position: relative; flex: 1; min-width: 0; overflow: hidden;
+  background:
+    repeating-linear-gradient(0deg,   var(--grid-major) 0 1px, transparent 1px 96px),
+    repeating-linear-gradient(90deg,  var(--grid-major) 0 1px, transparent 1px 96px),
+    repeating-linear-gradient(0deg,   var(--grid-minor) 0 1px, transparent 1px 12px),
+    repeating-linear-gradient(90deg,  var(--grid-minor) 0 1px, transparent 1px 12px),
+    var(--paper-deep);
+}
+svg { display: block; width: 100%; height: 100%; cursor: grab; animation: fadein .8s .3s both; }
+svg:active { cursor: grabbing; }
+.gl { font-size: 13px; letter-spacing: .3em; text-transform: uppercase; fill: var(--ink-3); opacity: .55; pointer-events: none; }
+.edge { stroke: var(--edge); fill: none; }
+.node { cursor: grab; }
+.node:active { cursor: grabbing; }
+.node circle.core { stroke: var(--paper); stroke-width: 1.25; transition: r .15s ease; }
+.node.skeleton circle.core { fill: var(--skeleton); }
+.node.accuracy circle.core { fill: var(--audited); }
+.node.full circle.core { fill: var(--full); }
+.node circle.ring { fill: none; stroke: var(--audited); stroke-width: 1.4; opacity: .85; }
+.node.full circle.ring { stroke: var(--full); }
+.node text {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10px; fill: var(--ink-2); paint-order: stroke; stroke: var(--paper); stroke-width: 3px;
+  pointer-events: none;
+}
+.node { cursor: pointer; }
+.node.dim, .edge.dim { opacity: .08; }
+.node.sel circle.core { stroke: var(--ink); stroke-width: 2; }
+.legend {
+  position: absolute; left: 16px; bottom: 16px; background: var(--panel);
+  border: 1px solid var(--hairline); padding: 12px 14px; font-size: 11px; color: var(--ink-2);
+  box-shadow: 0 2px 12px rgba(0,0,0,.07);
+}
+.legend .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.legend .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.legend .dot.ringed { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.4px var(--audited); }
+.legend .note { color: var(--ink-3); font-size: 10px; margin-top: 8px; max-width: 190px; }
+.tooltip {
+  position: absolute; pointer-events: none; z-index: 30; background: var(--panel); color: var(--ink);
+  border: 1px solid var(--hairline); padding: 8px 10px; font-size: 11px; max-width: 260px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.12); display: none;
+}
+.tooltip .t { color: var(--ink); }
+.tooltip .m { color: var(--ink-3); margin-top: 2px; }
+
+/* ================= detail drawer ================= */
+aside {
+  width: 380px; flex: none; border-left: 1px solid var(--hairline); background: var(--panel);
+  overflow-y: auto; padding: 20px 22px 40px; display: none;
+}
+aside.open { display: block; }
+aside .close { float: right; }
+aside .kicker { font-size: 9px; letter-spacing: .24em; color: var(--ink-3); text-transform: uppercase; }
+aside .path { font-size: 11px; color: var(--ink-2); margin: 3px 0 10px; word-break: break-all; }
+aside h2 { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; font-size: 21px; margin-bottom: 12px; }
+.stamp {
+  display: inline-block; transform: rotate(var(--stamp-rot));
+  border: 1.6px solid var(--skeleton); color: var(--skeleton);
+  font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+  padding: 4px 9px; margin: 2px 0 14px;
+}
+.stamp.accuracy { border-color: var(--audited); color: var(--audited); background: var(--audited-tint); }
+.stamp.full { border-color: var(--full); color: var(--full); background: var(--audited-tint); }
+.stamp.test { border-color: var(--ink-2); color: var(--ink-2); background: var(--paper-deep); margin-left: 6px; }
+.metagrid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--hairline-2); border: 1px solid var(--hairline-2); margin-bottom: 14px; }
+.metagrid > div { background: var(--panel); padding: 7px 10px; }
+.metagrid .lbl { font-size: 9px; letter-spacing: .18em; color: var(--ink-3); text-transform: uppercase; }
+.metagrid .val { font-size: 12px; color: var(--ink); }
+aside .desc { font-size: 12px; color: var(--ink-2); margin-bottom: 14px; line-height: 1.5; }
+aside h3 { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-3); margin: 18px 0 8px; border-bottom: 1px solid var(--hairline-2); padding-bottom: 5px; }
+aside .prose { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; font-size: 14px; line-height: 1.62; color: var(--ink); }
+aside .prose code, aside .decisions code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .85em; background: var(--paper-deep); padding: 1px 4px; border: 1px solid var(--hairline-2); }
+aside .decisions { list-style: none; }
+aside .decisions li { font-size: 12px; line-height: 1.55; color: var(--ink-2); padding: 8px 0 8px 16px; border-bottom: 1px dashed var(--hairline-2); position: relative; }
+aside .decisions li::before { content: "§"; position: absolute; left: 0; color: var(--audited); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chips span { font-size: 10px; color: var(--ink-2); border: 1px solid var(--hairline-2); background: var(--paper-deep); padding: 2px 7px; }
+.conn { list-style: none; }
+.conn li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 11.5px; border-bottom: 1px solid var(--hairline-2); }
+.conn li a { color: var(--audited); text-decoration: none; cursor: pointer; }
+.conn li a:hover { text-decoration: underline; }
+.conn li .w { color: var(--ink-3); }
+aside .filelink { display: inline-block; margin-top: 16px; font-size: 11px; color: var(--audited); text-decoration: none; }
+aside .filelink:hover { text-decoration: underline; }
+
+/* ================= table view ================= */
+.tablewrap { position: absolute; inset: 0; z-index: 20; background: var(--paper); display: none; overflow: auto; padding: 18px 24px; }
+.tablewrap.open { display: block; }
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th { text-align: left; font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-3); border-bottom: 2px solid var(--hairline); padding: 8px 10px; position: sticky; top: -18px; background: var(--paper); }
+td { border-bottom: 1px solid var(--hairline-2); padding: 7px 10px; color: var(--ink-2); }
+td.c1 { color: var(--ink); cursor: pointer; }
+td.c1:hover { color: var(--audited); }
+td .statedot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; }
+tr.audited-row td { background: var(--audited-tint); }
+
+footer {
+  border-top: 1px solid var(--hairline); padding: 7px 24px; font-size: 10px; color: var(--ink-3);
+  display: flex; justify-content: space-between; letter-spacing: .04em; background: var(--paper);
+}
+@keyframes rise { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 900px) { aside { position: absolute; right: 0; top: 0; bottom: 0; box-shadow: -8px 0 30px rgba(0,0,0,.15); } .sheetblock { display: none; } }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <header>
+    <div class="masthead">
+      <div class="kicker">As-Built Knowledge System · OKF Bundle Sheet</div>
+      <h1>__PROJECT__ — <em>as-built</em> knowledge graph</h1>
+    </div>
+    <div class="sheetblock" id="sheetblock"></div>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="controls">
+    <input id="q" type="search" placeholder="search concepts, tags, symbols…" aria-label="Search concepts">
+    <div class="chipset" id="stateChips" role="group" aria-label="Enrichment filter">
+      <button class="chip" data-state="all" aria-pressed="true">All</button>
+      <button class="chip" data-state="audited" aria-pressed="false">Audited</button>
+      <button class="chip" data-state="none" aria-pressed="false">Skeleton</button>
+    </div>
+    <div class="chipset" id="areaChips" role="group" aria-label="Area filter">
+      <button class="chip" data-area="all" aria-pressed="true">All</button>
+      <button class="chip" data-area="src" aria-pressed="false">src</button>
+      <button class="chip" data-area="tests" aria-pressed="false">tests</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="ghostbtn" id="tableBtn" aria-pressed="false">Table view</button>
+    <button class="ghostbtn" id="themeBtn">Theme</button>
+  </div>
+
+  <div class="stage">
+    <div class="canvas-wrap">
+      <svg id="svg" role="img" aria-label="Knowledge graph of __PROJECT__ concepts"></svg>
+      <div class="legend" id="legend">
+        <div class="row"><span class="dot" style="background:var(--full)"></span> fully-audited <span style="color:var(--ink-3)">(spec-gated)</span></div>
+        <div class="row"><span class="dot ringed" style="background:var(--audited)"></span> accuracy-audited <span style="color:var(--ink-3)">(backfill)</span></div>
+        <div class="row"><span class="dot" style="background:var(--skeleton)"></span> skeleton <span style="color:var(--ink-3)">(extracted only)</span></div>
+        <div class="note">area ∝ symbol count · lines = resolved call edges between files · audited concepts carry labels</div>
+      </div>
+      <div class="tooltip" id="tooltip"></div>
+      <div class="tablewrap" id="tablewrap"></div>
+    </div>
+    <aside id="panel" aria-label="Concept detail"></aside>
+  </div>
+
+  <footer>
+    <span>SELF-CONTAINED OKF VISUALIZE SHEET — DATA EMBEDDED AT BUILD TIME</span>
+    <span id="foot-right"></span>
+  </footer>
+</div>
+
+<script id="asbuilt-data" type="application/json">__ASBUILT_DATA__</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("asbuilt-data").textContent);
+const nodes = DATA.nodes, meta = DATA.meta;
+const byId = new Map(nodes.map(n => [n.id, n]));
+const links = DATA.links.map(l => ({ s: byId.get(l.source), t: byId.get(l.target), w: l.w }));
+const neighbors = new Map(nodes.map(n => [n.id, []]));
+for (const l of links) { neighbors.get(l.s.id).push({ other: l.t, w: l.w, dir: "out" }); neighbors.get(l.t.id).push({ other: l.s, w: l.w, dir: "in" }); }
+
+/* ---------- header blocks ---------- */
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+document.getElementById("sheetblock").innerHTML = [
+  ["Rev", meta.folds.length ? meta.folds[meta.folds.length - 1] : "—"],
+  ["Sheet date", meta.date],
+  ["Commit", meta.target_commit.slice(0, 7)],
+  ["Format", "OKF v" + meta.okf_version],
+].map(([l, v]) => `<div><span class="lbl">${l}</span><span class="val">${esc(String(v))}</span></div>`).join("");
+const pct = Math.round(100 * meta.audited / meta.concepts);
+document.getElementById("tiles").innerHTML = `
+  <div class="tile"><div class="lbl">Concepts</div><div class="num">${meta.concepts}</div><div class="sub">src + tests</div></div>
+  <div class="tile"><div class="lbl">Audited</div><div class="num">${meta.audited}</div>
+    <div class="meter" role="img" aria-label="${pct}% audited"><i style="width:${pct}%"></i></div><div class="sub">${pct}% of bundle</div></div>
+  <div class="tile"><div class="lbl">Symbols</div><div class="num">${meta.symbols}</div><div class="sub">graph manifest</div></div>
+  <div class="tile"><div class="lbl">Call edges</div><div class="num">${meta.resolved_edges}</div><div class="sub">${meta.file_links} file links</div></div>
+  <div class="tile"><div class="lbl">Folds</div><div class="num">${meta.folds.length}</div><div class="sub">${meta.folds.join(" · ") || "none yet"}</div></div>`;
+document.getElementById("foot-right").textContent = meta.project + " @ " + meta.target_commit.slice(0, 12) + " · " + meta.date;
+
+/* ---------- deterministic layout ---------- */
+function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; }
+const groups = [...new Set(nodes.map(n => n.group))].sort();
+const G = new Map(groups.map((g, i) => {
+  const a = (i / groups.length) * Math.PI * 2 - Math.PI / 2;
+  const R = g === "src" ? 0 : 330;
+  return [g, { x: Math.cos(a) * R, y: Math.sin(a) * R * 0.72 }];
+}));
+/* Initial scatter scales with group population — a fixed ±90px box is far
+   smaller than the summed node area of a 25-file cluster, and the settle
+   loop cools before the weak collision force can unpack it. */
+const groupCounts = new Map(groups.map(g => [g, nodes.filter(n => n.group === g).length]));
+for (const n of nodes) {
+  const anchor = G.get(n.group), j1 = hash(n.id), j2 = hash(n.id + "y");
+  const spread = 90 + 44 * Math.sqrt(groupCounts.get(n.group));
+  n.x = anchor.x + (j1 - 0.5) * spread * 2; n.y = anchor.y + (j2 - 0.5) * spread * 2;
+  n.vx = 0; n.vy = 0;
+  n.r = 4 + 2.3 * Math.sqrt(n.symbols || 1);
+}
+function tick(alpha) {
+  for (const l of links) {
+    const dx = l.t.x - l.s.x, dy = l.t.y - l.s.y;
+    const d = Math.max(1, Math.hypot(dx, dy));
+    const want = 46 + l.s.r + l.t.r;
+    const f = ((d - want) / d) * 0.028 * Math.min(l.w, 4) * alpha;
+    l.s.vx += dx * f; l.s.vy += dy * f; l.t.vx -= dx * f; l.t.vy -= dy * f;
+  }
+  for (let i = 0; i < nodes.length; i++) for (let k = i + 1; k < nodes.length; k++) {
+    const a = nodes[i], b = nodes[k];
+    let dx = b.x - a.x, dy = b.y - a.y;
+    let d2 = dx * dx + dy * dy;
+    if (d2 < 1) { dx = (hash(a.id + k) - 0.5); dy = (hash(b.id + i) - 0.5); d2 = 1; }
+    const d = Math.sqrt(d2);
+    let f = (900 / d2) * alpha;
+    const overlap = a.r + b.r + 6 - d;
+    if (overlap > 0) f += overlap * 0.09;
+    const fx = (dx / d) * f, fy = (dy / d) * f;
+    a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+  }
+  for (const n of nodes) {
+    const anchor = G.get(n.group);
+    n.vx += (anchor.x - n.x) * 0.008 * alpha * 2;
+    n.vy += (anchor.y - n.y) * 0.008 * alpha * 2;
+    n.vx += -n.x * 0.002 * alpha; n.vy += -n.y * 0.002 * alpha;
+    n.vx *= 0.82; n.vy *= 0.82;
+    n.x += n.vx; n.y += n.vy;
+  }
+  /* Hard positional de-overlap: velocity-based forces freeze (alpha cools)
+     before overlaps resolve under the anchor spring, which is why clusters
+     used to settle as an overlapping pile. Positional correction is not
+     alpha-scaled, so packing resolves regardless of how cold the sim is.
+     The 14px padding also gives audited labels air. */
+  for (let i = 0; i < nodes.length; i++) for (let k = i + 1; k < nodes.length; k++) {
+    const a = nodes[i], b = nodes[k];
+    let dx = b.x - a.x, dy = b.y - a.y;
+    let d = Math.hypot(dx, dy);
+    if (d < 1) { dx = hash(a.id + k) - 0.5; dy = hash(b.id + i) - 0.5; d = Math.hypot(dx, dy); }
+    const min = a.r + b.r + 14;
+    if (d < min) {
+      const push = ((min - d) / d) * 0.5;
+      a.x -= dx * push; a.y -= dy * push;
+      b.x += dx * push; b.y += dy * push;
+    }
+  }
+}
+
+/* ---------- svg render ---------- */
+const svg = document.getElementById("svg");
+const NS = "http://www.w3.org/2000/svg";
+const world = document.createElementNS(NS, "g");
+svg.appendChild(world);
+const edgeLayer = document.createElementNS(NS, "g");
+const labelLayer = document.createElementNS(NS, "g");
+const nodeLayer = document.createElementNS(NS, "g");
+world.append(labelLayer, edgeLayer, nodeLayer);
+
+/* Edge weights below are calibrated for dense webs (~100 links, r2mcp-scale) where
+   faint hairlines sum into visible structure. A sparse sheet (post-cs26 conservative
+   resolution can leave method-call-heavy codebases with a dozen provable links)
+   renders those same hairlines as invisible — so sparse sheets draw darker/thicker. */
+const sparse = links.length <= 25;
+const edgeEls = links.map(l => {
+  const e = document.createElementNS(NS, "line");
+  e.setAttribute("class", "edge");
+  e.setAttribute("stroke-width", String((sparse ? 1.2 : 0.7) + Math.min(l.w, 6) * 0.28));
+  e.setAttribute("stroke-opacity", String(sparse ? Math.min(0.35 + l.w * 0.03, 0.55) : Math.min(0.13 + l.w * 0.025, 0.4)));
+  edgeLayer.appendChild(e); return e;
+});
+const groupEls = groups.map(g => {
+  const t = document.createElementNS(NS, "text");
+  t.setAttribute("class", "gl"); t.setAttribute("text-anchor", "middle");
+  t.textContent = g; labelLayer.appendChild(t); return t;
+});
+const stateOf = n => n.enrichment === "none" ? "skeleton" : n.enrichment === "accuracy-audited" ? "accuracy" : "full";
+const nodeEls = nodes.map(n => {
+  const g = document.createElementNS(NS, "g");
+  g.setAttribute("class", "node " + stateOf(n));
+  const core = document.createElementNS(NS, "circle");
+  core.setAttribute("class", "core"); core.setAttribute("r", String(n.r));
+  g.appendChild(core);
+  if (n.enrichment !== "none") {
+    const ring = document.createElementNS(NS, "circle");
+    ring.setAttribute("class", "ring"); ring.setAttribute("r", String(n.r + 3.2));
+    g.appendChild(ring);
+    const label = document.createElementNS(NS, "text");
+    label.setAttribute("y", String(-n.r - 8)); label.setAttribute("text-anchor", "middle");
+    label.textContent = n.id.split("/").pop();
+    g.appendChild(label);
+  }
+  g.addEventListener("pointerenter", ev => hover(n, ev));
+  g.addEventListener("pointermove", ev => moveTip(ev));
+  g.addEventListener("pointerleave", () => unhover());
+  g.addEventListener("pointerdown", ev => {
+    ev.stopPropagation(); // a node grab must not start a canvas pan
+    if (!vb) return;
+    const p = worldPoint(ev);
+    dragging = { n, dx: n.x - p.x, dy: n.y - p.y, moved: false };
+  });
+  g.addEventListener("click", ev => {
+    ev.stopPropagation();
+    if (suppressClick) { suppressClick = false; return; } // a drag is not a select
+    select(n);
+  });
+  nodeLayer.appendChild(g); return g;
+});
+
+/* ---------- node dragging ---------- */
+let dragging = null;
+let suppressClick = false;
+function worldPoint(ev) {
+  const r = svg.getBoundingClientRect();
+  return { x: vb.x + ((ev.clientX - r.left) / r.width) * vb.w,
+           y: vb.y + ((ev.clientY - r.top) / r.height) * vb.h };
+}
+window.addEventListener("pointermove", ev => {
+  if (!dragging || !vb) return;
+  const p = worldPoint(ev);
+  dragging.n.x = p.x + dragging.dx; dragging.n.y = p.y + dragging.dy;
+  dragging.n.vx = 0; dragging.n.vy = 0;
+  dragging.moved = true;
+  positionAll();
+});
+window.addEventListener("pointerup", () => {
+  if (dragging) { suppressClick = dragging.moved; dragging = null; }
+});
+function positionAll() {
+  links.forEach((l, i) => { const e = edgeEls[i];
+    e.setAttribute("x1", l.s.x); e.setAttribute("y1", l.s.y); e.setAttribute("x2", l.t.x); e.setAttribute("y2", l.t.y); });
+  nodes.forEach((n, i) => nodeEls[i].setAttribute("transform", `translate(${n.x},${n.y})`));
+  groups.forEach((g, i) => {
+    const members = nodes.filter(n => n.group === g);
+    const cx = members.reduce((s, n) => s + n.x, 0) / members.length;
+    const minY = Math.min(...members.map(n => n.y - n.r));
+    groupEls[i].setAttribute("x", cx); groupEls[i].setAttribute("y", minY - 22);
+  });
+}
+let alpha = 1;
+(function settle() { for (let i = 0; i < 3; i++) tick(alpha); alpha *= 0.985; positionAll(); if (alpha > 0.02) requestAnimationFrame(settle); })();
+
+/* ---------- pan / zoom ---------- */
+let vb = null;
+function fit() {
+  const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
+  const pad = 90;
+  const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad;
+  vb = { x: x0, y: y0, w: Math.max(...xs) + pad - x0, h: Math.max(...ys) + pad - y0 };
+  applyVb();
+}
+function applyVb() { svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); }
+setTimeout(fit, 900); setTimeout(fit, 2600);
+svg.addEventListener("wheel", ev => {
+  ev.preventDefault(); if (!vb) return;
+  const k = ev.deltaY > 0 ? 1.12 : 1 / 1.12;
+  const r = svg.getBoundingClientRect();
+  const mx = vb.x + ((ev.clientX - r.left) / r.width) * vb.w;
+  const my = vb.y + ((ev.clientY - r.top) / r.height) * vb.h;
+  vb = { x: mx - (mx - vb.x) * k, y: my - (my - vb.y) * k, w: vb.w * k, h: vb.h * k };
+  applyVb();
+}, { passive: false });
+let panning = null;
+svg.addEventListener("pointerdown", ev => { if (ev.target === svg || ev.target === world) panning = { x: ev.clientX, y: ev.clientY }; });
+window.addEventListener("pointermove", ev => {
+  if (!panning || !vb) return;
+  const r = svg.getBoundingClientRect();
+  vb.x -= (ev.clientX - panning.x) * (vb.w / r.width);
+  vb.y -= (ev.clientY - panning.y) * (vb.h / r.height);
+  panning = { x: ev.clientX, y: ev.clientY }; applyVb();
+});
+window.addEventListener("pointerup", () => panning = null);
+svg.addEventListener("click", () => select(null));
+
+/* ---------- hover / tooltip ---------- */
+const tip = document.getElementById("tooltip");
+function hover(n, ev) {
+  tip.style.display = "block";
+  tip.innerHTML = `<div class="t">${esc(n.id)}</div>
+    <div class="m">${esc(n.group)} · ${n.symbols} symbols · ${esc(n.enrichment)}${n.stale ? " · STALE" : ""}</div>
+    <div class="m">${n.enrichment !== "none" ? "click for the audited explanation" : "skeleton — extracted structure only"}</div>`;
+  moveTip(ev); mark(m => m === n || neighbors.get(n.id).some(x => x.other === m));
+}
+function moveTip(ev) {
+  const r = svg.parentElement.getBoundingClientRect();
+  tip.style.left = Math.min(ev.clientX - r.left + 14, r.width - 280) + "px";
+  tip.style.top = (ev.clientY - r.top + 14) + "px";
+}
+function unhover() { tip.style.display = "none"; applyFilters(); }
+function mark(keep) {
+  nodes.forEach((n, i) => nodeEls[i].classList.toggle("dim", !keep(n) || !visible(n)));
+  links.forEach((l, i) => edgeEls[i].classList.toggle("dim", !(keep(l.s) && keep(l.t) && visible(l.s) && visible(l.t))));
+}
+
+/* ---------- filters ---------- */
+let fState = "all", fArea = "all", fQuery = "";
+function visible(n) {
+  if (fState === "audited" && n.enrichment === "none") return false;
+  if (fState === "none" && n.enrichment !== "none") return false;
+  if (fArea !== "all" && (fArea === "tests") !== (n.group === "tests")) return false;
+  if (fQuery) {
+    const hay = (n.id + " " + n.title + " " + n.tags.join(" ") + " " + n.exports.map(e => e.name).join(" ")).toLowerCase();
+    if (!hay.includes(fQuery)) return false;
+  }
+  return true;
+}
+function applyFilters() {
+  nodes.forEach((n, i) => nodeEls[i].classList.toggle("dim", !visible(n)));
+  links.forEach((l, i) => edgeEls[i].classList.toggle("dim", !(visible(l.s) && visible(l.t))));
+}
+document.getElementById("q").addEventListener("input", ev => { fQuery = ev.target.value.trim().toLowerCase(); applyFilters(); });
+for (const [elId, setter] of [["stateChips", v => fState = v], ["areaChips", v => fArea = v]]) {
+  const box = document.getElementById(elId);
+  box.addEventListener("click", ev => {
+    const b = ev.target.closest(".chip"); if (!b) return;
+    box.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c === b)));
+    setter(b.dataset.state ?? b.dataset.area); applyFilters();
+  });
+}
+
+/* ---------- selection / detail drawer ---------- */
+const panel = document.getElementById("panel");
+let selected = null;
+function inline(md) {
+  return esc(md).replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+function select(n) {
+  selected = n;
+  nodes.forEach((m, i) => nodeEls[i].classList.toggle("sel", m === n));
+  if (!n) { panel.classList.remove("open"); return; }
+  const conns = neighbors.get(n.id).sort((a, b) => b.w - a.w);
+  const outs = conns.filter(c => c.dir === "out"), ins = conns.filter(c => c.dir === "in");
+  const connList = (list, label) => list.length ? `<h3>${label}</h3><ul class="conn">` + list.slice(0, 12).map(c =>
+    `<li><a data-id="${esc(c.other.id)}">${esc(c.other.id)}</a><span class="w">×${c.w}</span></li>`).join("") + "</ul>" : "";
+  panel.innerHTML = `
+    <button class="ghostbtn close" id="closeBtn">✕</button>
+    <div class="kicker">Concept · ${esc(n.type ?? "Module")}</div>
+    <div class="path">${esc(n.concept)}</div>
+    <h2>${esc(n.title)}</h2>
+    <div class="stamp ${stateOf(n)}">${n.enrichment === "none" ? "skeleton — unaudited" : esc(n.enrichment)}</div>${n.type === "Test" ? '<span class="stamp test">TEST</span>' : ""}
+    ${n.from.length ? `<div class="path">provenance: ${esc(n.from.join(", "))}</div>` : ""}
+    <div class="metagrid">
+      <div><div class="lbl">Area</div><div class="val">${esc(n.group)}</div></div>
+      <div><div class="lbl">Symbols</div><div class="val">${n.symbols}</div></div>
+      <div><div class="lbl">Exports</div><div class="val">${n.exports.length}</div></div>
+      <div><div class="lbl">Stale</div><div class="val">${n.stale ? "yes" : "no"}</div></div>
+    </div>
+    <div class="desc">${inline(n.description)}</div>
+    ${n.explanation ? `<h3>Explanation</h3><div class="prose">${n.explanation.split(/\n\n+/).map(p => `<p style="margin-bottom:10px">${inline(p)}</p>`).join("")}</div>` : ""}
+    ${n.decisions.length ? `<h3>Decisions</h3><ul class="decisions">${n.decisions.map(d => `<li>${inline(d)}</li>`).join("")}</ul>` : ""}
+    ${n.explains.length ? `<h3>Explains</h3><div class="chips">${n.explains.map(x => `<span>${esc(x.split("#")[1] ?? x)}</span>`).join("")}</div>` : ""}
+    ${connList(outs, `Calls into (${outs.length})`)}
+    ${connList(ins, `Called by (${ins.length})`)}
+    <a class="filelink" href="${esc(n.concept)}">open concept file →</a>`;
+  panel.classList.add("open");
+  panel.scrollTop = 0;
+  document.getElementById("closeBtn").addEventListener("click", () => select(null));
+  panel.querySelectorAll(".conn a").forEach(a => a.addEventListener("click", () => select(byId.get(a.dataset.id))));
+}
+
+/* ---------- table view ---------- */
+const tablewrap = document.getElementById("tablewrap");
+const tableBtn = document.getElementById("tableBtn");
+const stateColor = n => n.enrichment === "none" ? "var(--skeleton)" : n.enrichment === "accuracy-audited" ? "var(--audited)" : "var(--full)";
+tablewrap.innerHTML = `<table><thead><tr>
+  <th>Concept</th><th>Area</th><th>State</th><th>Symbols</th><th>Exports</th><th>Provenance</th>
+</tr></thead><tbody>` + [...nodes].sort((a, b) => a.id < b.id ? -1 : 1).map(n => `
+  <tr class="${n.enrichment !== "none" ? "audited-row" : ""}">
+    <td class="c1" data-id="${esc(n.id)}">${esc(n.id)}</td><td>${esc(n.group)}</td>
+    <td><span class="statedot" style="background:${stateColor(n)}"></span>${esc(n.enrichment)}</td>
+    <td>${n.symbols}</td><td>${n.exports.length}</td><td>${esc(n.from.join(", ") || "—")}</td>
+  </tr>`).join("") + "</tbody></table>";
+tableBtn.addEventListener("click", () => {
+  const open = !tablewrap.classList.contains("open");
+  tablewrap.classList.toggle("open", open);
+  tableBtn.setAttribute("aria-pressed", String(open));
+  tableBtn.textContent = open ? "Graph view" : "Table view";
+});
+tablewrap.addEventListener("click", ev => {
+  const td = ev.target.closest("td.c1"); if (!td) return;
+  tablewrap.classList.remove("open"); tableBtn.setAttribute("aria-pressed", "false"); tableBtn.textContent = "Table view";
+  select(byId.get(td.dataset.id));
+});
+
+/* ---------- theme toggle ---------- */
+document.getElementById("themeBtn").addEventListener("click", () => {
+  const cur = document.documentElement.dataset.theme
+    ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  document.documentElement.dataset.theme = cur === "dark" ? "light" : "dark";
+});
+</script>
+</body>
+</html>

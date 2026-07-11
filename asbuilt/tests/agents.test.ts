@@ -304,3 +304,50 @@ if (existsSync(QUIZ_GENERATOR_PATH) && existsSync(QUIZ_VERIFIER_PATH)) {
 } else {
   console.log("[agents.test.ts] Skipping: quiz agent files not present.");
 }
+
+// claw-r9tc: close-time fold-in contract pins. The wiring lives in
+// skills/sdlc-close/SKILL.md as prose — these pins keep its load-bearing
+// properties (refresh-before-fold ordering, the extract-first prohibition,
+// non-blocking failure policy, viz regeneration, and the pass-gated
+// condition) from silently eroding under future edits.
+const CLOSE_SKILL_PATH = `${REPO_ROOT}skills/sdlc-close/SKILL.md`;
+
+if (existsSync(CLOSE_SKILL_PATH)) {
+  describe("claw-r9tc: sdlc-close knowledge-base fold-in", () => {
+    const text = readFileSync(CLOSE_SKILL_PATH, "utf8");
+    const section = text.split("### Knowledge-base fold-in (asbuilt mode)")[1]?.split(/^### /m)[0] ?? "";
+
+    test("the fold-in section exists and is gated on a passing asbuilt gate", () => {
+      expect(section.length).toBeGreaterThan(0);
+      expect(section).toContain("gates.comprehension.mode: asbuilt");
+      expect(section).toContain("`result: pass`");
+    });
+
+    test("refresh runs before fold, and extract-first is prohibited", () => {
+      const refreshIdx = section.indexOf("asbuilt/src/refresh.ts");
+      const foldIdx = section.indexOf("asbuilt/src/fold.ts");
+      expect(refreshIdx).toBeGreaterThan(-1);
+      expect(foldIdx).toBeGreaterThan(refreshIdx);
+      expect(section).toContain("**Never run `extract.ts` before `refresh.ts`**");
+    });
+
+    test("verify and viz regeneration are wired after the fold", () => {
+      const foldIdx = section.indexOf("asbuilt/src/fold.ts");
+      expect(section.indexOf("asbuilt/src/verify.ts")).toBeGreaterThan(foldIdx);
+      expect(section.indexOf("asbuilt/src/viz.ts")).toBeGreaterThan(foldIdx);
+      expect(section).toContain("docs/asbuilt/viz.html");
+    });
+
+    test("failure policy is non-blocking, mirroring compaction", () => {
+      expect(section).toContain("never rolls back the delivery");
+      expect(section).toContain("never blocks the close");
+    });
+
+    test("both strategies invoke the fold-in section", () => {
+      const invocations = text.match(/Knowledge-base fold-in \(asbuilt mode\)\]\(#knowledge-base-fold-in-asbuilt-mode\)/g) ?? [];
+      expect(invocations.length).toBe(2);
+    });
+  });
+} else {
+  console.log("[agents.test.ts] Skipping: skills/sdlc-close/SKILL.md not present.");
+}
