@@ -7,19 +7,34 @@ the load smoke + re-run tests.
 Browser load order (and global-eval order in tests):
 **layout-base → cose-base → cytoscape → cytoscape-fcose.**
 
-## Vendored files
+## Vendored files (shipped = patched-minified derivatives, round 3 / T04)
 
-| File | Package | Version | License | Source | sha256 |
+`layout-base.js`, `cose-base.js`, and `cytoscape-fcose.js` ship as the
+**pre-patched, minified derivatives** described in "Minification, round 3"
+below. `cytoscape.min.js` ships minified upstream, unchanged.
+
+| File | Package | Version | License | Source | shipped (minified) sha256 |
 |---|---|---|---|---|---|
 | cytoscape.min.js | cytoscape | 3.30.2 | MIT | https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js | `83e8c54a6bec655bfd81df07df605649c268af69aeca67a5ea2da54ea42dac81` |
-| layout-base.js | layout-base | 2.0.1 | MIT | https://unpkg.com/layout-base@2.0.1/layout-base.js | `ec15ab5df9af3f20708f4faab994accf91cda71848cd5bb10a23432cc50b6745` |
-| cose-base.js | cose-base | 2.2.0 | MIT | https://unpkg.com/cose-base@2.2.0/cose-base.js | `7cae9509bd36235a63a85e71c8d9fa2cd0bc1d0c1ecc5b5a737976f39d040ddf` |
-| cytoscape-fcose.js | cytoscape-fcose | 2.2.0 | MIT | https://unpkg.com/cytoscape-fcose@2.2.0/cytoscape-fcose.js | `4b1cab218d74996aa59cd8473f9239cc6398b8c1774d84d7e59ad9a68959cb57` |
+| layout-base.js | layout-base | 2.0.1 | MIT | https://unpkg.com/layout-base@2.0.1/layout-base.js | `00143b1ac72e168440eca4b5f7c9a55d38fd3c0cdb7e9d3b637ca9e6c1566dde` |
+| cose-base.js | cose-base | 2.2.0 | MIT | https://unpkg.com/cose-base@2.2.0/cose-base.js | `572e078026cce395148f1bea26227c5ed0844e50d59135a91a6258221ac78aee` |
+| cytoscape-fcose.js | cytoscape-fcose | 2.2.0 | MIT | https://unpkg.com/cytoscape-fcose@2.2.0/cytoscape-fcose.js | `06cba2115c5d04b9f8014942fce1ec571eb2a8ef08498e93d9c9953a39eeb47c` |
 
-Total shipped size: **697,407 bytes (~681 KB)**. `cytoscape.min.js` ships
-minified upstream (373,304 B). `layout-base.js`, `cose-base.js`, and
-`cytoscape-fcose.js` ship as the **unminified originals** — see "Minification
-attempt" below for why.
+Original (pre-minification) sha256s, unchanged from the round-1 pin — these
+are what a `curl` re-fetch by URL above reproduces, and what round 2's table
+recorded:
+
+| File | original sha256 | original size |
+|---|---|---|
+| layout-base.js | `ec15ab5df9af3f20708f4faab994accf91cda71848cd5bb10a23432cc50b6745` | 147,958 B |
+| cose-base.js | `7cae9509bd36235a63a85e71c8d9fa2cd0bc1d0c1ecc5b5a737976f39d040ddf` | 118,906 B |
+| cytoscape-fcose.js | `4b1cab218d74996aa59cd8473f9239cc6398b8c1774d84d7e59ad9a68959cb57` | 57,239 B |
+
+Total shipped size: **500,033 bytes (~488.3 KB)** — comfortably under the
+700 KB budget and close to the spike's ~518 KB projection (the spike
+projection over-counted; this round's actual bytes: layout-base 59,912 /
+cose-base 45,919 / fcose 20,898, matching the T03 spike's measured minified
+sizes exactly). `cytoscape.min.js` is unchanged at 373,304 B.
 
 ## Minification attempt (round 2, 2026-07-16)
 
@@ -70,14 +85,65 @@ verification, per the brief's cleanup instruction — originals remain
 re-fetchable from the Source URLs above and re-verifiable against the
 recorded sha256.
 
+## Minification, round 3 (2026-07-16, T04) — SHIPPED
+
+Round 2's root-cause diagnosis (above) pinpointed the exact defect: `bun
+build` rewrites the UMD wrapper's top-level `this` → `exports` because the
+file also assigns to `module.exports` elsewhere, and that rewrite is what
+breaks global-eval loading. The T03 spike (finding 6) and this task's brief
+supply the fix: **pre-patch the wrapper's `this` → `globalThis` before
+minifying**, so there is no top-level `this` left for `bun build` to
+rewrite. `bun --version` used: `1.3.14` (same as round 2 — reproducible,
+byte-identical minified output was confirmed against round 2's earlier
+attempt at the same sizes: layout-base 59,912 / cose-base 45,919 / fcose
+20,898, matching the spike's measured sizes exactly).
+
+Originals were re-staged from the git history commit `ddfc32e` (which holds
+the round-1 pinned originals, unchanged since — confirmed by re-hashing
+against the sha256s in the "original sha256" table above before patching).
+No network re-fetch was needed since the originals are still present at
+`asbuilt/vendor/` on this branch prior to this task's overwrite.
+
+Commands run (identical for all three, `<pkg>` substituted, staged outside
+`asbuilt/vendor/` and never committed):
+
+```bash
+sed 's/(this, function/(globalThis, function/' <pkg>.orig.js > <pkg>.src.js
+bun build <pkg>.src.js --minify --no-bundle --outfile asbuilt/vendor/<pkg>.js
+```
+
+Each original had exactly one `(this, function` occurrence (the UMD wrapper's
+own invocation), confirmed via `grep -c '(this, function' <pkg>.orig.js` = 1
+for all three before patching.
+
+| File | patched-minified sha256 (SHIPPED) | size |
+|---|---|---|
+| layout-base.js | `00143b1ac72e168440eca4b5f7c9a55d38fd3c0cdb7e9d3b637ca9e6c1566dde` | 59,912 B |
+| cose-base.js | `572e078026cce395148f1bea26227c5ed0844e50d59135a91a6258221ac78aee` | 45,919 B |
+| cytoscape-fcose.js | `06cba2115c5d04b9f8014942fce1ec571eb2a8ef08498e93d9c9953a39eeb47c` | 20,898 B |
+
+**The load smoke PASSES** against these derivatives (see "Load smoke" below)
+— the pre-patch removes the top-level `this` entirely, so `bun build` has
+nothing ambiguous to rewrite; the shipped `globalThis` assignment survives
+minification intact (present in each file as the literal string
+`globalThis`, immediately preceding the minified factory-function
+invocation — whitespace around the comma is stripped by the minifier, so
+`grep -c 'globalThis, function'` — with the space, as written in a plain
+English description of the pattern — does not match; `grep -c
+'globalThis,function'` — no space, the actual minified byte sequence — does,
+≥1 in every one of the three files). These three files ship as the patched-
+minified derivatives; `cytoscape.min.js` is untouched.
+
 ## Load smoke
 
-A bun script (`/tmp/vendor-smoke.ts`, not committed — regenerable) global-evals
-the four files in load order via `(0, eval)(...)` and confirms
+A bun script (adapted from `/tmp/vendor-smoke.ts` per round 2; this round's
+copy lives in the session scratchpad, not committed — regenerable)
+global-evals the four files in load order via `(0, eval)(...)` and confirms
 `cytoscape({headless: true, elements: []}).layout({name: "fcose"})` does not
 throw.
 
-- Against the minified derivatives above: **FAIL** (`ReferenceError: exports
-  is not defined`, thrown by `layout-base.js`, the first file in load order).
-- Against the shipped (unminified) files in this directory: **PASS**
-  (`fcose ok`).
+- Against round 2's minified derivatives (no pre-patch): **FAIL**
+  (`ReferenceError: exports is not defined`, thrown by `layout-base.js`, the
+  first file in load order).
+- Against round 3's patched-minified derivatives — **the files shipped in
+  this directory today**: **PASS** (`fcose ok`).

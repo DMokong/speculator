@@ -78,6 +78,7 @@ export interface VizConceptNode {
   title: string;
   type: string;
   group: string;
+  test: boolean;
   description: string;
   tags: string[];
   enrichment: string;
@@ -118,6 +119,93 @@ function isTestConcept(fm: { type?: string; tags?: string[] }): boolean {
 function groupOf(resource: string): string {
   const parts = resource.split("/");
   return parts.length > 2 ? parts.slice(0, 2).join("/") : "src";
+}
+
+export interface VizLink {
+  source: string;
+  target: string;
+  w: number;
+}
+
+/** Cytoscape.js element: a compound-parent (`dir:${group}`), a child node, or
+ * an edge. Field presence varies by kind — parents carry only id/label, child
+ * nodes add parent/label/test/d + a state class, edges add source/target/w. */
+export interface CyElement {
+  data: {
+    id: string;
+    parent?: string;
+    label?: string;
+    test?: boolean;
+    d?: number;
+    source?: string;
+    target?: string;
+    w?: number;
+  };
+  classes?: string;
+}
+
+/** Mirrors the template's client-side `stateOf` (viz-template.html) so the
+ * embedded elements carry the same skeleton/accuracy/full classification the
+ * table view and legend already use. */
+function stateOf(enrichment: string): string {
+  return enrichment === "none" ? "skeleton" : enrichment === "accuracy-audited" ? "accuracy" : "full";
+}
+
+/** Cytoscape elements for the compound-group render: one parent per group
+ * (codepoint-sorted), then child nodes (sorted by id), then edges (sorted
+ * source→target) — deterministic order so the embedding stays byte-stable
+ * across identical inputs (SPEC-004 T04). */
+export function toElements(nodes: VizConceptNode[], links: VizLink[]): CyElement[] {
+  const groups = [...new Set(nodes.map((n) => n.group))].sort();
+  const parents: CyElement[] = groups.map((group) => ({
+    data: { id: `dir:${group}`, label: group },
+  }));
+
+  const childNodes: CyElement[] = [...nodes]
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map((n) => ({
+      data: {
+        id: n.id,
+        parent: `dir:${n.group}`,
+        label: basename(n.id),
+        test: n.test,
+        d: 2 * (4 + 2.3 * Math.sqrt(n.symbols || 1)),
+      },
+      classes: stateOf(n.enrichment) + (n.test ? " test" : ""),
+    }));
+
+  const edges: CyElement[] = [...links]
+    .sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : a.target < b.target ? -1 : a.target > b.target ? 1 : 0))
+    .map((l) => ({
+      data: { id: `${l.source}->${l.target}`, source: l.source, target: l.target, w: l.w },
+    }));
+
+  return [...parents, ...childNodes, ...edges];
+}
+
+const VENDOR_PLACEHOLDERS: [placeholder: string, name: string, file: string][] = [
+  ["__VENDOR_LAYOUT_BASE__", "layout-base", "layout-base.js"],
+  ["__VENDOR_COSE_BASE__", "cose-base", "cose-base.js"],
+  ["__VENDOR_CYTOSCAPE__", "cytoscape", "cytoscape.min.js"],
+  ["__VENDOR_FCOSE__", "fcose", "cytoscape-fcose.js"],
+];
+
+/** Inlines the vendored Cytoscape/fcose UMDs into the template at the four
+ * placeholders, wrapped in `/*VENDOR:<name>:start|end*\/` marker comments (T06
+ * byte-compares those regions against `asbuilt/vendor/`). Uses split/join,
+ * never `String.replace` — minified vendor code contains `$`-sequences
+ * (e.g. `$&`) that `String.replace`'s special replacement-pattern handling
+ * would corrupt. A no-op (byte-identical return) when no placeholders are
+ * present, which is the case for the current template until T05 lands. */
+export function inlineVendor(template: string): string {
+  let out = template;
+  for (const [placeholder, name, file] of VENDOR_PLACEHOLDERS) {
+    if (!out.includes(placeholder)) continue;
+    const content = readFileSync(new URL(`../vendor/${file}`, import.meta.url).pathname, "utf8");
+    const wrapped = `/*VENDOR:${name}:start*/${content}/*VENDOR:${name}:end*/`;
+    out = out.split(placeholder).join(wrapped);
+  }
+  return out;
 }
 
 export interface VizResult {
@@ -165,7 +253,10 @@ export function buildViz(targetRepo: string, date: string): VizResult {
       concept: relative(bundleDir, path),
       title: fm.title,
       type: fm.type,
-      group: isTestConcept(fm) ? "tests" : groupOf(fm.resource),
+      group: groupOf(fm.resource), // SPEC-004: grouping is ALWAYS path-derived; the
+      // hardcoded "tests" spatial bucket dies — classification (below) stays
+      // frontmatter-driven, separately from where a concept sits in the tree.
+      test: isTestConcept(fm),
       description: fm.description,
       tags: fm.tags,
       enrichment: fm.enrichment,
@@ -221,11 +312,13 @@ export function buildViz(targetRepo: string, date: string): VizResult {
     },
     nodes,
     links,
+    elements: toElements(nodes, links),
   };
 
   const template = readFileSync(new URL("viz-template.html", import.meta.url).pathname, "utf8");
+  const withVendor = inlineVendor(template);
   const json = JSON.stringify(data).replace(/<\//g, "<\\/");
-  const html = template.replaceAll("__PROJECT__", basename(targetRepo)).replace("__ASBUILT_DATA__", json);
+  const html = withVendor.replaceAll("__PROJECT__", basename(targetRepo)).replace("__ASBUILT_DATA__", json);
   return {
     html,
     concepts: nodes.length,
