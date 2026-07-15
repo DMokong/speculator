@@ -113,12 +113,17 @@ Design (approved 2026-07-15): `docs/fable-streams/2026-07-15-asbuilt-viz-cytosca
       a pinned release version with its version and license recorded (manifest
       or header), and `bun` tests do not require network access to pass.
 - [ ] AC10: Given the dense fixture bundle, when the layout is settled in a
-      headless run, then the packed layout has no large voids: the
-      axis-aligned bounding box of all settled clusters has area at most 3×
-      the sum of the individual clusters' bounding-box areas. (The constant
-      starts at 3.0, may be tightened by the spike, and is recorded in the
-      test alongside the measured value; the reverted ring layout, which
-      pushed groups apart around an empty middle, must fail this bound.)
+      headless run with the production fcose options, then the packing factor
+      (axis-aligned bounding box of all settled clusters ÷ sum of the
+      individual clusters' bounding-box areas) does not exceed 4.5. This is a
+      **drift anchor** pinned to the look approved at the 2026-07-16 spike
+      checkpoint (measured 4.116 there; the test records bound and measured
+      value side by side) — it guards against silent layout degradation.
+      Compactness itself is arbitrated by the human look-gate: the spike
+      measured that this ratio cannot discriminate the reverted ring layout
+      (2.63, would "pass") from good layouts, so the earlier "the reverted
+      ring must fail this bound" clause is withdrawn as unenforceable by this
+      metric (amended 2026-07-16 at the spike checkpoint, Dustin's ruling).
 
 ## Intent & Anti-Patterns
 
