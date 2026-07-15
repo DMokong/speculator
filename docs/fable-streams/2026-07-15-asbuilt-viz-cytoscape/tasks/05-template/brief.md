@@ -1,7 +1,7 @@
 ---
 task: 05-template
 parallel_safe: false
-testable: true
+testable: false
 tier: judgment
 ---
 

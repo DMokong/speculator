@@ -1,7 +1,7 @@
 ---
 task: 04-data-model
 parallel_safe: false
-testable: true
+testable: false
 tier: standard
 ---
 

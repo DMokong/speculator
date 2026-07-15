@@ -46,7 +46,7 @@ Plan: plan.md (Phase 3, awaiting human approval — last mandatory touchpoint)
 | 01-vendor-libs | 1 | done | 0 | ddfc32e; unminified originals shipped (681KB) — bun-minify breaks UMD global-eval (this→exports rewrite), documented in VENDOR.md; smoke passes |
 | 02-dense-fixture | 1 | done | 0 | c743291 (relocated round 1 content); 10/10 tests green in worktree |
 | 03-spike | 2 | done | 0 | judgment; look approved 2026-07-16; fcose mandatory (cose non-deterministic); ship patched-minified stack ~518KB; AC10 reframed to drift anchor ≤4.5 |
-| 04-data-model | 3 | pending | 0 | standard; testable; viz.ts + toElements + minified vendor; brief authored |
+| 04-data-model | 3 | running | 0 | standard; testable:false (implementer owns its unit tests); viz.ts + toElements + minified vendor; wf w/ expectedBranch guard |
 | 05-template | 4 | pending | 0 | judgment (opus); testable; template rewrite; brief authored |
 | 06-tests-hardening | 5 | pending | 0 | standard; testable; test-adversary N=3 after; brief authored |
 
