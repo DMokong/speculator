@@ -17,7 +17,7 @@
 - Vendored pinned libs under `asbuilt/vendor/` with versions + licenses + sha256 recorded (AC9); no registry access in tests.
 - Output size budget ≤ 700KB for a ~110-concept bundle.
 - Changes confined to `asbuilt/src/viz.ts`, `asbuilt/src/viz-template.html`, `asbuilt/vendor/` (new), `asbuilt/tests/` (+ helpers/fixtures), and stream/spec docs.
-- Layout compactness bound: settled-layout bbox area ≤ 3.0× summed cluster bbox areas on the dense fixture (AC10; constant recorded in the test, tunable by spike findings).
+- Layout compactness bound (amended at spike checkpoint 2026-07-16): AC10 is a drift anchor — packing factor ≤ 4.5 on the dense fixture with the checkpoint-measured 4.116 recorded beside it; the look-gate arbitrates compactness (the ratio provably cannot discriminate the reverted ring layout).
 
 ## File Structure
 

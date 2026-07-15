@@ -2,7 +2,7 @@
 stream: 2026-07-15-asbuilt-viz-cytoscape
 phase: execute
 entry: idea
-conductor_model: fable
+conductor_model: fable (phase R–4 waves 1-2 + spike checkpoint), opus-emulation (phase 4 waves 3+; fable-mode loaded per emulation-mode requirement 2026-07-16)
 weave:
   superpowers: loaded (brainstorming used for phase 1)
   speculator: SPEC-004 (worktree: .claude/worktrees/asbuilt-viz-cytoscape)
@@ -45,7 +45,17 @@ Plan: plan.md (Phase 3, awaiting human approval — last mandatory touchpoint)
 |---|---|---|---|---|
 | 01-vendor-libs | 1 | done | 0 | ddfc32e; unminified originals shipped (681KB) — bun-minify breaks UMD global-eval (this→exports rewrite), documented in VENDOR.md; smoke passes |
 | 02-dense-fixture | 1 | done | 0 | c743291 (relocated round 1 content); 10/10 tests green in worktree |
-| 03-spike | 2 | running | 0 | judgment (opus); finding 6 now decision-critical (engine + size); option (c) wrapper-patch-minify added; human look-checkpoint after |
-| 04-data-model | 3 | pending | 0 | standard; testable; viz.ts + own test file |
-| 05-template | 4 | pending | 0 | judgment (opus); testable; template only |
-| 06-tests-hardening | 5 | pending | 0 | standard; testable; test-adversary N=3 after |
+| 03-spike | 2 | done | 0 | judgment; look approved 2026-07-16; fcose mandatory (cose non-deterministic); ship patched-minified stack ~518KB; AC10 reframed to drift anchor ≤4.5 |
+| 04-data-model | 3 | pending | 0 | standard; testable; viz.ts + toElements + minified vendor; brief authored |
+| 05-template | 4 | pending | 0 | judgment (opus); testable; template rewrite; brief authored |
+| 06-tests-hardening | 5 | pending | 0 | standard; testable; test-adversary N=3 after; brief authored |
+
+## Spike checkpoint (2026-07-16, opus tier)
+
+Look approved by Dustin. Settled: fcose is mandatory (built-in cose fails AC8
+determinism); ship patched-minified fcose stack (wrapper `this`→`globalThis`
+before `bun build --minify`) at ~518KB spike-dense; `min-zoomed-font-size: 24`.
+AC10 reframed drift-anchor ≤4.5 (measured 4.116) — the ratio provably cannot
+discriminate the reverted ring (2.63), so the look-gate arbitrates
+compactness. Spec/eval/plan amended; Gate 1 + Gate 2a blind re-scores in
+flight before wave-3 dispatch.
