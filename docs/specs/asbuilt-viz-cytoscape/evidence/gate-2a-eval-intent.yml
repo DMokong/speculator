@@ -1,0 +1,44 @@
+gate: eval-intent
+spec_id: SPEC-004
+timestamp: 2026-07-15T12:45:18Z
+eval_files_evaluated:
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-1.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-2.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-3.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-4.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-5.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-6.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-7.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-8.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-9.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-10.md
+ac_count: 10
+dimensions:
+  intent_coverage: 8
+  anti_pattern_detection: 9
+  journey_completeness: 7
+  implementation_independence: 8
+weights:
+  intent_coverage: 0.30
+  anti_pattern_detection: 0.25
+  journey_completeness: 0.25
+  implementation_independence: 0.20
+overall: 8.0
+threshold: 6.5
+per_dimension_minimum: 4
+result: pass
+system_spec_conflicts: []
+regression_signals: []
+flags:
+  blocking: []
+  recommended:
+    - "Journey 1 ('reviewer opens dense bundle: sees named, compactly packed directory clusters at default zoom; zooms into one cluster and reads individual file labels; hovers/clicks for detail') still has no single eval tracing the complete path in one narrative -- the compactness beat (ac-10.md), the zoom/label beat (ac-2.md), and the hover/click beat (ac-5.md) are each fully covered individually but never chained into one journey-shaped eval. This is an improvement over the prior scoring round, where the compactness beat had zero coverage anywhere in the set (blocking) -- now every beat has dedicated coverage, so the residual gap is narrative consolidation, not missing content."
+    - "Journey 3 ('a claudeclaw user opens the existing 67-concept bundle: at least as legible as today, all current interactions intact') is covered by two evals rather than one: ac-7.md now explicitly asserts the 'at least as legible as today' legibility claim for the real bundle (added in this round's extension, closing the prior round's gap), while ac-5.md asserts interaction continuity generically rather than tied to that specific bundle."
+  advisory:
+    - "ac-10.md already cross-references ac-2.md as a 'joint condition' (compactness must not be met by shrinking clusters into unreadable specks). Extending that cross-referencing pattern into an explicit composite eval chaining ac-10 -> ac-2 -> ac-5 would close the remaining Journey Completeness gap noted above."
+    - "ac-6.md's language ('the project's viz test suite') is the one spot in the set that presupposes a specific internal artifact category (a test suite) rather than staying in pure user-observable terms. This is acceptable since AC6 itself is a meta-AC about test-suite continuity, but it's the single softest spot in an otherwise clean implementation-independence set."
+reasoning:
+  intent_coverage: "9 of 10 evals (all but ac-6.md) are stated in terms a reviewer, maintainer, or operator could verify by looking at the running artifact -- e.g. ac-8.md: 'opens the same viz.html twice... sees the same arrangement both times'; ac-10.md: 'clusters sit close to one another... the map reads as one coherent packed picture, not islands scattered around a void.' None of the ten evals reference min-zoomed-font-size, fcose, compound nodes, or other AC-text implementation vocabulary even though the spec's own AC2/AC8 language uses those terms. ac-6.md leans more technical ('the embedded data reports correct concept/audit counts... the project's viz test suite') because its subject -- preserving existing test-suite guarantees -- is inherently about a technical artifact, which keeps the set at 'good' rather than 'excellent' (no eval explicitly states it would remain valid across differing implementations)."
+  anti_pattern_detection: "All 5 of the spec's named anti-patterns are now explicitly cited by number with a dedicated 'would fail if' clause: ac-2.md -> anti-pattern #1 (permanent label suppression by group size), ac-10.md -> anti-pattern #2 (population-scaled anchor rings / empty space between clusters), ac-4.md -> anti-pattern #3 (baking layout coordinates into the artifact), ac-3.md and ac-9.md -> anti-pattern #4 (CDN loading, covered from both the view-time and build-time angles), ac-1.md -> anti-pattern #5 (renaming the tests bucket while still clustering spatially). This closes the previous round's gap, where anti-pattern #2 had zero coverage anywhere in the set (the new ac-10.md eval is built specifically to catch it, including an explicit callback to the reverted ring layout named in the spec's Problem Statement)."
+  journey_completeness: "2 of 4 critical journeys are traced end-to-end by a single eval: Journey 2 ('unchanged bundle -> byte-identical rebuild, drift diffs stay quiet') by ac-4.md, and Journey 4 ('file:// double-click, no network, fully functional') by ac-3.md, which explicitly lists every interaction (zoom/pan, tooltips, detail panel, search, filters) as part of the offline-functional claim. The other 2 journeys now have full beat-level coverage but remain split across multiple eval files rather than one combined narrative: Journey 1's compactness beat (previously entirely uncovered) is now handled by ac-10.md, and Journey 3's real-bundle legibility claim (previously entirely uncovered) is now handled by ac-7.md's extension. This is a material improvement from the prior round's score of 6, but the lack of a single full-path eval for the two split journeys keeps the set short of the 'excellent' tier."
+  implementation_independence: "The set consistently avoids naming Cytoscape, fcose, compound nodes, min-zoomed-font-size, Math.random/Date.now, or any internal data structure even where the spec's own AC text does -- ac-8.md describes reload-stable arrangement without mentioning seeded randomization or randomize:false, and ac-9.md says 'third-party rendering libraries' rather than naming Cytoscape/fcose. ac-10.md's bounding-box-ratio measurement is inherited directly from the spec's own AC10 definition (a spec-level acceptance formula, not an eval-author implementation choice) and remains a generically measurable property regardless of which layout engine produced the arrangement. 'viz.html' appears as a file reference throughout but is the spec's own named deliverable artifact (R5), not an internal implementation detail, so it does not count against this dimension. A team shipping a materially different rendering architecture that hit the same observable outcomes would pass every eval in this set."

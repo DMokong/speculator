@@ -1,0 +1,65 @@
+# Gate 1: Spec Quality Scorecard
+# Scores + flags + weights + dimension_minimum recorded by the spec-scorer agent
+# (weights and minimum arrive inline in its dispatch prompt); threshold + result
+# stamped post-dispatch by the invoking skill (scorer never sees the threshold).
+# Do not edit manually.
+
+gate: spec-quality
+spec_id: SPEC-004
+spec_path: /Users/dustincheng/projects/speculator/.claude/worktrees/asbuilt-viz-cytoscape/docs/specs/asbuilt-viz-cytoscape/spec.md
+timestamp: 2026-07-15T00:00:00Z
+scorer: llm-as-judge
+model: claude-sonnet-5
+
+weights:                    # recorded by the scorer from the inline-provided values —
+  completeness: 0.20        # makes `overall` mechanically recomputable by verify-evidence.sh
+  clarity: 0.20
+  testability: 0.20
+  intent_verifiability: 0.15
+  feasibility: 0.15
+  scope: 0.10
+
+scores:
+  completeness: 8            # 1-10
+  clarity: 8                 # 1-10
+  testability: 9             # 1-10
+  intent_verifiability: 8    # 1-10: intent captured, anti-patterns documented, user journeys addressed?
+  feasibility: 8             # 1-10
+  scope: 8                   # 1-10
+  overall: 8.2                # weighted average (0.20*8 + 0.20*8 + 0.20*9 + 0.15*8 + 0.15*8 + 0.10*8 = 8.20)
+
+threshold: 7.0              # from gates.spec-quality.threshold, stamped by spec-score skill
+dimension_minimum: 5        # recorded by the scorer from the inline-provided value — each dimension must be >= this
+result: pass                # overall 8.2 >= 7.0, all dims >= 5, no blocking flags
+
+flags:
+  blocking:                 # must be addressed for gate to pass
+    # (none)
+  recommended:              # should be addressed
+    - "Constraints declare a ≤700KB output-size budget for the ~110-concept dense bundle, but no requirement or AC specifies expected behavior if a build exceeds this budget (warn? fail the build? no bound at all?). Consider adding an AC or explicitly noting the budget is advisory."
+    - "R6/AC9 require vendored libraries to be pinned with recorded versions and licenses, but the spec itself does not cite verified package sources (npm/GitHub links, current release versions) for cytoscape / cytoscape-fcose / cose-base / layout-base — this evidence is deferred entirely to the design doc and the Task-1 spike. Recording the verified versions in the spec (once the spike confirms them) would tighten feasibility."
+  advisory:                 # nice to have
+    - "The four Critical User Journeys are well identified but not explicitly cross-referenced to the AC IDs that cover each touchpoint (e.g., 'journey 1 -> AC1, AC2, AC5, AC10'). An explicit journey-to-AC mapping would further strengthen intent verifiability per the rubric's 9-10 calibration pattern."
+    - "No explicit failure-mode discussion for a headless/browser fcose run not converging or producing a degenerate layout for the dense fixture (AC10 assumes settlement occurs) — worth a brief note even though this is an edge case unlikely to arise given fcose's maturity."
+
+# Impact validation (informational — no flags emitted; see detail below)
+# system_spec_present: true (single-file layout, confirmed by invoking skill)
+# system_spec_parseable: true (## domain headers + `-` behavior entries present)
+# domains_detected: none — SYSTEM-SPEC.md documents pipeline gates (2b/2c), the
+#   eval-quality and comprehension scorers/rubrics, gate-check wiring, the spec
+#   template, doctor init, gate wiring registry, README/roadmap surfaces, the
+#   system-spec layout-detection rule, and the compactor. None of these entries
+#   describe As-Built viz rendering, asbuilt/src/viz.ts, viz-template.html, or
+#   Cytoscape/fcose behavior — no specific behavior entry would be made false or
+#   incomplete by this spec's requirements.
+# impact_rating_declared: none
+# amends_populated: false (amends: [])
+# decision: Decision Matrix row "None detected + `none` declared + Empty amends -> Pass"
+# result: pass (no impact_mismatch / impact_underspecified / impact_incomplete / system_spec_malformed flags)
+
+# Human override (fill in manually if overriding a fail)
+override:
+  overridden: false
+  justification:
+  overridden_by:
+  override_date:
