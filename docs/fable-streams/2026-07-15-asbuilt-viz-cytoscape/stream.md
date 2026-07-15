@@ -1,6 +1,6 @@
 ---
 stream: 2026-07-15-asbuilt-viz-cytoscape
-phase: plan
+phase: execute
 entry: idea
 conductor_model: fable
 weave:
@@ -43,9 +43,9 @@ Plan: plan.md (Phase 3, awaiting human approval — last mandatory touchpoint)
 
 | Task | Wave | Status | Fix rounds | Notes |
 |---|---|---|---|---|
-| 01-vendor-libs | 1 | pending | 0 | standard; parallel_safe; network allowed (pin step) |
-| 02-dense-fixture | 1 | pending | 0 | standard; parallel_safe; testable |
-| 03-spike | 2 | pending | 0 | judgment (opus); human look-checkpoint after |
+| 01-vendor-libs | 1 | done | 0 | ddfc32e; unminified originals shipped (681KB) — bun-minify breaks UMD global-eval (this→exports rewrite), documented in VENDOR.md; smoke passes |
+| 02-dense-fixture | 1 | done | 0 | c743291 (relocated round 1 content); 10/10 tests green in worktree |
+| 03-spike | 2 | running | 0 | judgment (opus); finding 6 now decision-critical (engine + size); option (c) wrapper-patch-minify added; human look-checkpoint after |
 | 04-data-model | 3 | pending | 0 | standard; testable; viz.ts + own test file |
 | 05-template | 4 | pending | 0 | judgment (opus); testable; template only |
 | 06-tests-hardening | 5 | pending | 0 | standard; testable; test-adversary N=3 after |
