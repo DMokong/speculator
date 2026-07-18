@@ -1,6 +1,8 @@
 ---
 id: SPEC-004
-status: closed
+status: compacted
+compacted_into: SYSTEM-SPEC
+compacted_date: 2026-07-18
 author: Dustin Cheng
 date: 2026-07-15
 epic: speculator-0d6
