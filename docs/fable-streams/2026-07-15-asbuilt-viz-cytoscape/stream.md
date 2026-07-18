@@ -1,6 +1,6 @@
 ---
 stream: 2026-07-15-asbuilt-viz-cytoscape
-phase: finalize
+phase: done
 entry: idea
 conductor_model: fable (phases R–4 waves 1-2 + spike checkpoint), opus-emulation (waves 3-4 incl. T05 interruption recovery), fable (wave 5+, 2026-07-18)
 weave:
@@ -60,3 +60,15 @@ AC10 reframed drift-anchor ≤4.5 (measured 4.116) — the ratio provably cannot
 discriminate the reverted ring (2.63), so the look-gate arbitrates
 compactness. Spec/eval/plan amended; Gate 1 + Gate 2a blind re-scores in
 flight before wave-3 dispatch.
+
+## Closing record (2026-07-18, fable tier)
+
+Delivered as speculator PR #2 (https://github.com/DMokong/speculator/pull/2),
+branch asbuilt-viz-cytoscape, 13 commits. All gates pass: G1 8.7, G2 362/362
++ 86.25% coverage, G2a 8.0 (r2), G2b 7.8 (r2), G2c 7.8, G3 pass (1 warn),
+G4 33/33 mechanical. Blinded final-audit: 10/10 ACs; its AC5 panel finding
+(dim parity) + Gate 2c's 3 findings all fixed in-branch. Adversary phase:
+9 suite-sensitivity gaps hardened, residue empty. SPEC-004 compacted into
+SYSTEM-SPEC.md (11 entries). Epic speculator-0d6 closed; lock released.
+Worktree stays until PR merge. Deferred out of scope: claw-j65u (semantic
+types), claw-8b8v (backfill skill), label-overlap polish (Gate-3 warn).
