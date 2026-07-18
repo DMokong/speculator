@@ -136,11 +136,16 @@ function seededElements(nodes: EmbeddedNode[], elements: CyElementDefinition[]):
  * production invocation flows into this test's own `cy.layout()` call. */
 function extractProductionFcoseOptions(): Record<string, unknown> {
   const html = readFileSync(new URL("../src/viz-template.html", import.meta.url), "utf8");
-  const marker = "layout: {";
+  // claw-dsob restructure: the fcose invocation moved out of the cytoscape()
+  // constructor (whose layout is now `{ name: "preset" }` for the seeds) into
+  // an explicit `cy.layout({...}).run()` so the compound de-overlap pass and
+  // refit run deterministically after synchronous settlement. Anchor on the
+  // explicit call -- "layout: {" alone would now match the preset literal.
+  const marker = "cy.layout({";
   const start = html.indexOf(marker);
   if (start === -1) {
     throw new Error(
-      "viz-layout.test.ts: could not find 'layout: {' in viz-template.html -- has the production fcose invocation been restructured?",
+      "viz-layout.test.ts: could not find 'cy.layout({' in viz-template.html -- has the production fcose invocation been restructured?",
     );
   }
   const braceStart = start + marker.length - 1; // index of the opening '{'
@@ -328,5 +333,155 @@ describe("viz layout packing drift anchor (SPEC-004 AC10)", () => {
 
     console.log(`AC10 measured packing factor: ${factor.toFixed(3)} (bound ${PACKING_BOUND}, spike checkpoint 4.116)`);
     expect(factor).toBeLessThanOrEqual(PACKING_BOUND);
+  });
+});
+
+/** The template's compound de-overlap pass (claw-dsob) -- `compoundExtent`
+ * plus `deOverlapCompoundBoxes`, extracted from the SHIPPED template at test
+ * time exactly like the fcose options and the seed formula above, so these
+ * tests exercise the code the browser runs, never a copy. */
+function extractDeOverlapPass(): {
+  compoundExtent: (p: unknown) => { x1: number; x2: number; y1: number; y2: number };
+  deOverlapCompoundBoxes: (cy: CyCore) => void;
+} {
+  const html = readFileSync(new URL("../src/viz-template.html", import.meta.url), "utf8");
+  const start = html.indexOf("function compoundExtent");
+  if (start === -1) {
+    throw new Error(
+      "viz-layout.test.ts: could not find 'function compoundExtent' in viz-template.html -- has the de-overlap pass been restructured?",
+    );
+  }
+  const endMarker = "\n}";
+  const passStart = html.indexOf("function deOverlapCompoundBoxes", start);
+  if (passStart === -1) {
+    throw new Error(
+      "viz-layout.test.ts: could not find 'function deOverlapCompoundBoxes' in viz-template.html -- has the de-overlap pass been restructured?",
+    );
+  }
+  const end = html.indexOf(endMarker, passStart);
+  if (end === -1) throw new Error("viz-layout.test.ts: could not find the end of deOverlapCompoundBoxes");
+  const src = html.slice(start, end + endMarker.length);
+  // Same live-extraction rationale as extractProductionFcoseOptions above.
+  // biome-ignore lint/style/noCommaOperator: required for indirect eval.
+  // biome-ignore lint/security/noGlobalEval: extraction of shipped code is the whole point -- see above.
+  return (0, eval)(`(() => { ${src}; return { compoundExtent, deOverlapCompoundBoxes }; })()`) as ReturnType<
+    typeof extractDeOverlapPass
+  >;
+}
+
+describe("compound de-overlap pass (claw-dsob): sections may not pile on each other", () => {
+  const { compoundExtent, deOverlapCompoundBoxes } = extractDeOverlapPass();
+
+  // Browser parity: the shipped stylesheet gives compounds `padding: 16`,
+  // which inflates their bounding boxes beyond the bare children hull. The
+  // first field run of the pass converged headless (no padding) but
+  // exhausted its sweep cap in the browser (padded extents chain-squeezed a
+  // small group between neighbours) -- so these tests must measure padded
+  // compounds, not bare ones.
+  const DSOB_STYLE = [...HEADLESS_STYLE, { selector: ":parent", style: { padding: 16 } }];
+
+  /** Tiny-groups scenario reproducing the origin-bundle field defect: several
+   * 1-2-node directory groups with long labels whose seeded neighborhoods
+   * collide. Positions are placed directly (headless) so the pre-pass
+   * overlap is guaranteed, not dependent on fcose behavior. */
+  function makeTinyGroupsCy(cytoscape: (o: Record<string, unknown>) => CyCore): CyCore {
+    const groups: [string, number, { x: number; y: number }][] = [
+      ["finance-ui/src", 2, { x: 0, y: 0 }],
+      ["scripts/asbuilt-viz", 1, { x: 60, y: 10 }],
+      ["memory-ui/e2e", 1, { x: 120, y: -10 }],
+      ["src", 3, { x: 30, y: 40 }],
+    ];
+    const elements: CyElementDefinition[] = [];
+    for (const [g, count, anchor] of groups) {
+      elements.push({ data: { id: `dir:${g}`, label: g } } as CyElementDefinition);
+      for (let k = 0; k < count; k++) {
+        elements.push({
+          data: { id: `${g}/f${k}.ts`, parent: `dir:${g}`, label: `f${k}.ts`, test: false, d: 18 },
+          position: { x: anchor.x + k * 24, y: anchor.y + k * 12 },
+        } as unknown as CyElementDefinition);
+      }
+    }
+    return cytoscape({ headless: true, styleEnabled: true, style: DSOB_STYLE, elements });
+  }
+
+  function overlappingExtentPairs(cy: CyCore): number {
+    const parents: unknown[] = [];
+    // biome-ignore lint/complexity/noForEach: cytoscape collections iterate via forEach.
+    cy.nodes(":parent").forEach((p) => parents.push(p));
+    let count = 0;
+    for (let i = 0; i < parents.length; i++) {
+      for (let j = i + 1; j < parents.length; j++) {
+        const a = compoundExtent(parents[i]);
+        const b = compoundExtent(parents[j]);
+        const ox = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1);
+        const oy = Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1);
+        if (ox > 0 && oy > 0) count++;
+      }
+    }
+    return count;
+  }
+
+  test("test_dsob_pass_separates_guaranteed_overlapping_tiny_compounds", () => {
+    const cytoscape = loadCytoscape();
+    const cy = makeTinyGroupsCy(cytoscape);
+    expect(overlappingExtentPairs(cy)).toBeGreaterThan(0); // vacuity guard: the scenario really overlaps pre-pass
+    deOverlapCompoundBoxes(cy);
+    expect(overlappingExtentPairs(cy)).toBe(0);
+    cy.destroy();
+  });
+
+  test("test_dsob_pass_is_deterministic_across_two_runs", () => {
+    const cytoscape = loadCytoscape();
+    const read = (): string => {
+      const cy = makeTinyGroupsCy(cytoscape);
+      deOverlapCompoundBoxes(cy);
+      const positions: Record<string, CyPosition> = {};
+      // biome-ignore lint/complexity/noForEach: cytoscape collections iterate via forEach.
+      cy.nodes(":child").forEach((n) => {
+        const p = n.position();
+        positions[n.id()] = { x: p.x, y: p.y };
+      });
+      cy.destroy();
+      return JSON.stringify(positions);
+    };
+    expect(read()).toBe(read());
+  });
+
+  test("test_dsob_full_pipeline_dense_fixture_has_no_overlapping_compound_extents", () => {
+    const cytoscape = loadCytoscape();
+    const { nodes, elements } = buildDenseElements();
+    const seeded = seededElements(nodes, elements);
+    const cy = cytoscape({ headless: true, styleEnabled: true, style: DSOB_STYLE, elements: structuredClone(seeded) });
+    cy.layout(FCOSE_OPTIONS).run();
+    deOverlapCompoundBoxes(cy);
+    expect(overlappingExtentPairs(cy)).toBe(0);
+    cy.destroy();
+  });
+
+  test("test_dsob_pass_escapes_a_horizontal_squeeze_between_two_neighbours", () => {
+    // Regression for the field non-convergence: a small group pinched on x
+    // between two anchored neighbours, with a large shared y-overlap. The
+    // minimal-push axis is always x, so a fixed-axis rule shuttles the small
+    // group horizontally forever; the sweep-parity alternation must free it
+    // via the y axis instead.
+    const cytoscape = loadCytoscape();
+    const elements: CyElementDefinition[] = [];
+    const put = (g: string, kids: [number, number][]): void => {
+      elements.push({ data: { id: `dir:${g}`, label: g } } as CyElementDefinition);
+      kids.forEach(([x, y], k) =>
+        elements.push({
+          data: { id: `${g}/f${k}.ts`, parent: `dir:${g}`, label: `f${k}.ts`, test: false, d: 18 },
+          position: { x, y },
+        } as unknown as CyElementDefinition),
+      );
+    };
+    put("left-anchor", [[-70, 0], [-70, 60], [-40, 30]]);   // 3 kids -- anchored
+    put("pinched", [[0, 20], [0, 40]]);                      // 2 kids -- the squeezed mover
+    put("right-anchor", [[70, 0], [70, 60], [40, 30]]);     // 3 kids -- anchored
+    const cy = cytoscape({ headless: true, styleEnabled: true, style: DSOB_STYLE, elements });
+    expect(overlappingExtentPairs(cy)).toBeGreaterThan(0); // vacuity guard
+    deOverlapCompoundBoxes(cy);
+    expect(overlappingExtentPairs(cy)).toBe(0);
+    cy.destroy();
   });
 });

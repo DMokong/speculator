@@ -436,6 +436,65 @@ function buildStyle() {
   ];
 }
 
+/* ---------- compound de-overlap (claw-dsob) ---------- */
+/* fcose repels node BODIES; compound rectangles are drawn afterwards around
+   settled children (+padding), and compound labels are render overlays sized
+   by text length -- so 1-3-node directory groups can settle with overlapping
+   boxes and label runs even though no two nodes touch. packComponents cannot
+   help: it is inert in this vendored stack (fcose guards it on the absent
+   layout-utilities extension). This pass deterministically separates padded,
+   label-aware compound extents after settlement -- fixed pair order, fixed
+   tie-breaks, no randomness -- and no-ops when nothing overlaps (the dense
+   fixture). Label width uses a constant per-character estimate, never
+   measureText, so headless test runs see the same numbers as the browser. */
+function compoundExtent(p) {
+  const bb = p.boundingBox({ includeLabels: false });
+  const PAD = 10, LABEL_H = 24;
+  const lw = String(p.data("label") || "").length * 8.2; // 13px uppercase mono ~= 8.2px/char
+  const cx = (bb.x1 + bb.x2) / 2;
+  const w = Math.max(bb.x2 - bb.x1 + PAD * 2, lw);
+  return { x1: cx - w / 2, x2: cx + w / 2, y1: bb.y1 - PAD - LABEL_H, y2: bb.y2 + PAD };
+}
+function deOverlapCompoundBoxes(cy) {
+  const parents = cy.nodes(":parent").toArray().sort((a, b) => (a.id() < b.id() ? -1 : 1));
+  const MARGIN = 8;
+  for (let iter = 0; iter < 60; iter++) {
+    let moved = false;
+    for (let i = 0; i < parents.length; i++) {
+      for (let j = i + 1; j < parents.length; j++) {
+        const a = compoundExtent(parents[i]);
+        const b = compoundExtent(parents[j]);
+        const ox = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1) + MARGIN;
+        const oy = Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1) + MARGIN;
+        if (ox <= 0 || oy <= 0) continue;
+        moved = true;
+        // the group with fewer children moves (big groups stay anchored);
+        // equal population -> the lexicographically later id moves.
+        const iKids = parents[i].children().length, jKids = parents[j].children().length;
+        const small = iKids === jKids
+          ? (parents[i].id() < parents[j].id() ? parents[j] : parents[i])
+          : (iKids < jKids ? parents[i] : parents[j]);
+        const other = small === parents[i] ? parents[j] : parents[i];
+        const S = compoundExtent(small), O = compoundExtent(other);
+        const dx = (S.x1 + S.x2) - (O.x1 + O.x2), dy = (S.y1 + S.y2) - (O.y1 + O.y2);
+        // Push axis alternates by sweep parity: even sweeps take the cheaper
+        // (minimal-overlap) axis; odd sweeps take the other. A group squeezed
+        // horizontally between two neighbours would otherwise shuttle on x
+        // forever -- the minimal axis keeps being x -- while the big y overlap
+        // that would actually free it is never chosen (field defect: the
+        // 30-sweep cap exhausted with residual overlaps on the origin bundle).
+        let pushX = ox <= oy;
+        if (iter % 2 === 1) pushX = !pushX;
+        let sx = 0, sy = 0;
+        if (pushX) sx = dx >= 0 ? ox : -ox;
+        else sy = dy >= 0 ? oy : -oy;
+        small.children().forEach(n => { const p = n.position(); n.position({ x: p.x + sx, y: p.y + sy }); });
+      }
+    }
+    if (!moved) return;
+  }
+}
+
 /* ---------- cytoscape instance (fcose, seeded, deterministic) ---------- */
 const cy = cytoscape({
   container: document.getElementById("cy"),
@@ -445,15 +504,22 @@ const cy = cytoscape({
   minZoom: 0.15, maxZoom: 6,
   boxSelectionEnabled: false,
   selectionType: "single",
-  layout: {
-    name: "fcose", quality: "proof", randomize: false, animate: false,
-    packComponents: true, tile: true,
-    tilingPaddingVertical: 16, tilingPaddingHorizontal: 16,
-    nodeSeparation: 12, idealEdgeLength: 46, nodeRepulsion: 4500,
-    gravity: 1, gravityCompound: 1, numIter: 2500,
-    fit: true, padding: 40,
-  },
+  layout: { name: "preset" }, // seeds only -- the real fcose invocation runs just below
 });
+/* Explicit run (not the constructor's layout option) so the de-overlap pass
+   and refit execute deterministically right after synchronous settlement.
+   viz-layout tests anchor on this explicit call and extract the options
+   literal live -- restructure it and they fail loudly. */
+cy.layout({
+  name: "fcose", quality: "proof", randomize: false, animate: false,
+  packComponents: true, tile: true,
+  tilingPaddingVertical: 16, tilingPaddingHorizontal: 16,
+  nodeSeparation: 12, idealEdgeLength: 46, nodeRepulsion: 4500,
+  gravity: 1, gravityCompound: 1, numIter: 2500,
+  fit: true, padding: 40,
+}).run();
+deOverlapCompoundBoxes(cy);
+cy.fit(undefined, 40);
 
 const stateOf = n => n.enrichment === "none" ? "skeleton" : n.enrichment === "accuracy-audited" ? "accuracy" : "full";
 
