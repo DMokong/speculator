@@ -1042,3 +1042,30 @@ describe("SPEC-005 canonical precedence (final-audit findings): fold matches rec
     expect(result.typeCounts?.applied).toBe(0);
   });
 });
+
+// Gate 2c cold-read finding (2026-07-19): fold's malformed check was
+// exact-empty ("") while reclassify trims — a whitespace-only suggested_type
+// would have been applied VERBATIM into frontmatter by fold. The check now
+// trims in both paths; this pins it.
+describe("SPEC-005 AC9 (fold): whitespace-only suggested_type is malformed, not applied", () => {
+  test("test_ac9_fold_whitespace_only_suggestion_is_skipped_invalid", () => {
+    const dir = freshBundle();
+    const evidencePath = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-WS",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "n/a"',
+        '    suggested_type: "   "',
+        "",
+      ].join("\n"),
+    );
+    const result = fold({ evidencePath, targetRepo: dir, specId: "SPEC-005-WS", provenance: "fully-audited", date: "2026-07-19" });
+
+    const fm = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(fm.type).toBe("Module"); // mechanical path; whitespace never written
+    expect(result.typeCounts?.skippedInvalid).toBe(1);
+    expect(result.typeCounts?.applied).toBe(0);
+  });
+});

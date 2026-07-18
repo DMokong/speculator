@@ -76,17 +76,20 @@ interface TypeDecision {
  * Decides a folded concept's frontmatter `type`, applying the enrichment
  * agent's `suggested_type` over the mechanical `Module` default under
  * first-semantic-wins precedence (SPEC-005 AC1-AC5, AC9a, fold half of AC9).
- * Precedence, checked in order:
+ * Precedence, checked in order (CANONICAL across fold and reclassify —
+ * final-audit adjudication 2026-07-19):
  *
- * 1. An existing semantic (non-Module/non-Test) type always wins — a
- *    suggestion never overwrites a prior human/agent judgment (AC2).
- * 2. A test-classified resource keeps the machine-owned `Test` type — a
- *    suggestion can never relabel a test (AC4).
- * 3. A malformed suggestion (non-string, empty, or containing a newline) is
- *    treated as absent and never reaches a written file (AC9 fold half).
- * 4. A literal `Module`/`Test` suggestion is a no-op on the mechanical path
- *    (AC9a) — indistinguishable in effect from step 3, but counted
- *    separately since the value itself was well-formed.
+ * 1. A malformed suggestion (non-string, empty/whitespace-only, or
+ *    containing a newline) is treated as absent and never reaches a written
+ *    file (AC9 fold half).
+ * 2. A literal `Module`/`Test` suggestion is a no-op on the mechanical path,
+ *    unconditionally — even on an already-semantic concept (AC9a).
+ * 3. A test-classified RESOURCE (filename pattern) never has a suggestion
+ *    applied across the boundary; its current machine type stays, and a
+ *    pre-existing semantic type (human ingress) is preserved in value,
+ *    never repaired to `Test` (AC4 as amended).
+ * 4. An existing semantic (non-Module/non-Test) type wins — a suggestion
+ *    never overwrites a prior human/agent judgment (AC2).
  * 5. Otherwise: a well-formed, novel suggestion is applied over the
  *    mechanical `Module` default (AC1; open vocabulary — AC9).
  *
@@ -112,7 +115,7 @@ function decideConceptType(existingType: unknown, resource: string, suggestedTyp
   // pre-existing semantic type on a test resource (human ingress only) is
   // preserved in VALUE, never repaired to Test (AC4 as amended — repair would
   // clobber the human-correction journey and diverge from refresh).
-  if (typeof suggestedTypeRaw !== "string" || suggestedTypeRaw === "" || suggestedTypeRaw.includes("\n")) {
+  if (typeof suggestedTypeRaw !== "string" || suggestedTypeRaw.trim() === "" || suggestedTypeRaw.includes("\n")) {
     return { type: mechanicalType, bucket: "skippedInvalid" };
   }
 

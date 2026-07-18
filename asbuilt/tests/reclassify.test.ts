@@ -646,3 +646,21 @@ describe("SPEC-005 canonical precedence (final-audit findings): resource-filenam
     expect(readFileSync(conceptAbsPath, "utf8")).toBe(before);
   });
 });
+
+// Gate 2c cold-read finding (2026-07-19): pin that reclassify's validation
+// treats a whitespace-only suggested_type as malformed (all-or-nothing
+// rejection), keeping the two appliers' malformed definitions aligned.
+describe("SPEC-005 AC9 (reclassify): whitespace-only suggested_type is a validation violation", () => {
+  test("test_ac9_reclassify_whitespace_only_suggestion_rejected_before_any_write", () => {
+    const dir = enrichedBundle();
+    const alphaPath = join(dir, "docs/asbuilt/src/alpha.md");
+    const before = readFileSync(alphaPath, "utf8");
+
+    const artifactPath = writeArtifact(
+      dir,
+      'reclassifications:\n  - concept: src/alpha.md\n    suggested_type: "   "\n',
+    );
+    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow();
+    expect(readFileSync(alphaPath, "utf8")).toBe(before); // zero writes
+  });
+});

@@ -33,7 +33,10 @@
 //      violation is collected and reported together, not just the first.
 //   2. APPLY (only reached if validation found zero violations): entries are
 //      processed in codepoint-sorted concept-path order (determinism; no
-//      clock reads, no randomness — AC10) and each is classified:
+//      clock reads, no randomness — AC10) and each is classified (canonical
+//      precedence, aligned with fold.ts — final-audit adjudication
+//      2026-07-19: skeleton -> literal Module/Test -> resource-filename
+//      test boundary -> existing-semantic -> apply):
 //        - concept is skeleton-only (frontmatter `enrichment` is "none" or
 //          absent) -> skipped, untouched.
 //        - `suggested_type` is literally "Module" or "Test" -> skipped,
