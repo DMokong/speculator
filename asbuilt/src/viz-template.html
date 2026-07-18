@@ -22,6 +22,8 @@
   --audited-tint: rgba(42, 120, 214, 0.09);
   --edge:         #6b7787;
   --panel:        #ffffff;
+  --test:         #b9a06a;   /* co-located test concepts — tan tint */
+  --test-ink:     #8a7644;
   --stamp-rot:    -2deg;
 }
 :root[data-theme="dark"] .viz-root { --forced: dark; }
@@ -161,26 +163,10 @@ header {
     repeating-linear-gradient(90deg,  var(--grid-minor) 0 1px, transparent 1px 12px),
     var(--paper-deep);
 }
-svg { display: block; width: 100%; height: 100%; cursor: grab; animation: fadein .8s .3s both; }
-svg:active { cursor: grabbing; }
-.gl { font-size: 13px; letter-spacing: .3em; text-transform: uppercase; fill: var(--ink-3); opacity: .55; pointer-events: none; }
-.edge { stroke: var(--edge); fill: none; }
-.node { cursor: grab; }
-.node:active { cursor: grabbing; }
-.node circle.core { stroke: var(--paper); stroke-width: 1.25; transition: r .15s ease; }
-.node.skeleton circle.core { fill: var(--skeleton); }
-.node.accuracy circle.core { fill: var(--audited); }
-.node.full circle.core { fill: var(--full); }
-.node circle.ring { fill: none; stroke: var(--audited); stroke-width: 1.4; opacity: .85; }
-.node.full circle.ring { stroke: var(--full); }
-.node text {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 10px; fill: var(--ink-2); paint-order: stroke; stroke: var(--paper); stroke-width: 3px;
-  pointer-events: none;
-}
-.node { cursor: pointer; }
-.node.dim, .edge.dim { opacity: .08; }
-.node.sel circle.core { stroke: var(--ink); stroke-width: 2; }
+/* Cytoscape owns the canvas: transparent so the drafting grid shows through;
+   pan/zoom/drag/render/labels are all cytoscape's now (SVG sim removed). */
+#cy { position: absolute; inset: 0; cursor: grab; animation: fadein .8s .3s both; }
+#cy:active { cursor: grabbing; }
 .legend {
   position: absolute; left: 16px; bottom: 16px; background: var(--panel);
   border: 1px solid var(--hairline); padding: 12px 14px; font-size: 11px; color: var(--ink-2);
@@ -289,12 +275,13 @@ footer {
 
   <div class="stage">
     <div class="canvas-wrap">
-      <svg id="svg" role="img" aria-label="Knowledge graph of __PROJECT__ concepts"></svg>
+      <div id="cy" role="img" aria-label="Knowledge graph of __PROJECT__ concepts"></div>
       <div class="legend" id="legend">
         <div class="row"><span class="dot" style="background:var(--full)"></span> fully-audited <span style="color:var(--ink-3)">(spec-gated)</span></div>
         <div class="row"><span class="dot ringed" style="background:var(--audited)"></span> accuracy-audited <span style="color:var(--ink-3)">(backfill)</span></div>
         <div class="row"><span class="dot" style="background:var(--skeleton)"></span> skeleton <span style="color:var(--ink-3)">(extracted only)</span></div>
-        <div class="note">area ∝ symbol count · lines = resolved call edges between files · audited concepts carry labels</div>
+        <div class="row"><span class="dot" style="background:var(--test);border-radius:2px"></span> test <span style="color:var(--ink-3)">(co-located)</span></div>
+        <div class="note">area ∝ symbol count · lines = resolved call edges between files · zoom in for file labels</div>
       </div>
       <div class="tooltip" id="tooltip"></div>
       <div class="tablewrap" id="tablewrap"></div>
@@ -307,6 +294,15 @@ footer {
     <span id="foot-right"></span>
   </footer>
 </div>
+
+<!-- Vendored Cytoscape + fcose stack, inlined by viz.ts (inlineVendor wraps each
+     placeholder in /*VENDOR:name:start|end*\/ markers). Load order matters:
+     layout-base -> cose-base -> cytoscape -> fcose (fcose self-registers against
+     the global cytoscape — no .use() call needed). -->
+<script>__VENDOR_LAYOUT_BASE__</script>
+<script>__VENDOR_COSE_BASE__</script>
+<script>__VENDOR_CYTOSCAPE__</script>
+<script>__VENDOR_FCOSE__</script>
 
 <script id="asbuilt-data" type="application/json">__ASBUILT_DATA__</script>
 <script>
@@ -336,7 +332,10 @@ document.getElementById("tiles").innerHTML = `
   <div class="tile"><div class="lbl">Folds</div><div class="num">${meta.folds.length}</div><div class="sub">${meta.folds.join(" · ") || "none yet"}</div></div>`;
 document.getElementById("foot-right").textContent = meta.project + " @ " + meta.target_commit.slice(0, 12) + " · " + meta.date;
 
-/* ---------- deterministic layout ---------- */
+/* ---------- deterministic seed positions ----------
+   The FNV hash seeds each child's initial position so fcose (randomize:false)
+   starts from a stable point — determinism, not placement, is its job (AC8).
+   Same formula the old sim used: population-scaled scatter around a ring anchor. */
 function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; }
 const groups = [...new Set(nodes.map(n => n.group))].sort();
 const G = new Map(groups.map((g, i) => {
@@ -344,207 +343,117 @@ const G = new Map(groups.map((g, i) => {
   const R = g === "src" ? 0 : 330;
   return [g, { x: Math.cos(a) * R, y: Math.sin(a) * R * 0.72 }];
 }));
-/* Initial scatter scales with group population — a fixed ±90px box is far
-   smaller than the summed node area of a 25-file cluster, and the settle
-   loop cools before the weak collision force can unpack it. */
 const groupCounts = new Map(groups.map(g => [g, nodes.filter(n => n.group === g).length]));
+const seedPos = new Map();
 for (const n of nodes) {
   const anchor = G.get(n.group), j1 = hash(n.id), j2 = hash(n.id + "y");
   const spread = 90 + 44 * Math.sqrt(groupCounts.get(n.group));
-  n.x = anchor.x + (j1 - 0.5) * spread * 2; n.y = anchor.y + (j2 - 0.5) * spread * 2;
-  n.vx = 0; n.vy = 0;
-  n.r = 4 + 2.3 * Math.sqrt(n.symbols || 1);
-}
-function tick(alpha) {
-  for (const l of links) {
-    const dx = l.t.x - l.s.x, dy = l.t.y - l.s.y;
-    const d = Math.max(1, Math.hypot(dx, dy));
-    const want = 46 + l.s.r + l.t.r;
-    const f = ((d - want) / d) * 0.028 * Math.min(l.w, 4) * alpha;
-    l.s.vx += dx * f; l.s.vy += dy * f; l.t.vx -= dx * f; l.t.vy -= dy * f;
-  }
-  for (let i = 0; i < nodes.length; i++) for (let k = i + 1; k < nodes.length; k++) {
-    const a = nodes[i], b = nodes[k];
-    let dx = b.x - a.x, dy = b.y - a.y;
-    let d2 = dx * dx + dy * dy;
-    if (d2 < 1) { dx = (hash(a.id + k) - 0.5); dy = (hash(b.id + i) - 0.5); d2 = 1; }
-    const d = Math.sqrt(d2);
-    let f = (900 / d2) * alpha;
-    const overlap = a.r + b.r + 6 - d;
-    if (overlap > 0) f += overlap * 0.09;
-    const fx = (dx / d) * f, fy = (dy / d) * f;
-    a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
-  }
-  for (const n of nodes) {
-    const anchor = G.get(n.group);
-    n.vx += (anchor.x - n.x) * 0.008 * alpha * 2;
-    n.vy += (anchor.y - n.y) * 0.008 * alpha * 2;
-    n.vx += -n.x * 0.002 * alpha; n.vy += -n.y * 0.002 * alpha;
-    n.vx *= 0.82; n.vy *= 0.82;
-    n.x += n.vx; n.y += n.vy;
-  }
-  /* Hard positional de-overlap: velocity-based forces freeze (alpha cools)
-     before overlaps resolve under the anchor spring, which is why clusters
-     used to settle as an overlapping pile. Positional correction is not
-     alpha-scaled, so packing resolves regardless of how cold the sim is.
-     The 14px padding also gives audited labels air. */
-  for (let i = 0; i < nodes.length; i++) for (let k = i + 1; k < nodes.length; k++) {
-    const a = nodes[i], b = nodes[k];
-    let dx = b.x - a.x, dy = b.y - a.y;
-    let d = Math.hypot(dx, dy);
-    if (d < 1) { dx = hash(a.id + k) - 0.5; dy = hash(b.id + i) - 0.5; d = Math.hypot(dx, dy); }
-    const min = a.r + b.r + 14;
-    if (d < min) {
-      const push = ((min - d) / d) * 0.5;
-      a.x -= dx * push; a.y -= dy * push;
-      b.x += dx * push; b.y += dy * push;
-    }
-  }
+  seedPos.set(n.id, { x: anchor.x + (j1 - 0.5) * spread * 2, y: anchor.y + (j2 - 0.5) * spread * 2 });
 }
 
-/* ---------- svg render ---------- */
-const svg = document.getElementById("svg");
-const NS = "http://www.w3.org/2000/svg";
-const world = document.createElementNS(NS, "g");
-svg.appendChild(world);
-const edgeLayer = document.createElementNS(NS, "g");
-const labelLayer = document.createElementNS(NS, "g");
-const nodeLayer = document.createElementNS(NS, "g");
-world.append(labelLayer, edgeLayer, nodeLayer);
-
-/* Edge weights below are calibrated for dense webs (~100 links, r2mcp-scale) where
-   faint hairlines sum into visible structure. A sparse sheet (post-cs26 conservative
-   resolution can leave method-call-heavy codebases with a dozen provable links)
-   renders those same hairlines as invisible — so sparse sheets draw darker/thicker. */
+/* Seed positions onto the child elements, and precompute per-edge width/opacity.
+   Edge weights are calibrated for dense webs (~100 links) where faint hairlines
+   sum into visible structure; a sparse sheet (post-cs26 conservative resolution
+   can leave method-call-heavy codebases with a dozen provable links) renders
+   those same hairlines invisible — so sparse sheets draw darker/thicker. */
 const sparse = links.length <= 25;
-const edgeEls = links.map(l => {
-  const e = document.createElementNS(NS, "line");
-  e.setAttribute("class", "edge");
-  e.setAttribute("stroke-width", String((sparse ? 1.2 : 0.7) + Math.min(l.w, 6) * 0.28));
-  e.setAttribute("stroke-opacity", String(sparse ? Math.min(0.35 + l.w * 0.03, 0.55) : Math.min(0.13 + l.w * 0.025, 0.4)));
-  edgeLayer.appendChild(e); return e;
-});
-const groupEls = groups.map(g => {
-  const t = document.createElementNS(NS, "text");
-  t.setAttribute("class", "gl"); t.setAttribute("text-anchor", "middle");
-  t.textContent = g; labelLayer.appendChild(t); return t;
-});
-const stateOf = n => n.enrichment === "none" ? "skeleton" : n.enrichment === "accuracy-audited" ? "accuracy" : "full";
-const nodeEls = nodes.map(n => {
-  const g = document.createElementNS(NS, "g");
-  g.setAttribute("class", "node " + stateOf(n));
-  const core = document.createElementNS(NS, "circle");
-  core.setAttribute("class", "core"); core.setAttribute("r", String(n.r));
-  g.appendChild(core);
-  if (n.enrichment !== "none") {
-    const ring = document.createElementNS(NS, "circle");
-    ring.setAttribute("class", "ring"); ring.setAttribute("r", String(n.r + 3.2));
-    g.appendChild(ring);
-    const label = document.createElementNS(NS, "text");
-    label.setAttribute("y", String(-n.r - 8)); label.setAttribute("text-anchor", "middle");
-    label.textContent = n.id.split("/").pop();
-    g.appendChild(label);
+for (const el of DATA.elements) {
+  if (el.data.parent !== undefined) {
+    const p = seedPos.get(el.data.id);
+    if (p) el.position = { x: p.x, y: p.y };
+  } else if (el.data.source !== undefined) {
+    const w = el.data.w;
+    el.data.ew = (sparse ? 1.2 : 0.7) + Math.min(w, 6) * 0.28;
+    el.data.eo = sparse ? Math.min(0.35 + w * 0.03, 0.55) : Math.min(0.13 + w * 0.025, 0.4);
   }
-  g.addEventListener("pointerenter", ev => hover(n, ev));
-  g.addEventListener("pointermove", ev => moveTip(ev));
-  g.addEventListener("pointerleave", () => unhover());
-  g.addEventListener("pointerdown", ev => {
-    ev.stopPropagation(); // a node grab must not start a canvas pan
-    if (!vb) return;
-    const p = worldPoint(ev);
-    dragging = { n, dx: n.x - p.x, dy: n.y - p.y, moved: false };
-  });
-  g.addEventListener("click", ev => {
-    ev.stopPropagation();
-    if (suppressClick) { suppressClick = false; return; } // a drag is not a select
-    select(n);
-  });
-  nodeLayer.appendChild(g); return g;
+}
+
+/* ---------- cytoscape stylesheet ----------
+   Colors are resolved from the drafting-sheet CSS tokens at build time so the
+   graph recolors together with the header/panel when the theme toggle flips
+   the palette (cytoscape renders to canvas and can't read CSS vars directly). */
+const rootEl = document.querySelector(".viz-root");
+const cssvar = name => getComputedStyle(rootEl).getPropertyValue(name).trim();
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+function buildStyle() {
+  const paper = cssvar("--paper"), ink = cssvar("--ink"), ink2 = cssvar("--ink-2"), ink3 = cssvar("--ink-3");
+  const skeleton = cssvar("--skeleton"), audited = cssvar("--audited"), full = cssvar("--full");
+  const edge = cssvar("--edge"), hairline = cssvar("--hairline"), paperDeep = cssvar("--paper-deep");
+  const test = cssvar("--test"), testInk = cssvar("--test-ink");
+  return [
+    /* child nodes: size from data(d); label gated by min-zoomed-font-size so it
+       only appears when zoomed in (semantic zoom, AC2) */
+    { selector: "node[d]", style: {
+      "width": "data(d)", "height": "data(d)", "background-color": skeleton,
+      "border-width": 1.25, "border-color": paper,
+      "label": "data(label)", "font-family": MONO, "font-size": 10, "color": ink2,
+      "text-valign": "top", "text-halign": "center", "text-margin-y": -3,
+      "min-zoomed-font-size": 24, "text-outline-width": 3, "text-outline-color": paper } },
+    /* state classes keep the ring/citation look via a colored border */
+    { selector: "node.accuracy", style: { "background-color": audited, "border-color": audited, "border-width": 2 } },
+    { selector: "node.full", style: { "background-color": full, "border-color": full, "border-width": 2 } },
+    /* co-located tests: tan tint + rounded-rect, overriding state color */
+    { selector: "node.test", style: { "background-color": test, "border-color": testInk, "border-width": 1.4, "shape": "round-rectangle" } },
+    /* compound directory groups: subtle hull + always-on label (no zoom gate, AC2) */
+    { selector: ":parent", style: {
+      "label": "data(label)", "background-color": paperDeep, "background-opacity": 0.5,
+      "border-width": 1, "border-color": hairline, "border-style": "dashed",
+      "shape": "round-rectangle", "padding": 16,
+      "text-valign": "top", "text-halign": "center", "text-margin-y": -6,
+      "font-family": MONO, "font-size": 13, "color": ink3, "text-transform": "uppercase" } },
+    { selector: "edge", style: {
+      "width": "data(ew)", "opacity": "data(eo)", "line-color": edge, "curve-style": "straight" } },
+    { selector: ".dim", style: { "opacity": 0.15 } },
+    { selector: "node.sel", style: { "border-color": ink, "border-width": 2.5 } },
+  ];
+}
+
+/* ---------- cytoscape instance (fcose, seeded, deterministic) ---------- */
+const cy = cytoscape({
+  container: document.getElementById("cy"),
+  elements: DATA.elements,
+  style: buildStyle(),
+  wheelSensitivity: 0.25,
+  minZoom: 0.15, maxZoom: 6,
+  boxSelectionEnabled: false,
+  selectionType: "single",
+  layout: {
+    name: "fcose", quality: "proof", randomize: false, animate: false,
+    packComponents: true, tile: true,
+    tilingPaddingVertical: 16, tilingPaddingHorizontal: 16,
+    nodeSeparation: 12, idealEdgeLength: 46, nodeRepulsion: 4500,
+    gravity: 1, gravityCompound: 1, numIter: 2500,
+    fit: true, padding: 40,
+  },
 });
 
-/* ---------- node dragging ---------- */
-let dragging = null;
-let suppressClick = false;
-function worldPoint(ev) {
-  const r = svg.getBoundingClientRect();
-  return { x: vb.x + ((ev.clientX - r.left) / r.width) * vb.w,
-           y: vb.y + ((ev.clientY - r.top) / r.height) * vb.h };
-}
-window.addEventListener("pointermove", ev => {
-  if (!dragging || !vb) return;
-  const p = worldPoint(ev);
-  dragging.n.x = p.x + dragging.dx; dragging.n.y = p.y + dragging.dy;
-  dragging.n.vx = 0; dragging.n.vy = 0;
-  dragging.moved = true;
-  positionAll();
-});
-window.addEventListener("pointerup", () => {
-  if (dragging) { suppressClick = dragging.moved; dragging = null; }
-});
-function positionAll() {
-  links.forEach((l, i) => { const e = edgeEls[i];
-    e.setAttribute("x1", l.s.x); e.setAttribute("y1", l.s.y); e.setAttribute("x2", l.t.x); e.setAttribute("y2", l.t.y); });
-  nodes.forEach((n, i) => nodeEls[i].setAttribute("transform", `translate(${n.x},${n.y})`));
-  groups.forEach((g, i) => {
-    const members = nodes.filter(n => n.group === g);
-    const cx = members.reduce((s, n) => s + n.x, 0) / members.length;
-    const minY = Math.min(...members.map(n => n.y - n.r));
-    groupEls[i].setAttribute("x", cx); groupEls[i].setAttribute("y", minY - 22);
-  });
-}
-let alpha = 1;
-(function settle() { for (let i = 0; i < 3; i++) tick(alpha); alpha *= 0.985; positionAll(); if (alpha > 0.02) requestAnimationFrame(settle); })();
-
-/* ---------- pan / zoom ---------- */
-let vb = null;
-function fit() {
-  const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
-  const pad = 90;
-  const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad;
-  vb = { x: x0, y: y0, w: Math.max(...xs) + pad - x0, h: Math.max(...ys) + pad - y0 };
-  applyVb();
-}
-function applyVb() { svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); }
-setTimeout(fit, 900); setTimeout(fit, 2600);
-svg.addEventListener("wheel", ev => {
-  ev.preventDefault(); if (!vb) return;
-  const k = ev.deltaY > 0 ? 1.12 : 1 / 1.12;
-  const r = svg.getBoundingClientRect();
-  const mx = vb.x + ((ev.clientX - r.left) / r.width) * vb.w;
-  const my = vb.y + ((ev.clientY - r.top) / r.height) * vb.h;
-  vb = { x: mx - (mx - vb.x) * k, y: my - (my - vb.y) * k, w: vb.w * k, h: vb.h * k };
-  applyVb();
-}, { passive: false });
-let panning = null;
-svg.addEventListener("pointerdown", ev => { if (ev.target === svg || ev.target === world) panning = { x: ev.clientX, y: ev.clientY }; });
-window.addEventListener("pointermove", ev => {
-  if (!panning || !vb) return;
-  const r = svg.getBoundingClientRect();
-  vb.x -= (ev.clientX - panning.x) * (vb.w / r.width);
-  vb.y -= (ev.clientY - panning.y) * (vb.h / r.height);
-  panning = { x: ev.clientX, y: ev.clientY }; applyVb();
-});
-window.addEventListener("pointerup", () => panning = null);
-svg.addEventListener("click", () => select(null));
+const stateOf = n => n.enrichment === "none" ? "skeleton" : n.enrichment === "accuracy-audited" ? "accuracy" : "full";
 
 /* ---------- hover / tooltip ---------- */
 const tip = document.getElementById("tooltip");
-function hover(n, ev) {
+function hover(n, oe) {
   tip.style.display = "block";
   tip.innerHTML = `<div class="t">${esc(n.id)}</div>
     <div class="m">${esc(n.group)} · ${n.symbols} symbols · ${esc(n.enrichment)}${n.stale ? " · STALE" : ""}</div>
     <div class="m">${n.enrichment !== "none" ? "click for the audited explanation" : "skeleton — extracted structure only"}</div>`;
-  moveTip(ev); mark(m => m === n || neighbors.get(n.id).some(x => x.other === m));
+  moveTip(oe); mark(m => m === n || neighbors.get(n.id).some(x => x.other === m));
 }
-function moveTip(ev) {
-  const r = svg.parentElement.getBoundingClientRect();
-  tip.style.left = Math.min(ev.clientX - r.left + 14, r.width - 280) + "px";
-  tip.style.top = (ev.clientY - r.top + 14) + "px";
+function moveTip(oe) {
+  const r = document.getElementById("cy").parentElement.getBoundingClientRect();
+  tip.style.left = Math.min(oe.clientX - r.left + 14, r.width - 280) + "px";
+  tip.style.top = (oe.clientY - r.top + 14) + "px";
 }
 function unhover() { tip.style.display = "none"; applyFilters(); }
+cy.on("mouseover", "node:child", ev => hover(byId.get(ev.target.id()), ev.originalEvent));
+cy.on("mousemove", "node:child", ev => moveTip(ev.originalEvent));
+cy.on("mouseout", "node:child", () => unhover());
+
+/* ---------- neighbor dimming ---------- */
 function mark(keep) {
-  nodes.forEach((n, i) => nodeEls[i].classList.toggle("dim", !keep(n) || !visible(n)));
-  links.forEach((l, i) => edgeEls[i].classList.toggle("dim", !(keep(l.s) && keep(l.t) && visible(l.s) && visible(l.t))));
+  cy.batch(() => {
+    cy.nodes(":child").forEach(el => { const n = byId.get(el.id()); el.toggleClass("dim", !keep(n) || !visible(n)); });
+    cy.edges().forEach(el => { const s = byId.get(el.data("source")), t = byId.get(el.data("target")); el.toggleClass("dim", !(keep(s) && keep(t) && visible(s) && visible(t))); });
+  });
 }
 
 /* ---------- filters ---------- */
@@ -552,7 +461,9 @@ let fState = "all", fArea = "all", fQuery = "";
 function visible(n) {
   if (fState === "audited" && n.enrichment === "none") return false;
   if (fState === "none" && n.enrichment !== "none") return false;
-  if (fArea !== "all" && (fArea === "tests") !== (n.group === "tests")) return false;
+  /* area filter now reads the classification flag (n.test): the spatial "tests"
+     group no longer exists — tests live under their source directory. */
+  if (fArea !== "all" && (fArea === "tests") !== (n.test === true)) return false;
   if (fQuery) {
     const hay = (n.id + " " + n.title + " " + n.tags.join(" ") + " " + n.exports.map(e => e.name).join(" ")).toLowerCase();
     if (!hay.includes(fQuery)) return false;
@@ -560,8 +471,10 @@ function visible(n) {
   return true;
 }
 function applyFilters() {
-  nodes.forEach((n, i) => nodeEls[i].classList.toggle("dim", !visible(n)));
-  links.forEach((l, i) => edgeEls[i].classList.toggle("dim", !(visible(l.s) && visible(l.t))));
+  cy.batch(() => {
+    cy.nodes(":child").forEach(el => { const n = byId.get(el.id()); el.toggleClass("dim", !visible(n)); });
+    cy.edges().forEach(el => { const s = byId.get(el.data("source")), t = byId.get(el.data("target")); el.toggleClass("dim", !(visible(s) && visible(t))); });
+  });
 }
 document.getElementById("q").addEventListener("input", ev => { fQuery = ev.target.value.trim().toLowerCase(); applyFilters(); });
 for (const [elId, setter] of [["stateChips", v => fState = v], ["areaChips", v => fArea = v]]) {
@@ -581,7 +494,7 @@ function inline(md) {
 }
 function select(n) {
   selected = n;
-  nodes.forEach((m, i) => nodeEls[i].classList.toggle("sel", m === n));
+  cy.batch(() => cy.nodes(":child").forEach(el => el.toggleClass("sel", n != null && el.id() === n.id)));
   if (!n) { panel.classList.remove("open"); return; }
   const conns = neighbors.get(n.id).sort((a, b) => b.w - a.w);
   const outs = conns.filter(c => c.dir === "out"), ins = conns.filter(c => c.dir === "in");
@@ -612,6 +525,8 @@ function select(n) {
   document.getElementById("closeBtn").addEventListener("click", () => select(null));
   panel.querySelectorAll(".conn a").forEach(a => a.addEventListener("click", () => select(byId.get(a.dataset.id))));
 }
+cy.on("tap", "node:child", ev => select(byId.get(ev.target.id())));
+cy.on("tap", ev => { if (ev.target === cy) select(null); });
 
 /* ---------- table view ---------- */
 const tablewrap = document.getElementById("tablewrap");
@@ -642,6 +557,7 @@ document.getElementById("themeBtn").addEventListener("click", () => {
   const cur = document.documentElement.dataset.theme
     ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   document.documentElement.dataset.theme = cur === "dark" ? "light" : "dark";
+  cy.style(buildStyle());   // re-resolve the CSS tokens for the new theme
 });
 </script>
 </body>
