@@ -175,6 +175,19 @@ describe("buildViz (claw-efne productization, SPEC-004 T06)", () => {
     expect(urls.every((u) => u.startsWith("http://www.w3.org/"))).toBe(true);
   });
 
+  test("vendor files contain no </script sequence (script-breakout guard for future vendor bumps)", () => {
+    // Vendor bytes are inlined into <script> tags verbatim (byte-equality
+    // above forbids escaping them), so a vendored release containing the
+    // literal `</script` sequence — e.g. inside a minified string — would
+    // close the tag early and break every generated page while all other
+    // tests stay green. Current pins are clean; this pins that property at
+    // vendor-bump time. (SPEC-004 final review, conductor finding.)
+    for (const [, file] of VENDOR_FILES) {
+      const bytes = readFileSync(new URL(`../vendor/${file}`, import.meta.url), "utf8");
+      expect(bytes).not.toContain("</script");
+    }
+  });
+
   test("embeds the bundle data as parseable JSON with correct counts", () => {
     expect(result.html).not.toContain("__ASBUILT_DATA__"); // placeholder replaced
     const data = embeddedData(result.html);
