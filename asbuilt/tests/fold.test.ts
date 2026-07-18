@@ -937,3 +937,108 @@ describe("SPEC-005 AC9 (fold half): malformed suggested_type values are treated 
 process.on("exit", () => {
   for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true });
 });
+
+// Final-audit hardening (2026-07-19, conductor round): the refute panel found
+// fold and reclassify implementing DIFFERENT precedence orders for the same
+// input classes. Precedence is now canonical across both paths: malformed ->
+// literal Module/Test -> test-boundary -> existing-semantic -> apply. These
+// tests mirror reclassify.test.ts's AC9a hardening into fold, and pin the
+// amended AC4 boundary rule (suggestion never applied across the test
+// boundary; a pre-existing semantic type on a test resource is preserved in
+// value, never repaired to Test).
+describe("SPEC-005 canonical precedence (final-audit findings): fold matches reclassify", () => {
+  test("test_ac9a_fold_literal_module_on_already_semantic_concept_is_skipped_not_preserved", () => {
+    const dir = freshBundle();
+
+    const ev1 = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AUD1",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "first pass establishes a semantic type"',
+        '    suggested_type: "Model"',
+        "",
+      ].join("\n"),
+    );
+    fold({ evidencePath: ev1, targetRepo: dir, specId: "SPEC-005-AUD1", provenance: "fully-audited", date: "2026-07-19" });
+
+    const ev2 = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AUD2",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "agent echoes machine vocabulary back"',
+        '    suggested_type: "Module"',
+        "",
+      ].join("\n"),
+    );
+    const r2 = fold({ evidencePath: ev2, targetRepo: dir, specId: "SPEC-005-AUD2", provenance: "fully-audited", date: "2026-07-19" });
+
+    const fm = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(fm.type).toBe("Model"); // value untouched either way
+    // AC9a is UNCONDITIONAL: literal machine vocabulary buckets as skipped in
+    // both paths — never preserved (that was fold's divergence from
+    // reclassify, refuted 3/3 by the final-audit panel).
+    expect(r2.typeCounts?.skipped).toBe(1);
+    expect(r2.typeCounts?.preserved).toBe(0);
+    expect(r2.typeCounts?.applied).toBe(0);
+  });
+
+  test("test_ac4_fold_suggestion_never_applied_across_test_boundary_even_with_semantic_frontmatter", () => {
+    const dir = freshBundle();
+    const bundleDir = join(dir, "docs/asbuilt");
+    const conceptRelPath = "src/foo.test.md";
+    const conceptAbsPath = join(bundleDir, conceptRelPath);
+    // A test-classified RESOURCE whose frontmatter already carries a semantic
+    // type — reachable only via human edit (automated paths never assign
+    // across the boundary). The human's value is preserved, never repaired to
+    // Test, and the suggestion must not land.
+    writeFileSync(
+      conceptAbsPath,
+      [
+        "---",
+        "type: Service",
+        "title: src/foo.test.ts",
+        "description: synthetic semantic-typed test-resource fixture (AC4 amended)",
+        "resource: src/foo.test.ts",
+        "tags:",
+        "  - src",
+        "  - module",
+        "  - test",
+        "enrichment: none",
+        "from: []",
+        "explains: []",
+        "stale: false",
+        'stale_reason: ""',
+        'graph_hash: ""',
+        "---",
+        "",
+        "# Structure",
+        "",
+        "no symbols.",
+        "",
+      ].join("\n"),
+    );
+
+    const evidencePath = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AUD3",
+      [
+        `  - concept: ${conceptRelPath}`,
+        '    explanation: "Covers the semantic-typed test resource."',
+        '    decisions: "n/a"',
+        '    suggested_type: "Model"',
+        "",
+      ].join("\n"),
+    );
+    const result = fold({ evidencePath, targetRepo: dir, specId: "SPEC-005-AUD3", provenance: "fully-audited", date: "2026-07-19" });
+
+    const fm = frontmatterOf(readFileSync(conceptAbsPath, "utf8"));
+    expect(fm.type).toBe("Service"); // preserved in value — no repair to Test, no application of Model
+    expect(result.typeCounts?.skipped).toBe(1); // boundary reason outranks first-semantic-wins in the buckets
+    expect(result.typeCounts?.preserved).toBe(0);
+    expect(result.typeCounts?.applied).toBe(0);
+  });
+});

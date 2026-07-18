@@ -57,7 +57,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parse, stringify } from "yaml";
 import { argValue } from "./cli";
-import { parseFrontmatter, splitConcept } from "./concept";
+import { conceptType, parseFrontmatter, splitConcept } from "./concept";
 
 export interface ReclassifyOptions {
   targetRepo: string;
@@ -232,6 +232,21 @@ export function reclassify(opts: ReclassifyOptions): ReclassifyResult {
       skipped.push({
         concept: entry.concept,
         reason: `suggested_type "${entry.suggestedType}" is machine vocabulary (Module/Test); treated as absent`,
+      });
+      continue;
+    }
+
+    // Test-boundary guard (final-audit AC4 finding, 2026-07-19): the boundary
+    // is derived from the concept's RESOURCE filename, not its current
+    // frontmatter type — a drifted test concept still typed Module must never
+    // receive a semantic type via this automated path, and a pre-existing
+    // semantic type on a test resource is left alone (preserved in value,
+    // suggestion skipped), mirroring fold's canonical precedence.
+    const resource = typeof frontmatter.resource === "string" ? frontmatter.resource : "";
+    if (resource !== "" && conceptType(resource) === "Test") {
+      skipped.push({
+        concept: entry.concept,
+        reason: "test-classified resource (filename pattern); type is machine-owned — suggestion never applied across the test boundary",
       });
       continue;
     }

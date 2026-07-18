@@ -144,7 +144,11 @@ artifacts) that mechanical code applies.
 - Suite runs offline via `bun test asbuilt/tests/` from the repo root;
   coverage threshold 80% (Gate 2 config).
 - Frontmatter field order per SPEC-049 (`renderFrontmatter`) is preserved.
-- `Test` classification remains filename-derived and machine-owned.
+- `Test` classification remains filename-derived and machine-owned: binding
+  absolutely on the automated paths (fold/reclassify never apply a
+  suggestion across the test boundary in either direction); a
+  human-assigned semantic type on a test resource is preserved, not
+  repaired.
 - Backward compatibility: artifacts without `suggested_type` and existing
   bundles fold byte-identically to today.
 

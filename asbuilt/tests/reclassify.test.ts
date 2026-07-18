@@ -569,3 +569,80 @@ describe("AC10: byte-determinism + idempotence", () => {
 process.on("exit", () => {
   for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true });
 });
+
+// Final-audit hardening (2026-07-19, conductor round): reclassify previously
+// derived the test boundary ONLY from current frontmatter type, so a drifted
+// test concept still typed Module could receive a semantic type via this
+// automated path. The boundary is now derived from the concept's RESOURCE
+// filename (the machine-owned classification source), mirroring fold.
+describe("SPEC-005 canonical precedence (final-audit findings): resource-filename test boundary", () => {
+  function writeTestResourceConcept(dir: string, type: string): string {
+    const conceptAbsPath = join(dir, "docs/asbuilt/src/foo.test.md");
+    writeFileSync(
+      conceptAbsPath,
+      [
+        "---",
+        `type: ${type}`,
+        "title: src/foo.test.ts",
+        "description: synthetic test-resource fixture (AC4 amended)",
+        "resource: src/foo.test.ts",
+        "tags:",
+        "  - src",
+        "  - module",
+        "  - test",
+        "enrichment: fully-audited",
+        "from: []",
+        "explains: []",
+        "stale: false",
+        'stale_reason: ""',
+        'graph_hash: ""',
+        "---",
+        "",
+        "# Structure",
+        "",
+        "no symbols.",
+        "",
+      ].join("\n"),
+    );
+    return conceptAbsPath;
+  }
+
+  test("test_ac4_reclassify_never_applies_across_test_boundary_derived_from_resource_filename", () => {
+    const dir = enrichedBundle();
+    // Drifted case: test-pattern RESOURCE, frontmatter still at the Module
+    // default, enriched — the exact ingress the audit panel proved open.
+    const conceptAbsPath = writeTestResourceConcept(dir, "Module");
+    const before = readFileSync(conceptAbsPath, "utf8");
+
+    const artifactPath = writeArtifact(
+      dir,
+      "reclassifications:\n  - concept: src/foo.test.md\n    suggested_type: Service\n",
+    );
+    const result = reclassify({ targetRepo: dir, artifactPath });
+
+    expect(result.applied).toEqual([]);
+    expect(result.preserved).toEqual([]);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]?.reason).toContain("test");
+    expect(readFileSync(conceptAbsPath, "utf8")).toBe(before); // byte-untouched
+  });
+
+  test("test_ac4_reclassify_semantic_typed_test_resource_is_skipped_with_boundary_reason", () => {
+    const dir = enrichedBundle();
+    const conceptAbsPath = writeTestResourceConcept(dir, "Model");
+    const before = readFileSync(conceptAbsPath, "utf8");
+
+    const artifactPath = writeArtifact(
+      dir,
+      "reclassifications:\n  - concept: src/foo.test.md\n    suggested_type: Service\n",
+    );
+    const result = reclassify({ targetRepo: dir, artifactPath });
+
+    // The boundary reason outranks first-semantic-wins in the buckets —
+    // mirrors fold's canonical precedence.
+    expect(result.applied).toEqual([]);
+    expect(result.preserved).toEqual([]);
+    expect(result.skipped).toHaveLength(1);
+    expect(readFileSync(conceptAbsPath, "utf8")).toBe(before);
+  });
+});

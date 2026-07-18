@@ -102,22 +102,32 @@ function decideConceptType(existingType: unknown, resource: string, suggestedTyp
     return { type: mechanicalType, bucket: null };
   }
 
-  const existingIsSemantic =
-    existingType !== "Module" && existingType !== "Test" && existingType !== undefined && existingType !== null;
-  if (existingIsSemantic) {
-    return { type: mechanicalType, bucket: "preserved" };
-  }
-
-  if (conceptType(resource) === "Test") {
-    return { type: mechanicalType, bucket: "skipped" };
-  }
-
+  // Precedence is CANONICAL across fold and reclassify (final-audit findings,
+  // 2026-07-19): malformed -> literal Module/Test -> test-boundary ->
+  // existing-semantic -> apply. The literal check runs before the
+  // existing-semantic check so an already-semantic concept receiving literal
+  // machine vocabulary buckets as `skipped` in BOTH paths (AC9a is
+  // unconditional); the test-boundary check runs before the existing-semantic
+  // check so a suggestion is never applied across the test boundary, while a
+  // pre-existing semantic type on a test resource (human ingress only) is
+  // preserved in VALUE, never repaired to Test (AC4 as amended — repair would
+  // clobber the human-correction journey and diverge from refresh).
   if (typeof suggestedTypeRaw !== "string" || suggestedTypeRaw === "" || suggestedTypeRaw.includes("\n")) {
     return { type: mechanicalType, bucket: "skippedInvalid" };
   }
 
   if (suggestedTypeRaw === "Module" || suggestedTypeRaw === "Test") {
     return { type: mechanicalType, bucket: "skipped" };
+  }
+
+  if (conceptType(resource) === "Test") {
+    return { type: mechanicalType, bucket: "skipped" };
+  }
+
+  const existingIsSemantic =
+    existingType !== "Module" && existingType !== "Test" && existingType !== undefined && existingType !== null;
+  if (existingIsSemantic) {
+    return { type: mechanicalType, bucket: "preserved" };
   }
 
   return { type: suggestedTypeRaw, bucket: "applied" };
