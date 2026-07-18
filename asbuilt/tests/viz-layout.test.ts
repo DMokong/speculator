@@ -1,0 +1,234 @@
+// SPEC-004 T06: headless layout determinism (AC8) and the packing drift
+// anchor (AC10). Runs the REAL vendored fcose stack in-process (no browser,
+// no CDN) against elements built by the exact same toElements() pipeline
+// viz.ts embeds, seeded by the template's own FNV hash formula -- these
+// tests exercise the actual shipped layout invocation, not a stand-in.
+import { describe, expect, test } from "bun:test";
+import { readFileSync, rmSync } from "node:fs";
+import { buildViz } from "../src/viz";
+import { makeDenseSandbox } from "./helpers/dense-fixture";
+import type { CyCore, CyElementDefinition, CyPosition } from "./helpers/vendor-load";
+import { loadCytoscape } from "./helpers/vendor-load";
+
+interface EmbeddedNode {
+  id: string;
+  group: string;
+}
+
+interface EmbeddedData {
+  nodes: EmbeddedNode[];
+  elements: CyElementDefinition[];
+}
+
+function embeddedData(html: string): EmbeddedData {
+  const m = html.match(/(\{"meta":.*"elements":\[.*\]\})/s);
+  return JSON.parse(m?.[1] ?? "{}") as EmbeddedData;
+}
+
+function buildDenseElements(): EmbeddedData {
+  const target = makeDenseSandbox();
+  try {
+    const result = buildViz(target, "2026-07-16");
+    return embeddedData(result.html);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+}
+
+/** Template's client-side FNV hash (viz-template.html `hash()`) -- reproduced
+ * here so the seed fed to fcose matches production exactly. The seed is a
+ * stable starting point; fcose (randomize:false) is what must reproduce
+ * from it, not the seed itself. */
+function hash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967295;
+}
+
+/** Template's client-side seed-position formula (viz-template.html), applied
+ * to the child elements of a `toElements()` output. */
+function seedPositions(nodes: EmbeddedNode[]): Map<string, CyPosition> {
+  const groups = [...new Set(nodes.map((n) => n.group))].sort();
+  const anchors = new Map(
+    groups.map((g, i) => {
+      const a = (i / groups.length) * Math.PI * 2 - Math.PI / 2;
+      const r = g === "src" ? 0 : 330;
+      return [g, { x: Math.cos(a) * r, y: Math.sin(a) * r * 0.72 }] as const;
+    }),
+  );
+  const groupCounts = new Map(groups.map((g) => [g, nodes.filter((n) => n.group === g).length]));
+  const seed = new Map<string, CyPosition>();
+  for (const n of nodes) {
+    const anchor = anchors.get(n.group);
+    if (!anchor) continue;
+    const j1 = hash(n.id);
+    const j2 = hash(`${n.id}y`);
+    const spread = 90 + 44 * Math.sqrt(groupCounts.get(n.group) ?? 1);
+    seed.set(n.id, { x: anchor.x + (j1 - 0.5) * spread * 2, y: anchor.y + (j2 - 0.5) * spread * 2 });
+  }
+  return seed;
+}
+
+function seededElements(nodes: EmbeddedNode[], elements: CyElementDefinition[]): CyElementDefinition[] {
+  const seed = seedPositions(nodes);
+  return elements.map((el) => {
+    if (el.data.parent === undefined) return el; // parents and edges carry no seed
+    const p = el.data.id === undefined ? undefined : seed.get(el.data.id);
+    return p ? { ...el, position: { x: p.x, y: p.y } } : el;
+  });
+}
+
+/** Production fcose options -- the SHIPPED `viz-template.html` invocation
+ * (T05). tilingPadding is 16/16 (T05's own compactness sweep chose this over
+ * the spike's provisional 4/4), everything else matches the spike's locked
+ * option set verbatim. */
+const FCOSE_OPTIONS = {
+  name: "fcose",
+  quality: "proof",
+  randomize: false,
+  animate: false,
+  packComponents: true,
+  tile: true,
+  tilingPaddingVertical: 16,
+  tilingPaddingHorizontal: 16,
+  nodeSeparation: 12,
+  idealEdgeLength: 46,
+  nodeRepulsion: 4500,
+  gravity: 1,
+  gravityCompound: 1,
+  numIter: 2500,
+};
+
+const HEADLESS_STYLE = [{ selector: "node[d]", style: { width: "data(d)", height: "data(d)" } }];
+
+/** Runs fcose to settlement and returns each child node's final position.
+ * `randomize:false, animate:false` completes synchronously; asserts that
+ * assumption rather than silently trusting it (a regression to an async
+ * layout path would otherwise read positions before they settle). */
+function runFcoseAndReadPositions(elements: CyElementDefinition[], cytoscape: (o: Record<string, unknown>) => CyCore): Record<string, CyPosition> {
+  const cy = cytoscape({
+    headless: true,
+    styleEnabled: true,
+    style: HEADLESS_STYLE,
+    elements: structuredClone(elements),
+  });
+  let stopped = false;
+  cy.one("layoutstop", () => {
+    stopped = true;
+  });
+  cy.layout(FCOSE_OPTIONS).run();
+  if (!stopped) throw new Error("fcose did not settle synchronously -- headless determinism assumption violated");
+  const positions: Record<string, CyPosition> = {};
+  // cytoscape collections expose forEach as their documented iteration
+  // method; they are not guaranteed iterable via for...of.
+  // biome-ignore lint/complexity/noForEach: see comment above.
+  cy.nodes(":child").forEach((n) => {
+    const p = n.position();
+    positions[n.id()] = { x: p.x, y: p.y };
+  });
+  cy.destroy();
+  return positions;
+}
+
+describe("viz layout determinism (SPEC-004 AC8)", () => {
+  test("test_ac8_fcose_positions_are_json_identical_across_two_headless_runs", () => {
+    const cytoscape = loadCytoscape();
+    const { nodes, elements } = buildDenseElements();
+    const seeded = seededElements(nodes, elements);
+
+    const posA = runFcoseAndReadPositions(seeded, cytoscape);
+    const posB = runFcoseAndReadPositions(seeded, cytoscape);
+
+    expect(Object.keys(posA).length).toBe(111); // dense fixture's 111 concepts
+    expect(JSON.stringify(posB)).toBe(JSON.stringify(posA));
+  });
+
+  test("test_ac8_no_clock_or_random_calls_in_nonvendor_html_or_viz_ts", () => {
+    const target = makeDenseSandbox();
+    let html: string;
+    try {
+      html = buildViz(target, "2026-07-16").html;
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+    // Strip the four inlined vendor regions (third-party code, out of our
+    // control) before scanning -- this test is about OUR code only.
+    let nonVendor = html;
+    for (const name of ["layout-base", "cose-base", "cytoscape", "fcose"]) {
+      const start = `/*VENDOR:${name}:start*/`;
+      const end = `/*VENDOR:${name}:end*/`;
+      const s = nonVendor.indexOf(start);
+      const e = nonVendor.indexOf(end, s + start.length);
+      if (s === -1 || e === -1) continue;
+      nonVendor = nonVendor.slice(0, s) + nonVendor.slice(e + end.length);
+    }
+    expect(nonVendor).not.toMatch(/Math\.random/);
+    expect(nonVendor).not.toMatch(/Date\.now\(/);
+    expect(nonVendor).not.toMatch(/new Date\(\s*\)/); // argless new Date()
+
+    const vizSrc = readFileSync(new URL("../src/viz.ts", import.meta.url), "utf8");
+    expect(vizSrc).not.toMatch(/Math\.random/);
+    expect(vizSrc).not.toMatch(/Date\.now\(/);
+    expect(vizSrc).not.toMatch(/new Date\(\s*\)/);
+  });
+});
+
+describe("viz layout packing drift anchor (SPEC-004 AC10)", () => {
+  const PACKING_BOUND = 4.5; // SPEC-004 AC10 drift anchor — spike checkpoint measured 4.116 (2026-07-16); look-gate arbitrates compactness, this guards drift.
+
+  test("test_ac10_dense_fixture_packing_factor_stays_at_or_below_the_drift_anchor", () => {
+    const cytoscape = loadCytoscape();
+    const { nodes, elements } = buildDenseElements();
+    const seeded = seededElements(nodes, elements);
+    const positions = runFcoseAndReadPositions(seeded, cytoscape);
+
+    const diameterById = new Map<string, number>();
+    for (const el of elements) if (el.data.d !== undefined) diameterById.set(el.data.id, el.data.d);
+    const groupById = new Map<string, string>();
+    for (const n of nodes) groupById.set(n.id, n.group);
+
+    // Per-group bbox (centers ± radius from d/2), then global bbox over all
+    // nodes; factor = globalArea / Σ groupAreas.
+    interface Bbox {
+      minX: number;
+      minY: number;
+      maxX: number;
+      maxY: number;
+    }
+    const byGroup = new Map<string, Bbox>();
+    let gMinX = Number.POSITIVE_INFINITY;
+    let gMinY = Number.POSITIVE_INFINITY;
+    let gMaxX = Number.NEGATIVE_INFINITY;
+    let gMaxY = Number.NEGATIVE_INFINITY;
+    for (const [id, pos] of Object.entries(positions)) {
+      const radius = (diameterById.get(id) ?? 0) / 2;
+      const group = groupById.get(id) ?? "src";
+      const b = byGroup.get(group) ?? {
+        minX: Number.POSITIVE_INFINITY,
+        minY: Number.POSITIVE_INFINITY,
+        maxX: Number.NEGATIVE_INFINITY,
+        maxY: Number.NEGATIVE_INFINITY,
+      };
+      b.minX = Math.min(b.minX, pos.x - radius);
+      b.minY = Math.min(b.minY, pos.y - radius);
+      b.maxX = Math.max(b.maxX, pos.x + radius);
+      b.maxY = Math.max(b.maxY, pos.y + radius);
+      byGroup.set(group, b);
+      gMinX = Math.min(gMinX, pos.x - radius);
+      gMinY = Math.min(gMinY, pos.y - radius);
+      gMaxX = Math.max(gMaxX, pos.x + radius);
+      gMaxY = Math.max(gMaxY, pos.y + radius);
+    }
+
+    let sumGroupAreas = 0;
+    for (const b of byGroup.values()) sumGroupAreas += (b.maxX - b.minX) * (b.maxY - b.minY);
+    const globalArea = (gMaxX - gMinX) * (gMaxY - gMinY);
+    const factor = globalArea / sumGroupAreas;
+
+    console.log(`AC10 measured packing factor: ${factor.toFixed(3)} (bound ${PACKING_BOUND}, spike checkpoint 4.116)`);
+    expect(factor).toBeLessThanOrEqual(PACKING_BOUND);
+  });
+});

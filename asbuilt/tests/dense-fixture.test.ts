@@ -6,11 +6,13 @@
 // pin the fixture's observable shape and prove the generator itself has no
 // randomness or clock reads, ahead of any consumer relying on it.
 //
-// Grouping note: viz.ts is pre-T04 today, so test concepts are classified
-// into a single global "tests" bucket by frontmatter (claw-wsit), never by
-// path. Once SPEC-004 T04 lands path-grouping, cmd/cli's 42 co-located tests
-// join their source directory's compound and `cmd/cli` becomes 96 (spec.md
-// AC1) — T06 flips the assertion below; this task only leaves the comment.
+// Grouping note (SPEC-004 T06 flip): T04 landed path-derived grouping, so
+// cmd/cli's 42 co-located tests now join their source directory's compound —
+// `cmd/cli` is 96 (54 source + 42 test) and no global "tests" bucket exists
+// anywhere in the embedded data (spec.md AC1). This supersedes claw-wsit's
+// SPATIAL rule (the old single global "tests" bucket by frontmatter
+// classification): classification stays frontmatter-driven (the `test`
+// flag), grouping is path-derived — tests live with their source directory.
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -20,6 +22,7 @@ import { makeDenseSandbox } from "./helpers/dense-fixture";
 interface EmbeddedNode {
   id: string;
   group: string;
+  test: boolean;
   enrichment: string;
 }
 
@@ -51,15 +54,17 @@ describe("dense fixture (SPEC-004 R7)", () => {
     expect(data.nodes.length).toBe(111);
   });
 
-  // R7 done-check: "54 nodes in group cmd/cli + 42 in group tests (the
-  // CURRENT pre-T04 grouping...)"
-  test("R7: pre-T04 grouping -- 54 source concepts in cmd/cli, 42 co-located tests in the global tests bucket", () => {
+  // R7 done-check flip (SPEC-004 T06): "96 nodes in group cmd/cli (54 source
+  // + 42 co-located tests), no global tests group" -- SPEC-004 supersedes
+  // claw-wsit's SPATIAL rule: classification stays frontmatter-driven (test
+  // flag), grouping is path-derived -- tests live with their source
+  // directory.
+  test("R7: SPEC-004 grouping -- 96 nodes in group cmd/cli (54 source + 42 co-located tests), no global tests group", () => {
     const cli = data.nodes.filter((n) => n.group === "cmd/cli");
     const testsGroup = data.nodes.filter((n) => n.group === "tests");
-    expect(cli.length).toBe(54);
-    expect(testsGroup.length).toBe(42);
-    // flips to 96 in group "cmd/cli" (54 source + 42 test, path-grouped
-    // together) once SPEC-004 T04 lands -- see plan.md Task T04, spec.md AC1.
+    expect(cli.length).toBe(96);
+    expect(testsGroup.length).toBe(0);
+    expect(cli.filter((n) => n.test === true).length).toBe(42);
   });
 
   // R7 shape table: small internal/* groups plus the root file's default

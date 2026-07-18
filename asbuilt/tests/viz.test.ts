@@ -1,10 +1,13 @@
-// claw-efne: viz.ts productization coverage. Builds a synthetic bundle +
-// manifest and asserts the visualize sheet's core contracts: self-contained
-// output, parseable embedded data, correct edge collapsing, test
-// classification by frontmatter (never path shape, claw-wsit), script-breakout
-// escaping, and byte-identical determinism.
+// claw-efne / SPEC-004 T06: viz.ts productization + Cytoscape-engine
+// coverage. Builds a synthetic bundle + manifest and asserts the visualize
+// sheet's core contracts: self-contained output (vendor regions byte-equal
+// to asbuilt/vendor/, AC3), parseable embedded data (including the
+// cytoscape `elements` block), correct edge collapsing, path-derived
+// grouping with frontmatter-driven test classification (AC1, superseding
+// claw-wsit's SPATIAL rule), script-breakout escaping, and byte-identical
+// determinism.
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildViz } from "../src/viz";
@@ -36,7 +39,7 @@ function makeSandbox(): string {
         { id: "src/alpha.ts#run", file: "src/alpha.ts" },
         { id: "src/alpha.ts#helper", file: "src/alpha.ts" },
         { id: "src/beta.ts#consume", file: "src/beta.ts" },
-        { id: "tests/alpha.test.ts#t1", file: "tests/alpha.test.ts" },
+        { id: "src/tools/x.test.ts#t1", file: "src/tools/x.test.ts" },
       ],
       edges: [
         { from: "src/beta.ts#consume", toName: "run", resolved: "src/alpha.ts#run" },
@@ -63,13 +66,14 @@ function makeSandbox(): string {
     explains: [],
     stale: false,
   });
-  // co-located test file — classified Test by frontmatter, path says nothing
-  writeConcept(bundleDir, "tests/alpha.test.md", {
+  // co-located test file, sitting inside its source directory (src/tools) --
+  // classified Test by frontmatter, never by path shape (SPEC-004 AC1).
+  writeConcept(bundleDir, "src/tools/x.test.md", {
     type: "Test",
-    title: "tests/alpha.test.ts",
-    description: "alpha tests",
-    resource: "tests/alpha.test.ts",
-    tags: ["tests", "test"],
+    title: "src/tools/x.test.ts",
+    description: "co-located test",
+    resource: "src/tools/x.test.ts",
+    tags: ["tools", "test"],
     enrichment: "none",
     from: [],
     explains: [],
@@ -81,24 +85,91 @@ function makeSandbox(): string {
   return target;
 }
 
-describe("buildViz (claw-efne productization)", () => {
+interface EmbeddedNode {
+  id: string;
+  group: string;
+  test: boolean;
+  enrichment: string;
+  explanation: string;
+  decisions: string[];
+}
+
+interface EmbeddedElement {
+  data: {
+    id: string;
+    parent?: string;
+    source?: string;
+    target?: string;
+  };
+}
+
+interface EmbeddedData {
+  meta: { concepts: number; audited: number; target_commit: string; date: string; folds: string[] };
+  nodes: EmbeddedNode[];
+  links: { source: string; target: string; w: number }[];
+  elements: EmbeddedElement[];
+}
+
+function embeddedData(html: string): EmbeddedData {
+  // Anchored on the `elements` key (the last field `buildViz` embeds, SPEC-004
+  // T04) so the match reaches the true end of the object rather than
+  // stopping at the old `links`-terminal shape.
+  const m = html.match(/(\{"meta":.*"elements":\[.*\]\})/s);
+  return JSON.parse(m?.[1] ?? "{}") as EmbeddedData;
+}
+
+const VENDOR_FILES: [name: string, file: string][] = [
+  ["layout-base", "layout-base.js"],
+  ["cose-base", "cose-base.js"],
+  ["cytoscape", "cytoscape.min.js"],
+  ["fcose", "cytoscape-fcose.js"],
+];
+
+/** Splits the built HTML on the `/*VENDOR:name:start|end*\/` markers
+ * `inlineVendor` wraps each vendored file in (AC3), returning each vendor
+ * region's content plus the remainder of the document with every vendor
+ * region removed. The remainder gets the pre-existing self-containment
+ * checks; the vendor regions get a byte-equality check against
+ * `asbuilt/vendor/` instead (license-comment URLs inside vendor code are
+ * covered by that byte-equality, not the URL allowlist). */
+function splitVendorRegions(html: string): { nonVendor: string; regions: Map<string, string> } {
+  let nonVendor = html;
+  const regions = new Map<string, string>();
+  for (const [name] of VENDOR_FILES) {
+    const start = `/*VENDOR:${name}:start*/`;
+    const end = `/*VENDOR:${name}:end*/`;
+    const s = nonVendor.indexOf(start);
+    const e = nonVendor.indexOf(end, s + start.length);
+    if (s === -1 || e === -1) continue;
+    regions.set(name, nonVendor.slice(s + start.length, e));
+    nonVendor = nonVendor.slice(0, s) + nonVendor.slice(e + end.length);
+  }
+  return { nonVendor, regions };
+}
+
+describe("buildViz (claw-efne productization, SPEC-004 T06)", () => {
   const target = makeSandbox();
   const result = buildViz(target, "2026-07-11");
 
-  test("output is a single self-contained document with no external resource references", () => {
-    expect(result.html).not.toMatch(/<script[^>]+src=/i);
-    expect(result.html).not.toMatch(/<link[^>]+href=/i);
-    expect(result.html).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|@import/);
-    // The only URL allowed is the SVG namespace identifier (createElementNS
-    // requires it verbatim; it is never fetched).
-    const urls = result.html.match(/https?:\/\/[^\s"'<>]+/g) ?? [];
+  test("self-containment (AC3): vendor regions are byte-equal to asbuilt/vendor/, and the non-vendor remainder has no external resource references", () => {
+    const { nonVendor, regions } = splitVendorRegions(result.html);
+    expect(regions.size).toBe(VENDOR_FILES.length);
+    for (const [name, file] of VENDOR_FILES) {
+      const expected = readFileSync(new URL(`../vendor/${file}`, import.meta.url), "utf8");
+      expect(regions.get(name)).toBe(expected);
+    }
+    expect(nonVendor).not.toMatch(/<script[^>]+src=/i);
+    expect(nonVendor).not.toMatch(/<link[^>]+href=/i);
+    expect(nonVendor).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|@import/);
+    // The only URLs allowed outside vendor regions are XML/SVG namespace
+    // identifiers (createElementNS requires them verbatim; never fetched).
+    const urls = nonVendor.match(/https?:\/\/[^\s"'<>]+/g) ?? [];
     expect(urls.every((u) => u.startsWith("http://www.w3.org/"))).toBe(true);
   });
 
   test("embeds the bundle data as parseable JSON with correct counts", () => {
-    const m = result.html.match(/__ASBUILT_DATA__|(\{"meta":.*"links":\[.*\]\})/s);
     expect(result.html).not.toContain("__ASBUILT_DATA__"); // placeholder replaced
-    const data = JSON.parse(m?.[1] ?? "{}");
+    const data = embeddedData(result.html);
     expect(data.meta.concepts).toBe(3); // index.md (no resource) skipped
     expect(data.meta.audited).toBe(1);
     expect(data.meta.target_commit).toBe("abc1234");
@@ -109,21 +180,37 @@ describe("buildViz (claw-efne productization)", () => {
   test("collapses resolved cross-file edges to file links; same-file and unresolved edges never link", () => {
     expect(result.fileLinks).toBe(1);
     expect(result.resolvedEdges).toBe(2); // the same-file edge is resolved, just not a link
-    const data = JSON.parse(result.html.match(/(\{"meta":.*"links":\[.*\]\})/s)?.[1] ?? "{}");
+    const data = embeddedData(result.html);
     expect(data.links).toEqual([{ source: "src/beta.ts", target: "src/alpha.ts", w: 1 }]);
   });
 
-  test("test concepts group as 'tests' by classification, not path (claw-wsit)", () => {
-    const data = JSON.parse(result.html.match(/(\{"meta":.*"links":\[.*\]\})/s)?.[1] ?? "{}");
-    const testNode = data.nodes.find((n: { id: string }) => n.id === "tests/alpha.test.ts");
-    expect(testNode.group).toBe("tests");
+  // SPEC-004 supersedes claw-wsit's SPATIAL rule: classification stays
+  // frontmatter-driven (test flag), grouping is path-derived — tests live
+  // with their source directory.
+  test("grouping supersession (AC1): a co-located test concept groups with its source directory, never a spatial tests bucket", () => {
+    const data = embeddedData(result.html);
+    const testNode = data.nodes.find((n) => n.id === "src/tools/x.test.ts");
+    expect(testNode?.group).toBe("src/tools");
+    expect(testNode?.test).toBe(true);
+    expect(data.nodes.some((n) => n.group === "tests")).toBe(false);
+  });
+
+  test("elements presence: embedded cytoscape elements reconcile with nodes/links counts", () => {
+    const data = embeddedData(result.html);
+    const parents = data.elements.filter((el) => el.data.parent === undefined && el.data.source === undefined);
+    const children = data.elements.filter((el) => el.data.parent !== undefined);
+    const edges = data.elements.filter((el) => el.data.source !== undefined);
+    const groups = new Set(data.nodes.map((n) => n.group));
+    expect(parents.length).toBe(groups.size);
+    expect(children.length).toBe(data.nodes.length);
+    expect(edges.length).toBe(data.links.length);
   });
 
   test("explanation and decisions sections are extracted; </ is escaped against script breakout", () => {
-    const data = JSON.parse(result.html.match(/(\{"meta":.*"links":\[.*\]\})/s)?.[1] ?? "{}");
-    const alpha = data.nodes.find((n: { id: string }) => n.id === "src/alpha.ts");
-    expect(alpha.explanation).toContain("Alpha explains");
-    expect(alpha.decisions).toEqual(["kept it simple", "stayed deterministic"]);
+    const data = embeddedData(result.html);
+    const alpha = data.nodes.find((n) => n.id === "src/alpha.ts");
+    expect(alpha?.explanation).toContain("Alpha explains");
+    expect(alpha?.decisions).toEqual(["kept it simple", "stayed deterministic"]);
     expect(result.html).not.toContain("</script> escaping"); // raw close-tag never lands in the embedded JSON
   });
 
