@@ -2,7 +2,7 @@
 stream: 2026-07-15-asbuilt-viz-cytoscape
 phase: execute
 entry: idea
-conductor_model: fable (phase R–4 waves 1-2 + spike checkpoint), opus-emulation (phase 4 waves 3+; fable-mode loaded per emulation-mode requirement 2026-07-16)
+conductor_model: fable (phases R–4 waves 1-2 + spike checkpoint), opus-emulation (waves 3-4 incl. T05 interruption recovery), fable (wave 5+, 2026-07-18)
 weave:
   superpowers: loaded (brainstorming used for phase 1)
   speculator: SPEC-004 (worktree: .claude/worktrees/asbuilt-viz-cytoscape)
@@ -47,8 +47,9 @@ Plan: plan.md (Phase 3, awaiting human approval — last mandatory touchpoint)
 | 02-dense-fixture | 1 | done | 0 | c743291 (relocated round 1 content); 10/10 tests green in worktree |
 | 03-spike | 2 | done | 0 | judgment; look approved 2026-07-16; fcose mandatory (cose non-deterministic); ship patched-minified stack ~518KB; AC10 reframed to drift anchor ≤4.5 |
 | 04-data-model | 3 | done | 1 | 6bb6a36; minified vendor 488KB runs fcose (conductor-verified); 13/13 new tests; grep done-check had stray-space bug (brief error, documented) |
-| 05-template | 4 | running | 0 | judgment (opus); 1st dispatch interrupted (process transition, uncommitted crash artifact reset + preserved); re-dispatched fresh 2026-07-18 |
-| 06-tests-hardening | 5 | pending | 0 | standard; testable; test-adversary N=3 after; brief authored |
+| 05-template | 4 | done | 0 | 69e3a82; full pipeline pass round 1; conductor-verified renders (573KB/600KB, semantic zoom + co-located tests visible); label-overlap polish item to final review |
+| 06-tests-hardening | 5 | running | 0 | standard; final wave; wf w/ expectedBranch guard |
+
 
 ## Spike checkpoint (2026-07-16, opus tier)
 
