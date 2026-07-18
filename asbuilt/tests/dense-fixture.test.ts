@@ -130,6 +130,23 @@ describe("dense fixture (SPEC-004 R7)", () => {
     expect(result.fileLinks).toBe(18);
   });
 
+  // AC4 (hardening round 2 — survivor: `.sort()` removed from `walkMd`'s
+  // `readdirSync(dir)` call). Same-process re-invocation of buildViz against
+  // an unmutated directory can't observe this regression, because
+  // readdirSync's raw order is stable call-to-call regardless of whether it
+  // happens to be sorted -- so the existing "two builds byte-identical"
+  // assertions below are blind to it. This asserts the array-level invariant
+  // AC4/viz.ts's own doc comment promises directly ("concepts ... are
+  // codepoint-sorted"): `cmd/cli` alone holds 96 entries (54 source + 42
+  // test, non-alphabetically-created filenames), which on this filesystem's
+  // real `readdir()` do NOT come back in sorted order (verified empirically
+  // during this hardening round) -- so a missing `.sort()` fails this
+  // assertion directly, independent of same-process stability.
+  test("R7/AC4: nodes array is codepoint-sorted by id -- walkMd doesn't rely on raw OS readdir order", () => {
+    const ids = data.nodes.map((n) => n.id);
+    expect(ids).toEqual([...ids].sort());
+  });
+
   // Required content: "NO randomness, NO clock reads anywhere." (done-check
   // phrasing: "two buildViz calls on the same sandbox -> byte-identical html")
   test("R7: deterministic output -- two buildViz calls on the same sandbox are byte-identical", () => {

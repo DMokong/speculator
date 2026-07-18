@@ -7,10 +7,12 @@
 // claw-wsit's SPATIAL rule), script-breakout escaping, and byte-identical
 // determinism.
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildViz } from "../src/viz";
+import { CLI_USAGE, buildViz } from "../src/viz";
+
+const ASBUILT_ROOT = new URL("..", import.meta.url).pathname;
 
 function writeConcept(
   bundleDir: string,
@@ -62,7 +64,13 @@ function makeSandbox(): string {
     resource: "src/beta.ts",
     tags: ["src", "module"],
     enrichment: "none",
-    from: [],
+    // AC6 hardening (round 2 — survivor: `.sort()` dropped from `meta.folds`'
+    // computation). "src/alpha.md" (from: SPEC-001) walks before "src/beta.md"
+    // alphabetically, so insertion order is ["SPEC-001", "SPEC-000"] — the
+    // OPPOSITE of codepoint-sorted ["SPEC-000", "SPEC-001"]. Every prior
+    // fixture had ≤1 distinct `from` value, making sorted-vs-insertion-order
+    // unobservable; this makes it observable.
+    from: ["SPEC-000"],
     explains: [],
     stale: false,
   });
@@ -174,7 +182,12 @@ describe("buildViz (claw-efne productization, SPEC-004 T06)", () => {
     expect(data.meta.audited).toBe(1);
     expect(data.meta.target_commit).toBe("abc1234");
     expect(data.meta.date).toBe("2026-07-11");
-    expect(data.meta.folds).toEqual(["SPEC-001"]);
+    // AC6: folds must be codepoint-sorted, not insertion-order. alpha.md
+    // (SPEC-001) walks before beta.md (SPEC-000) alphabetically, so a
+    // dropped `.sort()` on this computation would yield ["SPEC-001",
+    // "SPEC-000"] instead — this fixture makes that distinction observable
+    // (hardening round 2).
+    expect(data.meta.folds).toEqual(["SPEC-000", "SPEC-001"]);
   });
 
   test("collapses resolved cross-file edges to file links; same-file and unresolved edges never link", () => {
@@ -222,5 +235,68 @@ describe("buildViz (claw-efne productization, SPEC-004 T06)", () => {
   test("cleanup", () => {
     rmSync(target, { recursive: true, force: true });
     expect(true).toBe(true);
+  });
+});
+
+// AC7 hardening (round 2): `bun test asbuilt/tests/` never executes viz.ts's
+// `if (import.meta.main)` entry guard when the module is only ever imported
+// (import.meta.main is false on import) -- every prior test in this suite
+// imports buildViz/toElements/etc. directly. These tests run the real CLI as
+// a subprocess (matching graphify-check.test.ts's/check.test.ts's existing
+// `Bun.spawnSync` pattern) so the guard's own validation/default-path logic
+// is actually exercised, closing two named survivors: (1) `--date`'s
+// requiredness silently dropped, (2) the default `--out` path changed away
+// from `docs/asbuilt/viz.html`.
+describe("CLI: bun src/viz.ts (AC7 entry-guard behavior)", () => {
+  test("exits 1 with usage when --target is missing", () => {
+    const result = Bun.spawnSync(["bun", "src/viz.ts", "--date", "2026-07-16"], { cwd: ASBUILT_ROOT });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr.toString("utf8")).toContain(CLI_USAGE);
+  });
+
+  test("exits 1 with usage when --date is missing (regression: --date must stay a required flag)", () => {
+    const target = makeSandbox();
+    try {
+      const result = Bun.spawnSync(["bun", "src/viz.ts", "--target", target], { cwd: ASBUILT_ROOT });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr.toString("utf8")).toContain(CLI_USAGE);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  test("writes to the default docs/asbuilt/viz.html path when --out is omitted", () => {
+    const target = makeSandbox();
+    try {
+      const result = Bun.spawnSync(["bun", "src/viz.ts", "--target", target, "--date", "2026-07-16"], {
+        cwd: ASBUILT_ROOT,
+      });
+      expect(result.exitCode).toBe(0);
+      const defaultOut = join(target, "docs/asbuilt/viz.html");
+      expect(existsSync(defaultOut)).toBe(true);
+      const html = readFileSync(defaultOut, "utf8");
+      expect(html).not.toContain("__ASBUILT_DATA__"); // placeholder replaced -- a real build, not an empty file
+      expect(html.length).toBeGreaterThan(0);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  test("writes to an explicit --out path instead of the default when one is provided", () => {
+    const target = makeSandbox();
+    const outDir = mkdtempSync(join(tmpdir(), "viz-cli-out-"));
+    try {
+      const customOut = join(outDir, "custom.html");
+      const result = Bun.spawnSync(
+        ["bun", "src/viz.ts", "--target", target, "--date", "2026-07-16", "--out", customOut],
+        { cwd: ASBUILT_ROOT },
+      );
+      expect(result.exitCode).toBe(0);
+      expect(existsSync(customOut)).toBe(true);
+      expect(existsSync(join(target, "docs/asbuilt/viz.html"))).toBe(false); // default path untouched
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
   });
 });

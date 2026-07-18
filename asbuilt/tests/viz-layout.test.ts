@@ -81,26 +81,75 @@ function seededElements(nodes: EmbeddedNode[], elements: CyElementDefinition[]):
   });
 }
 
-/** Production fcose options -- the SHIPPED `viz-template.html` invocation
- * (T05). tilingPadding is 16/16 (T05's own compactness sweep chose this over
- * the spike's provisional 4/4), everything else matches the spike's locked
- * option set verbatim. */
-const FCOSE_OPTIONS = {
-  name: "fcose",
-  quality: "proof",
-  randomize: false,
-  animate: false,
-  packComponents: true,
-  tile: true,
-  tilingPaddingVertical: 16,
-  tilingPaddingHorizontal: 16,
-  nodeSeparation: 12,
-  idealEdgeLength: 46,
-  nodeRepulsion: 4500,
-  gravity: 1,
-  gravityCompound: 1,
-  numIter: 2500,
-};
+/** Production fcose options -- extracted directly from the SHIPPED
+ * `asbuilt/src/viz-template.html` at test time (hardening round 2: this
+ * replaces a hand-copied literal that a prior round proved was a coupling
+ * gap -- two survivor variants changed the real template's layout invocation
+ * (`packComponents`/`tile` -> false, `tilingPadding` 16 -> 300) and the
+ * measured AC10 factor stayed byte-for-byte identical because the old
+ * constant was never wired to read the file it claimed to exercise. Parsing
+ * the literal straight out of source means any future drift in the
+ * production invocation flows into this test's own `cy.layout()` call. */
+function extractProductionFcoseOptions(): Record<string, unknown> {
+  const html = readFileSync(new URL("../src/viz-template.html", import.meta.url), "utf8");
+  const marker = "layout: {";
+  const start = html.indexOf(marker);
+  if (start === -1) {
+    throw new Error(
+      "viz-layout.test.ts: could not find 'layout: {' in viz-template.html -- has the production fcose invocation been restructured?",
+    );
+  }
+  const braceStart = start + marker.length - 1; // index of the opening '{'
+  let depth = 0;
+  let end = -1;
+  for (let i = braceStart; i < html.length; i++) {
+    if (html[i] === "{") depth++;
+    else if (html[i] === "}") {
+      depth--;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  if (end === -1) {
+    throw new Error("viz-layout.test.ts: unbalanced braces while parsing the layout options literal");
+  }
+  const literal = html.slice(braceStart, end + 1);
+  // Parses the real, shipped object literal out of viz-template.html at test
+  // time rather than trusting a hand-copied duplicate (hardening round 2,
+  // AC10 Variant 4/5 survivors) -- indirect eval is the load-bearing
+  // mechanism here, same rationale as helpers/vendor-load.ts's loader.
+  // biome-ignore lint/style/noCommaOperator: required for indirect eval.
+  // biome-ignore lint/security/noGlobalEval: this is the whole point -- see comment above.
+  return (0, eval)(`(${literal})`) as Record<string, unknown>;
+}
+
+const FCOSE_OPTIONS = extractProductionFcoseOptions();
+
+// AC10 hardening (round 2): a sanity pin that the extraction above actually
+// read the real, live production values out of viz-template.html -- not a
+// stub, not an empty object, and not silently falling back to some other
+// default. This is what makes FCOSE_OPTIONS's later use in
+// runFcoseAndReadPositions a genuine read of source rather than a duplicate
+// that merely happens to agree with it today.
+describe("AC10: production fcose options are read from viz-template.html, not hand-copied", () => {
+  test("extracted layout options carry the real shipped values", () => {
+    expect(FCOSE_OPTIONS.name).toBe("fcose");
+    expect(FCOSE_OPTIONS.quality).toBe("proof");
+    expect(FCOSE_OPTIONS.randomize).toBe(false);
+    expect(FCOSE_OPTIONS.animate).toBe(false);
+    // Variant 5 survivor flipped these to false; Variant 4 survivor changed
+    // the padding numbers -- both are direct properties of the extracted
+    // object now (not a separately-maintained copy), so either regression
+    // shows up here, and (because FCOSE_OPTIONS itself is what actually gets
+    // passed to cy.layout() below) also shows up as a factor swing in AC10.
+    expect(FCOSE_OPTIONS.packComponents).toBe(true);
+    expect(FCOSE_OPTIONS.tile).toBe(true);
+    expect(FCOSE_OPTIONS.tilingPaddingVertical).toBe(16);
+    expect(FCOSE_OPTIONS.tilingPaddingHorizontal).toBe(16);
+  });
+});
 
 const HEADLESS_STYLE = [{ selector: "node[d]", style: { width: "data(d)", height: "data(d)" } }];
 

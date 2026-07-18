@@ -79,6 +79,33 @@ function makeSandbox(): string {
     explains: [],
     stale: false,
   });
+  // Asymmetric classification signals (hardening round 2 — survivor: AC1's
+  // isTestConcept relaxed to drop the `fm.type === "Test"` disjunct, keeping
+  // only the tag check). Every other fixture in this suite sets BOTH `type:
+  // Test` AND a `test` tag together, so dropping either OR-branch was
+  // invisible. These two concepts exercise each signal alone.
+  writeConcept(bundleDir, "src/tools/typeonly.md", {
+    type: "Test", // type-only signal: no "test" tag present
+    title: "src/tools/typeonly.ts",
+    description: "classified test by type alone",
+    resource: "src/tools/typeonly.ts",
+    tags: ["src"],
+    enrichment: "none",
+    from: [],
+    explains: [],
+    stale: false,
+  });
+  writeConcept(bundleDir, "src/tools/tagonly.md", {
+    type: "Module", // tag-only signal: type is NOT "Test"
+    title: "src/tools/tagonly.ts",
+    description: "classified test by tag alone",
+    resource: "src/tools/tagonly.ts",
+    tags: ["src", "test"],
+    enrichment: "none",
+    from: [],
+    explains: [],
+    stale: false,
+  });
 
   return target;
 }
@@ -108,6 +135,21 @@ describe("path grouping + test flag (SPEC-004 AC1)", () => {
     // bucket under groupOf, same as any other 2-segment path — not "tests".
     const smoke = data.nodes.find((x: { id: string }) => x.id === "tests/smoke.ts");
     expect(smoke.group).toBe("src");
+  });
+
+  // AC1 (hardening round 2): each classification signal must independently
+  // suffice — dropping either OR-branch of isTestConcept is a real, plausible
+  // regression (survivor: "isTestConcept relaxed to drop `fm.type ===
+  // \"Test\"`, keeping only the `test` tag check") that every other fixture
+  // in this file was blind to, since they always set both signals together.
+  test("type-only test classification: type: Test with no 'test' tag is still classified test", () => {
+    const n = data.nodes.find((x: { id: string }) => x.id === "src/tools/typeonly.ts");
+    expect(n.test).toBe(true);
+  });
+
+  test("tag-only test classification: a 'test' tag with type !== Test is still classified test", () => {
+    const n = data.nodes.find((x: { id: string }) => x.id === "src/tools/tagonly.ts");
+    expect(n.test).toBe(true);
   });
 
   test("cleanup", () => {
