@@ -47,7 +47,7 @@ Plan: plan.md (Phase 3, awaiting human approval — last mandatory touchpoint)
 | 02-dense-fixture | 1 | done | 0 | c743291 (relocated round 1 content); 10/10 tests green in worktree |
 | 03-spike | 2 | done | 0 | judgment; look approved 2026-07-16; fcose mandatory (cose non-deterministic); ship patched-minified stack ~518KB; AC10 reframed to drift anchor ≤4.5 |
 | 04-data-model | 3 | done | 1 | 6bb6a36; minified vendor 488KB runs fcose (conductor-verified); 13/13 new tests; grep done-check had stray-space bug (brief error, documented) |
-| 05-template | 4 | running | 0 | judgment (opus); template rewrite; wf w/ expectedBranch guard |
+| 05-template | 4 | running | 0 | judgment (opus); 1st dispatch interrupted (process transition, uncommitted crash artifact reset + preserved); re-dispatched fresh 2026-07-18 |
 | 06-tests-hardening | 5 | pending | 0 | standard; testable; test-adversary N=3 after; brief authored |
 
 ## Spike checkpoint (2026-07-16, opus tier)
