@@ -467,6 +467,52 @@ process.on("exit", () => {
   for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true });
 });
 
+describe("SPEC-005 AC5: a folded concept's semantic type survives refresh (pins reclassifyType's existing preserve behavior)", () => {
+  test("test_ac5_semantic_type_survives_refresh_for_changed_resource", async () => {
+    const dir = freshRepoCopy();
+    await buildInitialBundle(dir);
+    const alphaPathMd = join(dir, "docs/asbuilt/src/alpha.md");
+    const poisoned = readFileSync(alphaPathMd, "utf8").replace("type: Module", "type: Service");
+    expect(poisoned).toContain("type: Service"); // surgery guard
+    writeFileSync(alphaPathMd, poisoned);
+
+    // alpha.ts's own body changes (same-line edit, mirrors the AC4 test
+    // above) so alpha.md is a commonFiles member whose frontmatter gets
+    // rewritten via the graph_hash bump even though its rendered machine
+    // zone doesn't change.
+    const alphaTsPath = join(dir, "src/alpha.ts");
+    writeFileSync(alphaTsPath, readFileSync(alphaTsPath, "utf8").replace("x * 2", "x * 9"));
+    gitCommit(dir, "mutate helper", ["-a"]);
+
+    await refresh({ targetRepo: dir, date: "2026-07-19" });
+
+    const fm = frontmatterOf(readFileSync(alphaPathMd, "utf8"));
+    expect(fm.type).toBe("Service"); // survives refresh of its own (changed) resource
+  });
+
+  test("test_ac5_semantic_type_survives_refresh_for_unchanged_resource", async () => {
+    const dir = freshRepoCopy();
+    await buildInitialBundle(dir);
+    const alphaPathMd = join(dir, "docs/asbuilt/src/alpha.md");
+    const poisoned = readFileSync(alphaPathMd, "utf8").replace("type: Module", "type: Service");
+    expect(poisoned).toContain("type: Service"); // surgery guard
+    writeFileSync(alphaPathMd, poisoned);
+
+    // alpha.ts itself is untouched; a DIFFERENT file changes so the manifest
+    // hash moves and alpha.md's frontmatter still gets rewritten (graph_hash
+    // bump) even though nothing about alpha.ts's own resource drifted.
+    const betaTsPath = join(dir, "src/beta.ts");
+    writeFileSync(betaTsPath, `${readFileSync(betaTsPath, "utf8")}\nexport const spec005ac5 = 5;\n`);
+    gitCommit(dir, "unrelated change", ["-a"]);
+
+    const result = await refresh({ targetRepo: dir, date: "2026-07-19" });
+    expect(result.regenerated).not.toContain("src/alpha.md"); // alpha's own machine zone is untouched
+
+    const fm = frontmatterOf(readFileSync(alphaPathMd, "utf8"));
+    expect(fm.type).toBe("Service"); // survives even a graph_hash-only touch
+  });
+});
+
 describe("SPEC-055: refresh clears exhausted changed: flags (claw-dkxq)", () => {
   /** Enrich alpha.md via fold, poison its stale fields to the given values,
    * then touch an unrelated file so the manifest hash moves (defeating the

@@ -511,6 +511,428 @@ describe("claw-nybt: explains dead-id reconciliation", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// SPEC-005: suggested_type application (task 01-fold-suggested-type).
+//
+// These tests use hand-authored evidence/artifact YAML written directly into
+// a freshBundle() temp dir (same idiom as the "bundle-dir-prefixed concept
+// paths" test above) rather than the checked-in fixtures/evidence/*.yml
+// fixtures, which predate the `suggested_type` field. AC3 is the one
+// exception: it deliberately reuses the existing pass-evidence.yml/
+// pass-artifact.yml fixture pair (no suggested_type field) to prove absent-
+// field backward compatibility.
+// ---------------------------------------------------------------------------
+
+/** Writes a minimal evidence.yml + artifact.yml pair into `dir` and returns the evidence path fold() should be given. `draftsYaml` is the raw YAML body under `enrichment_drafts:` (each `- concept: ...` entry, including any `suggested_type` line, fully formatted by the caller). */
+function writeSuggestedTypeEvidence(dir: string, specId: string, draftsYaml: string): string {
+  const artifactPath = join(dir, `artifact-${specId}.yml`);
+  const evidencePath = join(dir, `evidence-${specId}.yml`);
+  writeFileSync(artifactPath, `comprehension_entries: []\nenrichment_drafts:\n${draftsYaml}`);
+  writeFileSync(
+    evidencePath,
+    ["result: pass", "mechanical:", "  blocking: false", `spec_id: ${specId}`, "generator:", `  artifact: artifact-${specId}.yml`, ""].join(
+      "\n",
+    ),
+  );
+  return evidencePath;
+}
+
+/** Top-level frontmatter key names, in the order they appear in `raw`'s frontmatter block (SPEC-049 field order check). */
+function fieldOrderOf(raw: string): string[] {
+  const match = raw.match(/^---\n([\s\S]*?)\n---\n/);
+  expect(match).not.toBeNull();
+  const block = match?.[1] ?? "";
+  return block
+    .split("\n")
+    .filter((l) => /^[a-zA-Z_]+:/.test(l))
+    .map((l) => l.split(":")[0] ?? "");
+}
+
+const SPEC049_FIELD_ORDER = ["type", "title", "description", "resource", "tags", "enrichment", "from", "explains", "stale", "stale_reason", "graph_hash"];
+
+describe("SPEC-005 AC1: fold applies suggested_type over the mechanical Module default", () => {
+  test("test_ac1_fold_applies_suggested_type_and_preserves_field_order", () => {
+    const dir = freshBundle();
+    const evidencePath = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC1",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "chose repeat(2) for determinism"',
+        '    suggested_type: "Service"',
+        "",
+      ].join("\n"),
+    );
+
+    const result = fold({
+      evidencePath,
+      targetRepo: dir,
+      specId: "SPEC-005-AC1",
+      provenance: "fully-audited",
+      date: "2026-07-19",
+    });
+
+    const alpha = readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8");
+    const fm = frontmatterOf(alpha);
+    expect(fm.type).toBe("Service");
+    expect(fieldOrderOf(alpha)).toEqual(SPEC049_FIELD_ORDER);
+
+    expect(result.typeCounts?.applied).toBe(1);
+    expect(result.typeCounts?.preserved).toBe(0);
+  });
+});
+
+describe("SPEC-005 AC2: first-semantic-wins — an existing semantic type is preserved, not overwritten", () => {
+  test("test_ac2_fold_preserves_existing_semantic_type_and_counts_preserved", () => {
+    const dir = freshBundle();
+
+    const ev1 = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC2A",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "first pass establishes a semantic type"',
+        '    suggested_type: "Model"',
+        "",
+      ].join("\n"),
+    );
+    const r1 = fold({ evidencePath: ev1, targetRepo: dir, specId: "SPEC-005-AC2A", provenance: "fully-audited", date: "2026-07-19" });
+    expect(frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8")).type).toBe("Model");
+    expect(r1.typeCounts?.applied).toBe(1);
+
+    // A later, different spec's draft carries a DIFFERENT suggested_type for the same concept.
+    const ev2 = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC2B",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "second pass, later spec, different suggestion"',
+        '    suggested_type: "Service"',
+        "",
+      ].join("\n"),
+    );
+    const r2 = fold({ evidencePath: ev2, targetRepo: dir, specId: "SPEC-005-AC2B", provenance: "fully-audited", date: "2026-07-19" });
+
+    const fm = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(fm.type).toBe("Model"); // first-semantic-wins: never overwritten to "Service"
+    expect(r2.typeCounts?.preserved).toBe(1);
+    expect(r2.typeCounts?.applied).toBe(0);
+  });
+});
+
+describe("SPEC-005 AC3: absent suggested_type folds byte-identically to today's mechanical path", () => {
+  test("test_ac3_fold_byte_identical_when_suggested_type_absent", () => {
+    const dirA = freshBundle();
+    const dirB = freshBundle();
+    const baseOpts = {
+      evidencePath: ev("pass-evidence.yml"), // pass-artifact.yml has no suggested_type field at all
+      specId: "SPEC-TEST",
+      provenance: "fully-audited" as const,
+      date: "2026-07-04",
+    };
+
+    const resultA = fold({ ...baseOpts, targetRepo: dirA });
+    const resultB = fold({ ...baseOpts, targetRepo: dirB });
+
+    // The load-bearing proof: two independent runs of the real pipeline over
+    // the same absent-field inputs land byte-identical bundles — the feature
+    // introduces zero drift when the field is absent.
+    expect(hashBundle(dirA)).toBe(hashBundle(dirB));
+
+    const alphaFm = frontmatterOf(readFileSync(join(dirA, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(alphaFm.type).toBe("Module"); // mechanical default, undisturbed
+
+    expect(resultA.typeCounts?.applied).toBe(0);
+    expect(resultA.typeCounts?.preserved).toBe(0);
+    expect(resultA.typeCounts?.skipped).toBe(0);
+    expect(resultA.typeCounts?.skippedInvalid).toBe(0);
+  });
+
+  // Hardening (round 2, test-adversary survivor "v1-ac3-fold"): the AC3
+  // absent-suggested_type path must stay on the MECHANICAL reclassifyType
+  // path (which preserves any already-established semantic type), not the
+  // filename-only conceptType() classifier. Every prior AC3/AC2 fixture only
+  // ever re-folded a concept still at the mechanical Module default, so a
+  // buggy implementation returning conceptType(resource) instead of
+  // reclassifyType(existingType, resource) for the undefined-field branch
+  // agreed with the correct one everywhere the old suite looked. This test
+  // forces the divergence: fold once to ESTABLISH a semantic type via
+  // suggested_type, then fold again with a draft whose suggested_type field
+  // is genuinely absent (not "", not "Module" — the key itself is missing).
+  test("test_ac3_second_fold_with_no_suggested_type_field_preserves_a_previously_applied_semantic_type", () => {
+    const dir = freshBundle();
+
+    const ev1 = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC3B-1",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "first pass establishes a semantic type"',
+        '    suggested_type: "Service"',
+        "",
+      ].join("\n"),
+    );
+    fold({ evidencePath: ev1, targetRepo: dir, specId: "SPEC-005-AC3B-1", provenance: "fully-audited", date: "2026-07-19" });
+    expect(frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8")).type).toBe("Service"); // guard: first fold applied
+
+    // Second fold, a DIFFERENT spec, whose draft carries NO suggested_type
+    // key at all — the genuine AC3 absent-field case.
+    const ev2 = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC3B-2",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "second pass, later spec, no suggested_type field at all"',
+        "",
+      ].join("\n"),
+    );
+    const result = fold({ evidencePath: ev2, targetRepo: dir, specId: "SPEC-005-AC3B-2", provenance: "fully-audited", date: "2026-07-19" });
+
+    const fm = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(fm.type).toBe("Service"); // AC3: absent suggested_type must never disturb an established semantic type
+    expect(result.typeCounts?.applied).toBe(0);
+    expect(result.typeCounts?.preserved).toBe(0);
+    expect(result.typeCounts?.skipped).toBe(0);
+    expect(result.typeCounts?.skippedInvalid).toBe(0);
+  });
+});
+
+describe("SPEC-005 AC4: a test-classified resource keeps Test and ignores any suggestion", () => {
+  test("test_ac4_fold_test_classified_resource_keeps_test_and_ignores_suggestion", () => {
+    const dir = freshBundle();
+    const bundleDir = join(dir, "docs/asbuilt");
+    const conceptRelPath = "src/foo.test.md";
+    const conceptAbsPath = join(bundleDir, conceptRelPath);
+    writeFileSync(
+      conceptAbsPath,
+      [
+        "---",
+        "type: Test",
+        "title: src/foo.test.ts",
+        "description: synthetic test-classified fixture for AC4",
+        "resource: src/foo.test.ts",
+        "tags:",
+        "  - src",
+        "  - module",
+        "  - test",
+        "enrichment: none",
+        "from: []",
+        "explains: []",
+        "stale: false",
+        'stale_reason: ""',
+        'graph_hash: ""',
+        "---",
+        "",
+        "# Structure",
+        "",
+        "no symbols.",
+        "",
+      ].join("\n"),
+    );
+
+    const evidencePath = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC4",
+      [
+        `  - concept: ${conceptRelPath}`,
+        '    explanation: "Covers the test-classified resource."',
+        '    decisions: "n/a"',
+        '    suggested_type: "Service"',
+        "",
+      ].join("\n"),
+    );
+
+    const result = fold({ evidencePath, targetRepo: dir, specId: "SPEC-005-AC4", provenance: "fully-audited", date: "2026-07-19" });
+
+    const fm = frontmatterOf(readFileSync(conceptAbsPath, "utf8"));
+    expect(fm.type).toBe("Test"); // machine-owned; a suggestion never overrides test classification
+    expect(result.typeCounts?.skipped).toBe(1);
+    expect(result.typeCounts?.applied).toBe(0);
+  });
+
+  // Hardening (round 2, test-adversary survivor "AC4 fold.ts variant"):
+  // test-ownership must be derived from the resource's FILENAME pattern
+  // (conceptType(resource)), never from whatever the concept's CURRENT
+  // frontmatter `type` happens to read. The suite's only prior AC4 fixture
+  // hand-wrote `type: Test` already in frontmatter before folding, so a
+  // buggy implementation checking `existingType === "Test"` instead of
+  // `conceptType(resource) === "Test"` produced an identical outcome there.
+  // This fixture starts a test-pattern-filename concept at the mechanical
+  // "Module" default (simulating a drifted/not-yet-classified bundle) to
+  // force the two checks to diverge.
+  test("test_ac4_fold_test_classified_resource_by_filename_stays_test_even_when_frontmatter_type_is_still_module", () => {
+    const dir = freshBundle();
+    const bundleDir = join(dir, "docs/asbuilt");
+    const conceptRelPath = "src/bar.test.md";
+    const conceptAbsPath = join(bundleDir, conceptRelPath);
+    writeFileSync(
+      conceptAbsPath,
+      [
+        "---",
+        "type: Module",
+        "title: src/bar.test.ts",
+        "description: synthetic drifted test-classified fixture for AC4",
+        "resource: src/bar.test.ts",
+        "tags:",
+        "  - src",
+        "  - module",
+        "  - test",
+        "enrichment: none",
+        "from: []",
+        "explains: []",
+        "stale: false",
+        'stale_reason: ""',
+        'graph_hash: ""',
+        "---",
+        "",
+        "# Structure",
+        "",
+        "no symbols.",
+        "",
+      ].join("\n"),
+    );
+
+    const evidencePath = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC4B",
+      [
+        `  - concept: ${conceptRelPath}`,
+        '    explanation: "Covers the drifted test-classified resource."',
+        '    decisions: "n/a"',
+        '    suggested_type: "Service"',
+        "",
+      ].join("\n"),
+    );
+
+    const result = fold({ evidencePath, targetRepo: dir, specId: "SPEC-005-AC4B", provenance: "fully-audited", date: "2026-07-19" });
+
+    const fm = frontmatterOf(readFileSync(conceptAbsPath, "utf8"));
+    // The filename pattern (src/bar.test.ts) makes this Test-owned
+    // regardless of the currently-drifted "Module" frontmatter — a
+    // suggestion must never win here.
+    expect(fm.type).toBe("Test");
+    expect(result.typeCounts?.skipped).toBe(1);
+    expect(result.typeCounts?.applied).toBe(0);
+  });
+});
+
+describe("SPEC-005 AC9a: a literal Module/Test suggestion is a no-op, counted skipped", () => {
+  test("test_ac9a_fold_literal_module_suggestion_is_noop_and_counted_skipped", () => {
+    const dir = freshBundle();
+    const evidencePath = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC9A-M",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "n/a"',
+        '    suggested_type: "Module"',
+        "",
+      ].join("\n"),
+    );
+
+    const result = fold({ evidencePath, targetRepo: dir, specId: "SPEC-005-AC9A-M", provenance: "fully-audited", date: "2026-07-19" });
+
+    const fm = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(fm.type).toBe("Module");
+    expect(result.typeCounts?.skipped).toBe(1);
+    expect(result.typeCounts?.applied).toBe(0);
+  });
+
+  test("test_ac9a_fold_literal_test_suggestion_does_not_force_test_on_non_test_resource", () => {
+    // The trap this AC guards against: a naive "field present -> apply it"
+    // implementation would flip a non-test file's type to "Test". Treated as
+    // absent, it must fall through to the MECHANICAL default for this
+    // (non-test) resource — "Module" — not "Test".
+    const dir = freshBundle();
+    const evidencePath = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC9A-T",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "n/a"',
+        '    suggested_type: "Test"',
+        "",
+      ].join("\n"),
+    );
+
+    const result = fold({ evidencePath, targetRepo: dir, specId: "SPEC-005-AC9A-T", provenance: "fully-audited", date: "2026-07-19" });
+
+    const fm = frontmatterOf(readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8"));
+    expect(fm.type).toBe("Module");
+    expect(result.typeCounts?.skipped).toBe(1);
+  });
+});
+
+describe("SPEC-005 AC9 (fold half): malformed suggested_type values are treated as absent, never written, and never abort sibling drafts", () => {
+  test("test_ac9_fold_malformed_suggestions_skipped_invalid_and_siblings_still_apply", () => {
+    const dir = freshBundle();
+    const evidencePath = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC9F",
+      [
+        "  - concept: src/alpha.md",
+        '    explanation: "Alpha module orchestrates gamma doubling."',
+        '    decisions: "n/a"',
+        '    suggested_type: ""',
+        "  - concept: src/beta.md",
+        '    explanation: "Beta module adapts raw input for alpha by trimming it first."',
+        '    decisions: "n/a"',
+        '    suggested_type: "ZZZMALFORMEDMULTILINEZZZ\\nEvil"',
+        "  - concept: src/util/gamma.md",
+        '    explanation: "Gamma is the low-level string-doubling primitive alpha depends on."',
+        '    decisions: "n/a"',
+        '    suggested_type: "Migration"',
+        "",
+      ].join("\n"),
+    );
+
+    let result: ReturnType<typeof fold> | undefined;
+    expect(() => {
+      result = fold({ evidencePath, targetRepo: dir, specId: "SPEC-005-AC9F", provenance: "fully-audited", date: "2026-07-19" });
+    }).not.toThrow(); // one malformed draft field must not abort applying the others
+
+    const alpha = readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8");
+    const beta = readFileSync(join(dir, "docs/asbuilt/src/beta.md"), "utf8");
+    const gamma = readFileSync(join(dir, "docs/asbuilt/src/util/gamma.md"), "utf8");
+
+    expect(frontmatterOf(alpha).type).toBe("Module"); // empty string -> treated as absent
+    expect(frontmatterOf(beta).type).toBe("Module"); // multi-line -> treated as absent
+    expect(frontmatterOf(gamma).type).toBe("Migration"); // sibling with a well-formed novel type still applies (open vocabulary)
+
+    // Malformed values must never reach a written file.
+    expect(beta).not.toContain("ZZZMALFORMEDMULTILINEZZZ");
+    expect(beta).not.toContain("Evil");
+
+    expect(result?.typeCounts?.skippedInvalid).toBe(2);
+    expect(result?.typeCounts?.applied).toBe(1);
+  });
+
+  test("test_ac9_fold_non_string_suggested_type_treated_as_absent_and_never_written", () => {
+    const dir = freshBundle();
+    const evidencePath = writeSuggestedTypeEvidence(
+      dir,
+      "SPEC-005-AC9N",
+      ["  - concept: src/alpha.md", '    explanation: "Alpha module orchestrates gamma doubling."', '    decisions: "n/a"', "    suggested_type: 424242", ""].join(
+        "\n",
+      ),
+    );
+
+    const result = fold({ evidencePath, targetRepo: dir, specId: "SPEC-005-AC9N", provenance: "fully-audited", date: "2026-07-19" });
+
+    const alpha = readFileSync(join(dir, "docs/asbuilt/src/alpha.md"), "utf8");
+    expect(frontmatterOf(alpha).type).toBe("Module");
+    expect(alpha).not.toContain("424242");
+    expect(result.typeCounts?.skippedInvalid).toBe(1);
+  });
+});
+
 // Cleanup after the whole suite has read everything it needs.
 process.on("exit", () => {
   for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true });

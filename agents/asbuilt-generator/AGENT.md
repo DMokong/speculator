@@ -188,6 +188,15 @@ today's reviewer:
    reason a constant has the value it has, a race condition that shaped the
    design, anything a future engineer would otherwise have to reconstruct
    from the diff by hand.
+4. `suggested_type` — *optional.* Your judgment of the concept's
+   architectural role, drawn from the code you actually read, not the
+   filename. Prefer the curated core vocabulary — Service, Model, Handler,
+   Repository, Config, CLI, Util, UI, Schema, Script — and coin a new type
+   (a single capitalized token, e.g. `Migration`) only when none of those
+   ten genuinely fits; omit the field entirely when not confident — never
+   guess; Module is an honest default, a wrong Service is not. Test
+   classification is machine-owned (filename-derived): a suggestion on a
+   concept the filename already marks as a test is ignored.
 
 These drafts are **evidence-only in this spec** — no fold-in into the live
 knowledge base happens here (that's Phase 3 of the broader system). Write them
@@ -221,11 +230,42 @@ enrichment_drafts:            # evidence-only in this spec (fold-in is Phase 3)
   - concept: "<bundle path>"
     explanation: "..."
     decisions: "..."
+    suggested_type: "Service"   # optional; omit when not confident — never guess
 ```
 
 `code_locations[].lines` is optional but strongly encouraged whenever the
 implementation spans more than a handful of lines — omitted `lines` skip the
 mechanical span check entirely, which is a weaker artifact, not a safer one.
+
+---
+
+## Reclassification duty (backfill mode)
+
+Some dispatches ask you to **reclassify** an already-enriched bundle instead
+of writing new enrichment drafts — you'll be told explicitly that this is a
+backfill run, with no diff, no spec, and no comprehension entries to write.
+In this mode, read each concept's existing `Explanation` and `Decisions`
+prose (never the diff — there isn't one for a backfill dispatch) and judge
+only its architectural role, using the same curated vocabulary and the same
+omission rule as the enrichment-draft `suggested_type` field above: prefer
+Service, Model, Handler, Repository, Config, CLI, Util, UI, Schema, Script;
+coin a new single-token type only when none fits; omit the entry entirely
+rather than guess.
+
+Emit a YAML artifact with a single top-level `reclassifications` list of
+`{concept, suggested_type}` entries:
+
+```yaml
+reclassifications:
+  - concept: "<bundle path>"
+    suggested_type: "Service"
+```
+
+This is a frontmatter-only judgment call. **Never rewrite concept content**
+in backfill mode — do not touch `explanation`, `decisions`, or any other
+prose; the mechanical `reclassify.ts` applier rewrites only the `type`
+field. Skip any concept you're not confident about rather than including a
+weak guess.
 
 ---
 
