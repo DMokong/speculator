@@ -11,6 +11,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CLI_USAGE, buildViz } from "../src/viz";
+// Namespace import (not a named import) for the not-yet-implemented C1
+// round-trip guard export — a *named* import of a symbol the module doesn't
+// export yet throws a link-time SyntaxError in bun/ESM and poisons every
+// other test in this file. The namespace object always resolves; the
+// individual guard tests below fail cleanly (typeof check) instead.
+import * as vizModule from "../src/viz";
 
 const ASBUILT_ROOT = new URL("..", import.meta.url).pathname;
 
@@ -98,6 +104,7 @@ interface EmbeddedNode {
   group: string;
   test: boolean;
   enrichment: string;
+  description: string;
   explanation: string;
   decisions: string[];
 }
@@ -310,6 +317,158 @@ describe("CLI: bun src/viz.ts (AC7 entry-guard behavior)", () => {
     } finally {
       rmSync(target, { recursive: true, force: true });
       rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// PR #2 review finding C1 (Critical), task 08-interp-dollar: buildViz
+// interpolates the bundle JSON and project name via `.replace`/`.replaceAll`
+// with a *string* replacement argument, so `$$`, `$&`, `` $` ``, `$'` in
+// realistic concept prose (sed/regex/shell/Makefile docs) trigger JS's
+// special replacement-pattern substitution and silently corrupt the
+// embedded data or the __PROJECT__ title/heading text — with exit code 0.
+// These tests must fail against the unfixed `.replace(x, str)` /
+// `.replaceAll(x, str)` calls and pass once the fix uses a function
+// replacer or split/join (either satisfies the brief).
+describe("$-substitution corruption regression (C1, claw-04ku PR #2 review)", () => {
+  // Realistic prose containing all four JS replacement-pattern hazards:
+  // $$ (escaped $), $& (whole match), $` (pre-match), $' (post-match).
+  const HAZARD_DESCRIPTION =
+    "Uses $$ for the shell's own pipe PID, $& to reuse the whole sed match, $` for backtick command substitution, and $' for ANSI-C quoting.";
+
+  function makeHazardDescriptionSandbox(): string {
+    const target = mkdtempSync(join(tmpdir(), "viz-hazard-desc-"));
+    const bundleDir = join(target, "docs", "asbuilt");
+    mkdirSync(bundleDir, { recursive: true });
+    writeFileSync(
+      join(bundleDir, ".graph-manifest.json"),
+      JSON.stringify({ target_commit: "haz0001", symbols: [], edges: [] }),
+    );
+    writeConcept(bundleDir, "src/shell-doc.md", {
+      type: "Module",
+      title: "src/shell-doc.ts",
+      description: HAZARD_DESCRIPTION,
+      resource: "src/shell-doc.ts",
+      tags: ["src"],
+      enrichment: "none",
+      from: [],
+      explains: [],
+      stale: false,
+    });
+    return target;
+  }
+
+  // C1 (bullet 1): a concept description containing all four hazard
+  // sequences must round-trip byte-identically through the embedded JSON.
+  // Against unfixed code this is expected to fail loudly at JSON.parse
+  // (the `` $` `` case splices the ~preceding template/vendor bytes into
+  // the JSON, breaking its structure) rather than as a quiet mismatch —
+  // that IS the corruption the brief describes, not a harness problem.
+  test("C1: a description containing $$, $&, $`, $' round-trips byte-identically through the embedded JSON", () => {
+    const target = makeHazardDescriptionSandbox();
+    try {
+      const result = buildViz(target, "2026-07-18");
+      const data = embeddedData(result.html);
+      const node = data.nodes.find((n) => n.id === "src/shell-doc.ts");
+      expect(node?.description).toBe(HAZARD_DESCRIPTION);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  // C1 (bullet 2): a targetRepo basename containing `$&` must interpolate
+  // literally into __PROJECT__ occurrences (title/h1), never as a
+  // match-substitution. Built from a temp dir per the existing pattern
+  // (mkdtempSync + a manually-named child dir, so the final path segment —
+  // i.e. `basename(targetRepo)` — is exactly the hazardous string).
+  test("C1: a targetRepo basename containing $& interpolates literally into __PROJECT__, not as a match-substitution", () => {
+    const parent = mkdtempSync(join(tmpdir(), "viz-hazard-project-"));
+    const target = join(parent, "proj-$&-name");
+    try {
+      const bundleDir = join(target, "docs", "asbuilt");
+      mkdirSync(bundleDir, { recursive: true });
+      writeFileSync(
+        join(bundleDir, ".graph-manifest.json"),
+        JSON.stringify({ target_commit: "haz0002", symbols: [], edges: [] }),
+      );
+      writeConcept(bundleDir, "src/plain.md", {
+        type: "Module",
+        title: "src/plain.ts",
+        description: "no hazards here",
+        resource: "src/plain.ts",
+        tags: ["src"],
+        enrichment: "none",
+        from: [],
+        explains: [],
+        stale: false,
+      });
+
+      const result = buildViz(target, "2026-07-18");
+      // Unfixed: `.replaceAll("__PROJECT__", "proj-$&-name")` treats "$&"
+      // inside the replacement string as "insert the matched text", so the
+      // literal "$&" gets swapped for "__PROJECT__" itself — the title
+      // becomes "proj-__PROJECT__-name" instead of "proj-$&-name".
+      expect(result.html).toContain("<title>proj-$&-name — As-Built Knowledge Graph</title>");
+      expect(result.html).toContain("<h1>proj-$&-name — <em>as-built</em> knowledge graph</h1>");
+      expect(result.html).not.toContain("__PROJECT__"); // placeholder fully replaced, not reintroduced
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+});
+
+// C1 (bullet 3): the build-time round-trip guard. buildViz must re-extract
+// the <script id="asbuilt-data" type="application/json"> region from its
+// own produced html and JSON.parse it, throwing an Error (nonzero CLI exit)
+// if extraction/parse fails or the parsed object lacks meta/elements — the
+// invariant that makes silent corruption impossible regardless of future
+// interpolation bugs.
+//
+// Contract assumed here (test-author choice; a mechanical rename by the
+// implementer is expected to be fine per the brief's file-scope note):
+// viz.ts exports `assertDataRoundTrip(html: string): void`, throwing on
+// failure and returning normally on success.
+describe("round-trip corruption guard (C1 build-time invariant)", () => {
+  function guard(): (html: string) => void {
+    const fn = (vizModule as unknown as { assertDataRoundTrip?: (html: string) => void }).assertDataRoundTrip;
+    // Fails here, cleanly, pre-implementation — "expected function, got
+    // undefined" is the genuine-absence signal, not a masked import error.
+    expect(typeof fn).toBe("function");
+    return fn as (html: string) => void;
+  }
+
+  test("C1: throws when the asbuilt-data script tag is missing entirely", () => {
+    const assertDataRoundTrip = guard();
+    const html = "<html><body>no data tag here</body></html>";
+    expect(() => assertDataRoundTrip(html)).toThrow();
+  });
+
+  test("C1: throws when the data region contains invalid JSON", () => {
+    const assertDataRoundTrip = guard();
+    const html = `<script id="asbuilt-data" type="application/json">{not: valid json,,,</script>`;
+    expect(() => assertDataRoundTrip(html)).toThrow();
+  });
+
+  test("C1: throws when the parsed data is valid JSON but lacks meta/elements", () => {
+    const assertDataRoundTrip = guard();
+    const html = `<script id="asbuilt-data" type="application/json">{"foo":"bar"}</script>`;
+    expect(() => assertDataRoundTrip(html)).toThrow();
+  });
+
+  test("C1: does not throw for a well-formed data region containing meta and elements", () => {
+    const assertDataRoundTrip = guard();
+    const html = `<script id="asbuilt-data" type="application/json">{"meta":{},"elements":[]}</script>`;
+    expect(() => assertDataRoundTrip(html)).not.toThrow();
+  });
+
+  test("C1: buildViz's own real output always satisfies the round-trip guard", () => {
+    const target = makeSandbox();
+    try {
+      const result = buildViz(target, "2026-07-18");
+      const assertDataRoundTrip = guard();
+      expect(() => assertDataRoundTrip(result.html)).not.toThrow();
+    } finally {
+      rmSync(target, { recursive: true, force: true });
     }
   });
 });

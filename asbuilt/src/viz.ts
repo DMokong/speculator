@@ -128,21 +128,28 @@ export interface VizLink {
 }
 
 /** Cytoscape.js element: a compound-parent (`dir:${group}`), a child node, or
- * an edge. Field presence varies by kind — parents carry only id/label, child
- * nodes add parent/label/test/d + a state class, edges add source/target/w. */
-export interface CyElement {
-  data: {
-    id: string;
-    parent?: string;
-    label?: string;
-    test?: boolean;
-    d?: number;
-    source?: string;
-    target?: string;
-    w?: number;
-  };
+ * an edge — three distinct shapes, not one interface with everything
+ * optional. Parents carry only id/label (no classes, no parent). Child nodes
+ * add parent/label/test/d and always carry a state class (`classes` is
+ * required — every child gets skeleton/accuracy/full, optionally " test").
+ * Edges add source/target/w and their own deterministic id; they never carry
+ * `classes` today (kept optional — see toElements — the client only styles
+ * edges via `[source]`/`[target]` selectors, not classes). */
+export interface CyParentElement {
+  data: { id: string; label: string };
+}
+
+export interface CyChildElement {
+  data: { id: string; parent: string; label: string; test: boolean; d: number };
+  classes: string;
+}
+
+export interface CyEdgeElement {
+  data: { id: string; source: string; target: string; w: number };
   classes?: string;
 }
+
+export type CyElement = CyParentElement | CyChildElement | CyEdgeElement;
 
 /** Mirrors the template's client-side `stateOf` (viz-template.html) so the
  * embedded elements carry the same skeleton/accuracy/full classification the
@@ -157,11 +164,11 @@ function stateOf(enrichment: string): string {
  * across identical inputs (SPEC-004 T04). */
 export function toElements(nodes: VizConceptNode[], links: VizLink[]): CyElement[] {
   const groups = [...new Set(nodes.map((n) => n.group))].sort();
-  const parents: CyElement[] = groups.map((group) => ({
+  const parents: CyParentElement[] = groups.map((group) => ({
     data: { id: `dir:${group}`, label: group },
   }));
 
-  const childNodes: CyElement[] = [...nodes]
+  const childNodes: CyChildElement[] = [...nodes]
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     .map((n) => ({
       data: {
@@ -174,7 +181,7 @@ export function toElements(nodes: VizConceptNode[], links: VizLink[]): CyElement
       classes: stateOf(n.enrichment) + (n.test ? " test" : ""),
     }));
 
-  const edges: CyElement[] = [...links]
+  const edges: CyEdgeElement[] = [...links]
     .sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : a.target < b.target ? -1 : a.target > b.target ? 1 : 0))
     .map((l) => ({
       data: { id: `${l.source}->${l.target}`, source: l.source, target: l.target, w: l.w },
@@ -195,8 +202,9 @@ const VENDOR_PLACEHOLDERS: [placeholder: string, name: string, file: string][] =
  * byte-compares those regions against `asbuilt/vendor/`). Uses split/join,
  * never `String.replace` — minified vendor code contains `$`-sequences
  * (e.g. `$&`) that `String.replace`'s special replacement-pattern handling
- * would corrupt. A no-op (byte-identical return) when no placeholders are
- * present, which is the case for the current template until T05 lands. */
+ * would corrupt. The template carries all four placeholders and inlining is
+ * active; the vendor-provenance tests byte-compare each inlined region
+ * against `asbuilt/vendor/`. */
 export function inlineVendor(template: string): string {
   let out = template;
   for (const [placeholder, name, file] of VENDOR_PLACEHOLDERS) {
@@ -214,6 +222,41 @@ export interface VizResult {
   audited: number;
   fileLinks: number;
   resolvedEdges: number;
+}
+
+/** Re-extracts the `<script id="asbuilt-data" type="application/json">…</script>`
+ * region from a built visualize sheet and `JSON.parse`s it, throwing if the
+ * tag is missing, the content fails to parse, or the parsed object lacks
+ * `meta`/`elements`. When `expected` is given, additionally requires the
+ * re-parsed data to re-stringify byte-identically to the source object —
+ * only with that check does the guard catch interpolation bugs that yield
+ * valid-but-wrong JSON. `buildViz` calls this immediately after
+ * interpolation, passing `expected`, so no interpolation bug can ship a
+ * silently corrupted artifact with exit code 0 (PR #2 review C1). Two
+ * stringify-sized passes, no clock reads, no randomness — cheap and
+ * deterministic. */
+export function assertDataRoundTrip(html: string, expected?: unknown): void {
+  const m = html.match(/<script id="asbuilt-data" type="application\/json">([\s\S]*?)<\/script>/);
+  if (!m) throw new Error("assertDataRoundTrip: <script id=\"asbuilt-data\"> region not found in built html");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(m[1] as string);
+  } catch (err) {
+    throw new Error(`assertDataRoundTrip: embedded data failed JSON.parse: ${(err as Error).message}`);
+  }
+  if (
+    parsed === null ||
+    typeof parsed !== "object" ||
+    !("meta" in parsed) ||
+    !("elements" in parsed)
+  ) {
+    throw new Error("assertDataRoundTrip: parsed data is missing meta/elements");
+  }
+  if (expected !== undefined && JSON.stringify(parsed) !== JSON.stringify(expected)) {
+    throw new Error(
+      "assertDataRoundTrip: embedded data does not round-trip byte-identically to the source bundle data",
+    );
+  }
 }
 
 /** Build the visualize sheet from a bundle + manifest. Pure function of the
@@ -318,7 +361,19 @@ export function buildViz(targetRepo: string, date: string): VizResult {
   const template = readFileSync(new URL("viz-template.html", import.meta.url).pathname, "utf8");
   const withVendor = inlineVendor(template);
   const json = JSON.stringify(data).replace(/<\//g, "<\\/");
-  const html = withVendor.replaceAll("__PROJECT__", basename(targetRepo)).replace("__ASBUILT_DATA__", json);
+  const projectName = basename(targetRepo);
+  // Split/join, never `String.replace`/`replaceAll` with a string argument:
+  // the latter treats `$$`, `$&`, `` $` ``, `$'` inside the replacement
+  // string as substitution patterns, so bundle JSON or a project name
+  // containing those sequences would otherwise silently corrupt the
+  // embedded data (PR #2 review C1). Same convention `inlineVendor` already
+  // uses for vendor code, applied here to the data/project placeholders.
+  const html = withVendor.split("__PROJECT__").join(projectName).split("__ASBUILT_DATA__").join(json);
+  // Build-time invariant: buildViz can never emit a broken artifact with
+  // exit code 0, regardless of future interpolation bugs (PR #2 review C1).
+  // Passing `data` upgrades the guard from parse-level to a byte-identical
+  // content round-trip (blinded-review finding, 2026-07-18).
+  assertDataRoundTrip(html, data);
   return {
     html,
     concepts: nodes.length,

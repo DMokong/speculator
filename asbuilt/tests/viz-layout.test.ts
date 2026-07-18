@@ -35,42 +35,86 @@ function buildDenseElements(): EmbeddedData {
   }
 }
 
-/** Template's client-side FNV hash (viz-template.html `hash()`) -- reproduced
- * here so the seed fed to fcose matches production exactly. The seed is a
- * stable starting point; fcose (randomize:false) is what must reproduce
- * from it, not the seed itself. */
-function hash(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+/** Template's client-side seed-position formula (the FNV `hash()` plus the
+ * population-scaled ring-anchor scatter it feeds) -- extracted directly from
+ * the SHIPPED `asbuilt/src/viz-template.html` at test time, the same
+ * treatment Gate 2b round 1 gave `extractProductionFcoseOptions()` below: a
+ * hand-copied duplicate of this block would measure the test's own physics
+ * rather than the shipped code, so drift in the template's seed formula
+ * would silently stop reaching the AC8/AC10 assertions. Parsing the code
+ * straight out of source means any future drift in the production seed
+ * formula flows into these tests, exactly like the fcose options below. */
+function extractProductionSeedPositions(): (nodes: EmbeddedNode[]) => Map<string, CyPosition> {
+  const html = readFileSync(new URL("../src/viz-template.html", import.meta.url), "utf8");
+  const hashMarker = "function hash(s)";
+  const hashStart = html.indexOf(hashMarker);
+  if (hashStart === -1) {
+    throw new Error(
+      "viz-layout.test.ts: could not find 'function hash(s)' in viz-template.html -- has the template's seed block been restructured?",
+    );
   }
-  return (h >>> 0) / 4294967295;
+  const hashBraceStart = html.indexOf("{", hashStart);
+  if (hashBraceStart === -1) {
+    throw new Error(
+      "viz-layout.test.ts: could not find hash()'s opening brace in viz-template.html -- has the template's seed block been restructured?",
+    );
+  }
+  let depth = 0;
+  let hashEnd = -1;
+  for (let i = hashBraceStart; i < html.length; i++) {
+    if (html[i] === "{") depth++;
+    else if (html[i] === "}") {
+      depth--;
+      if (depth === 0) {
+        hashEnd = i;
+        break;
+      }
+    }
+  }
+  if (hashEnd === -1) {
+    throw new Error(
+      "viz-layout.test.ts: unbalanced braces while parsing hash() in viz-template.html -- has the template's seed block been restructured?",
+    );
+  }
+  const forMarker = "for (const n of nodes) {";
+  const forStart = html.indexOf(forMarker, hashEnd);
+  if (forStart === -1) {
+    throw new Error(
+      "viz-layout.test.ts: could not find the seed-position for-loop after hash() in viz-template.html -- has the template's seed block been restructured?",
+    );
+  }
+  const forBraceStart = forStart + forMarker.length - 1; // index of the opening '{'
+  depth = 0;
+  let forEnd = -1;
+  for (let i = forBraceStart; i < html.length; i++) {
+    if (html[i] === "{") depth++;
+    else if (html[i] === "}") {
+      depth--;
+      if (depth === 0) {
+        forEnd = i;
+        break;
+      }
+    }
+  }
+  if (forEnd === -1) {
+    throw new Error(
+      "viz-layout.test.ts: unbalanced braces while parsing the seed-position for-loop in viz-template.html -- has the template's seed block been restructured?",
+    );
+  }
+  const snippet = html.slice(hashStart, forEnd + 1);
+  // Parses the real, shipped hash()/seed-loop straight out of
+  // viz-template.html at test time rather than trusting a hand-copied
+  // duplicate -- indirect eval is the load-bearing mechanism here, same
+  // rationale as extractProductionFcoseOptions() below and
+  // helpers/vendor-load.ts's loader.
+  // biome-ignore lint/style/noCommaOperator: required for indirect eval.
+  // biome-ignore lint/security/noGlobalEval: this is the whole point -- see comment above.
+  return (0, eval)(`(function (nodes) { ${snippet}\nreturn seedPos; })`) as (
+    nodes: EmbeddedNode[],
+  ) => Map<string, CyPosition>;
 }
 
-/** Template's client-side seed-position formula (viz-template.html), applied
- * to the child elements of a `toElements()` output. */
-function seedPositions(nodes: EmbeddedNode[]): Map<string, CyPosition> {
-  const groups = [...new Set(nodes.map((n) => n.group))].sort();
-  const anchors = new Map(
-    groups.map((g, i) => {
-      const a = (i / groups.length) * Math.PI * 2 - Math.PI / 2;
-      const r = g === "src" ? 0 : 330;
-      return [g, { x: Math.cos(a) * r, y: Math.sin(a) * r * 0.72 }] as const;
-    }),
-  );
-  const groupCounts = new Map(groups.map((g) => [g, nodes.filter((n) => n.group === g).length]));
-  const seed = new Map<string, CyPosition>();
-  for (const n of nodes) {
-    const anchor = anchors.get(n.group);
-    if (!anchor) continue;
-    const j1 = hash(n.id);
-    const j2 = hash(`${n.id}y`);
-    const spread = 90 + 44 * Math.sqrt(groupCounts.get(n.group) ?? 1);
-    seed.set(n.id, { x: anchor.x + (j1 - 0.5) * spread * 2, y: anchor.y + (j2 - 0.5) * spread * 2 });
-  }
-  return seed;
-}
+const seedPositions = extractProductionSeedPositions();
 
 function seededElements(nodes: EmbeddedNode[], elements: CyElementDefinition[]): CyElementDefinition[] {
   const seed = seedPositions(nodes);

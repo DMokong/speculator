@@ -108,3 +108,67 @@ describe("AC5: interaction surface — same information, same wiring as the prio
     expect(html).toContain('document.getElementById("themeBtn").addEventListener("click"');
   });
 });
+
+/** Extracts the JS content of the nearest <script> tag that contains `marker`
+ * -- same "extract the real live slice, never hand-copy" idiom as braceBlock
+ * above, but scoped to a <script>...</script> region rather than a balanced
+ * brace block, since the I1 handler is not itself a single named function. */
+function scriptBlockContaining(marker: string): string {
+  const idx = html.indexOf(marker);
+  if (idx === -1) throw new Error(`viz-surface.test.ts: marker not found: ${marker}`);
+  const openTagStart = html.lastIndexOf("<script", idx);
+  if (openTagStart === -1) throw new Error(`viz-surface.test.ts: no <script> tag precedes marker: ${marker}`);
+  const openTagEnd = html.indexOf(">", openTagStart);
+  if (openTagEnd === -1) throw new Error(`viz-surface.test.ts: unterminated <script> tag before marker: ${marker}`);
+  const closeTag = html.indexOf("</script>", idx);
+  if (closeTag === -1) throw new Error(`viz-surface.test.ts: no closing </script> after marker: ${marker}`);
+  return html.slice(openTagEnd + 1, closeTag);
+}
+
+// PR #2 review finding I1 (Important, plan.md Wave F1 / 09-error-banner):
+// the shipped viewer has no runtime error surface -- a vendor script error,
+// fcose registration failure, or embedded-JSON corruption today renders as a
+// blank canvas plus a console-only message the file:// audience never opens.
+// These pins hold the fix's structural contract textually against the live
+// template (never a hand copy), matching this file's existing idiom above.
+describe("I1: runtime error surface (window.onerror / unhandledrejection banner)", () => {
+  test("test_i1_registers_onerror_and_unhandledrejection_listener", () => {
+    // Both hooks are required so synchronous throws (script eval, layout
+    // registration) AND rejected promises are caught by the same surface.
+    // Boolean-style checks (rather than expect(html).toMatch(...)) so a
+    // failure reports true/false instead of dumping the entire template.
+    expect(/window\.onerror\s*=/.test(html)).toBe(true);
+    expect(/addEventListener\(\s*["']unhandledrejection["']/.test(html)).toBe(true);
+  });
+
+  test("test_i1_handler_registered_before_first_vendor_placeholder", () => {
+    // Must be strictly before __VENDOR_LAYOUT_BASE__ (~line 302) so a vendor
+    // script's own evaluation-time error -- e.g. fcose failing to register
+    // against the cytoscape global -- is still caught. Registering after any
+    // vendor tag would blind the handler to exactly the failure modes I1
+    // exists to surface.
+    const handlerIdx = html.indexOf("window.onerror");
+    const vendorIdx = html.indexOf("__VENDOR_LAYOUT_BASE__");
+    expect(handlerIdx).toBeGreaterThan(-1);
+    expect(vendorIdx).toBeGreaterThan(-1);
+    expect(handlerIdx).toBeLessThan(vendorIdx);
+  });
+
+  test("test_i1_handler_is_vanilla_dom_no_cytoscape_or_cy_references", () => {
+    // The handler must work even when the vendor scripts themselves are what
+    // failed to load/evaluate, so it cannot depend on `cytoscape` or the `cy`
+    // instance -- both are defined later and may never exist.
+    const handlerSlice = scriptBlockContaining("window.onerror");
+    expect(handlerSlice.toLowerCase()).not.toContain("cytoscape");
+    expect(handlerSlice).not.toContain("cy.");
+  });
+
+  test("test_i1_banner_has_required_id_and_role_alert", () => {
+    // role="alert" is what makes the failure surface to assistive tech
+    // without the audience needing to notice a visual change; the fixed id
+    // is what keeps a second error from stacking a duplicate banner.
+    const handlerSlice = scriptBlockContaining("window.onerror");
+    expect(handlerSlice).toContain("asbuilt-error");
+    expect(handlerSlice).toContain('role="alert"');
+  });
+});

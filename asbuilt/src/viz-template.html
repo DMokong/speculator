@@ -295,6 +295,34 @@ footer {
   </footer>
 </div>
 
+<!-- Global error surface (PR #2 finding I1): a vendor script error, fcose
+     registration failure, or embedded-JSON corruption otherwise renders as a
+     blank canvas plus a console-only message the file:// audience never
+     opens. Registered before the first vendor placeholder so vendor
+     evaluation errors are caught too; vanilla DOM only (cy/cytoscape are
+     defined later and may never exist if this is what fires). -->
+<script>
+(function () {
+  function render(msg) {
+    var el = document.getElementById("asbuilt-error-msg");
+    if (el) { el.textContent += " · " + msg; return; }
+    document.body.insertAdjacentHTML("afterbegin",
+      '<div id="asbuilt-error" role="alert" style="position:fixed;top:0;left:0;right:0;' +
+      'z-index:2147483647;background:#7a2420;color:#fff;padding:10px 16px;' +
+      'font:14px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;">' +
+      '<strong>Viewer failed to initialize.</strong> <span id="asbuilt-error-msg"></span> ' +
+      'Open the DevTools console for details.</div>');
+    document.getElementById("asbuilt-error-msg").textContent = msg;
+  }
+  function show(msg) { if (document.body) render(msg); else document.addEventListener("DOMContentLoaded", function () { render(msg); }); }
+  window.onerror = function (message) { show(String(message)); return false; };
+  window.addEventListener("unhandledrejection", function (ev) {
+    var r = ev && ev.reason;
+    show(r && r.message ? String(r.message) : String(r));
+  });
+})();
+</script>
+
 <!-- Vendored Cytoscape + fcose stack, inlined by viz.ts (inlineVendor wraps each
      placeholder in /*VENDOR:name:start|end*\/ markers). Load order matters:
      layout-base -> cose-base -> cytoscape -> fcose (fcose self-registers against

@@ -90,14 +90,54 @@ describe("vendor provenance (SPEC-004 AC9): independent ground truth, not self-r
     const text = readFileSync(new URL("cytoscape.min.js", VENDOR_DIR), "utf8");
     // "MIT"/"Copyright" alone also appear scattered through the minified
     // bundle's OTHER, unrelated third-party sub-attributions further down
-    // (a Bezier-curve-generator credit, an async.js port notice) -- those
-    // false-positive on a bare substring check even after the primary header
-    // is stripped. Anchoring on the block-comment opener plus the specific,
-    // header-unique consortium name avoids that false confidence.
+    // (a Bezier-curve-generator credit, a Promises/A+ implementation notice)
+    // -- those false-positive on a bare substring check even after the
+    // primary header is stripped. Anchoring on the block-comment opener plus
+    // the specific, header-unique consortium name avoids that false
+    // confidence.
     expect(text.startsWith("/**")).toBe(true);
     const head = text.slice(0, 500);
     expect(head).toContain("Copyright");
     expect(head).toContain("The Cytoscape Consortium");
     expect(head).toContain("Permission is hereby granted"); // canonical MIT license text
+  });
+});
+
+// I2 (PR #2 review): the vendor script-tag order in viz-template.html is
+// load-bearing but was previously asserted nowhere. The conductor proved
+// empirically that swapping fcose before cytoscape produces a dead page
+// (fcose can't self-register against a cytoscape global that doesn't exist
+// yet) while every other test in the suite stays green -- none of them
+// inspect placeholder order. This pins the order directly against the RAW
+// template source (not the built output), independent of inlineVendor's
+// behavior.
+describe("vendor script-tag order (PR #2 I2): pins the load-bearing placeholder sequence", () => {
+  const TEMPLATE = readFileSync(new URL("../src/viz-template.html", import.meta.url), "utf8");
+
+  // Dependency order: layout-base and cose-base are fcose's UMD deps (fcose
+  // requires them to already be registered); cytoscape's global must exist
+  // before fcose registers against it (fcose self-registers, no .use() call);
+  // the data script comes after all four vendor bundles.
+  const ORDERED_PLACEHOLDERS = [
+    "__VENDOR_LAYOUT_BASE__",
+    "__VENDOR_COSE_BASE__",
+    "__VENDOR_CYTOSCAPE__",
+    "__VENDOR_FCOSE__",
+    "__ASBUILT_DATA__",
+  ];
+
+  test("each placeholder is present exactly once, in strictly increasing (dependency) order", () => {
+    const indexes = ORDERED_PLACEHOLDERS.map((placeholder) => {
+      const first = TEMPLATE.indexOf(placeholder);
+      const last = TEMPLATE.lastIndexOf(placeholder);
+      expect(first).toBeGreaterThan(-1); // placeholder present
+      expect(first).toBe(last); // occurs exactly once (a duplicate would make
+      // inlineVendor's split/join inline that vendor bundle twice)
+      return first;
+    });
+
+    for (let i = 1; i < indexes.length; i++) {
+      expect(indexes[i]).toBeGreaterThan(indexes[i - 1]);
+    }
   });
 });
