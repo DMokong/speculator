@@ -41,3 +41,6 @@ docs/specs/**/.active
 # Local beads tracker retired 2026-06-12 — active speculator work tracked in the
 # claudeclaw workspace. Dolt migration internals never belong in git.
 .beads/
+
+# a symlinked node_modules dodges the dir-pattern above (blinded review finding)
+node_modules

@@ -526,7 +526,10 @@ function select(n) {
   panel.querySelectorAll(".conn a").forEach(a => a.addEventListener("click", () => select(byId.get(a.dataset.id))));
 }
 cy.on("tap", "node:child", ev => select(byId.get(ev.target.id())));
-cy.on("tap", ev => { if (ev.target === cy) select(null); });
+/* Deselect on background OR compound-hull taps — compounds cover most of the
+   packed canvas, and the old SVG treated any non-node click as deselect
+   (AC5 parity; blinded-review finding). */
+cy.on("tap", ev => { if (ev.target === cy || (ev.target.isParent && ev.target.isParent())) select(null); });
 
 /* ---------- table view ---------- */
 const tablewrap = document.getElementById("tablewrap");

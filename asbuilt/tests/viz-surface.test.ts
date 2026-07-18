@@ -68,6 +68,9 @@ describe("AC5: interaction surface — same information, same wiring as the prio
 
   test("test_ac5_click_selects_and_background_tap_clears", () => {
     expect(html).toContain('cy.on("tap", "node:child"');
+    // Deselect must fire on true background AND compound-hull taps — compounds
+    // cover most of the packed canvas (blinded-review AC5 finding).
+    expect(html).toContain("ev.target === cy || (ev.target.isParent && ev.target.isParent())");
     expect(html).toContain("select(null)");
     // Detail panel still opens and still carries the TEST stamp — driven by
     // the full classification flag (n.test, type-OR-tag), matching the graph
