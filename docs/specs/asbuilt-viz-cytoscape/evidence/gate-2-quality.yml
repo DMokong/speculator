@@ -5,6 +5,7 @@
 gate: code-quality
 spec_id: SPEC-004
 timestamp: 2026-07-18T04:21:53Z
+test_command: "bun test asbuilt/tests/ (run from the worktree root; coverage via bun test --coverage from asbuilt/)"
 checks:
   tests_pass:
     enabled: true

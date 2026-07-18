@@ -1,0 +1,520 @@
+gate: comprehension
+spec_id: SPEC-004
+spec_path: docs/specs/asbuilt-viz-cytoscape/spec.md
+timestamp: 2026-07-18T04:29:18Z
+scorer: agent
+model: claude-sonnet-5
+diff_range: main...HEAD
+
+# Phase A output — the artifact body
+comprehension_entries:
+  - ac_id: AC1
+    ac_text: >
+      Given the dense fixture bundle, when viz.ts builds viz.html, then the
+      embedded graph data contains one compound parent per source directory,
+      every test concept's parent is its source directory's compound (with a
+      test marker), and no global "tests" group exists anywhere in the
+      embedded data.
+    implementation_summary: >
+      groupOf() (viz.ts:119-122, unchanged path-derived directory logic) is
+      now applied unconditionally to every concept at viz.ts:256
+      (`group: groupOf(fm.resource)`), replacing the prior
+      `isTestConcept(fm) ? "tests" : groupOf(...)` branch — the hardcoded
+      spatial "tests" bucket is gone. Classification is tracked separately as
+      a boolean `test` field via `isTestConcept()` (viz.ts:112-117: type ===
+      "Test" OR tags includes "test") at viz.ts:259. toElements()
+      (viz.ts:158-184) emits one compound-parent CyElement per distinct group
+      (`dir:${group}`, lines 160-162), wires every child node's `parent` to
+      `dir:${n.group}` (line 169), and stamps the "test marker" onto the
+      child element as both a data flag (`test: n.test`, line 171) and a CSS
+      class suffix (`stateOf(n.enrichment) + (n.test ? " test" : "")`, line
+      174) that drives the tan/rounded-rect node styling in
+      viz-template.html's `node.test` selector (line 396). Verified by
+      running dense-fixture.test.ts's "96 nodes in group cmd/cli (54 source +
+      42 co-located tests), no global tests group" test and
+      viz-elements.test.ts's type-only/tag-only classification-signal tests
+      (both pass, confirmed by running `bun test`).
+    code_locations:
+      - file: asbuilt/src/viz.ts
+        function: isTestConcept
+        lines: "112-117"
+      - file: asbuilt/src/viz.ts
+        function: groupOf
+        lines: "119-122"
+      - file: asbuilt/src/viz.ts
+        function: toElements
+        lines: "158-184"
+      - file: asbuilt/src/viz.ts
+        function: buildViz (node construction)
+        lines: "251-274"
+      - file: asbuilt/src/viz-template.html
+        function: node.test stylesheet rule
+        lines: "392-396"
+      - file: asbuilt/tests/dense-fixture.test.ts
+        function: "grouping test (SPEC-004 grouping)"
+        lines: "630-641"
+    coverage: partial
+    gap_notes: >
+      The graph render's test badge and the area filter both correctly use
+      the full `n.test` classification signal, but the click-through detail
+      panel's separate "TEST" stamp (viz-template.html:508,
+      `n.type === "Test" ? '<span class="stamp test">TEST</span>' : ""`)
+      checks only the `type` field, not the combined
+      type-OR-tag signal `isTestConcept()` computes. A concept classified as
+      test purely via a "test" tag (type left as e.g. "Module") gets the tan
+      graph-node styling and is caught by the "tests" area filter, but its
+      detail panel omits the TEST stamp. This exact line is unchanged from
+      `main` (confirmed via `git show main:asbuilt/src/viz-template.html`) —
+      it predates this diff — but AC1's "distinct visual identity...from
+      their frontmatter classification" clause makes the inconsistency newly
+      relevant, and nothing in this diff reconciles it.
+    intent_notes: >
+      Satisfies the spec's explicit anti-pattern #5 guard ("meeting AC1's
+      letter by renaming the global tests bucket while still clustering all
+      tests together spatially") — grouping is now genuinely path-derived
+      (verified: viz-elements.test.ts's "no node is ever grouped bare
+      'tests'" test), not just relabeled.
+
+  - ac_id: AC2
+    ac_text: >
+      Given the built template, when its stylesheet and script are
+      inspected, then node labels are governed by a zoom threshold
+      (min-zoomed-font-size or equivalent), compound group labels carry no
+      zoom threshold (always visible), and no code path suppresses labels
+      conditional on group population or any other static property.
+    implementation_summary: >
+      buildStyle() (viz-template.html:378-409) sets
+      `"min-zoomed-font-size": 24` on the `node[d]` selector (child/file
+      nodes, line 391) — cytoscape's native zoom-conditional label
+      rendering, so file labels appear only once the effective on-screen
+      font size crosses 24px. The `:parent` selector (compound directory
+      groups, lines 397-403) sets a `label` but includes no
+      `min-zoomed-font-size` property, so compound labels render
+      unconditionally at every zoom level. Verified no remaining
+      population-based suppression: `groupCounts` (viz-template.html:346) is
+      used only to compute fcose seed-position spread
+      (`spread = 90 + 44 * Math.sqrt(groupCounts.get(n.group))`, line 350),
+      never to gate label rendering — this is the same non-label role it
+      played in the pre-diff code.
+    code_locations:
+      - file: asbuilt/src/viz-template.html
+        function: buildStyle (node[d] selector)
+        lines: "384-391"
+      - file: asbuilt/src/viz-template.html
+        function: "buildStyle (:parent selector)"
+        lines: "397-403"
+    coverage: full
+
+  - ac_id: AC3
+    ac_text: >
+      Given any bundle, when viz.html is built, then the file contains no
+      external script/link/import references and no network-fetching code
+      paths reachable at view time; all vendored library code is inlined;
+      the only URLs present are XML/SVG namespace identifiers or URLs inside
+      embedded bundle-data strings.
+    implementation_summary: >
+      inlineVendor() (viz.ts:193-209) reads the four files under
+      asbuilt/vendor/ and splices them, via split/join (never
+      String.replace, to avoid `$`-pattern corruption from minified code
+      containing literal `$&`), into the four `__VENDOR_*__` placeholders in
+      viz-template.html (lines 302-305), wrapping each in
+      `/*VENDOR:<name>:start|end*/` marker comments. buildViz() (viz.ts:318-
+      321) calls inlineVendor(template) before the `__ASBUILT_DATA__`/
+      `__PROJECT__` substitutions, so every built viz.html ships the vendor
+      code inline. Verified by running viz.test.ts's "self-containment
+      (AC3)" test (byte-equal vendor regions against asbuilt/vendor/, no
+      `<script src=`, `<link href=`, `fetch(`, `XMLHttpRequest`, `@import`
+      in the non-vendor remainder, and any residual URL restricted to
+      `http://www.w3.org/*`) and the "vendor files contain no </script
+      sequence" script-breakout guard test — both pass. Independently
+      grepped the four vendor .js files myself for `fetch(`/
+      `XMLHttpRequest`/`WebSocket(`: zero matches.
+    code_locations:
+      - file: asbuilt/src/viz.ts
+        function: inlineVendor
+        lines: "193-209"
+      - file: asbuilt/src/viz-template.html
+        function: vendor script tags
+        lines: "302-305"
+      - file: asbuilt/tests/viz.test.ts
+        function: "self-containment (AC3) test"
+        lines: "1795-1822"
+    coverage: full
+
+  - ac_id: AC4
+    ac_text: >
+      Given an unchanged bundle and manifest, when viz.ts runs twice, then
+      the two outputs are byte-identical.
+    implementation_summary: >
+      buildViz() (viz.ts:221-329) is a pure function of the on-disk bundle
+      state plus the caller-supplied `date` string: no `Date.now()` or
+      `Math.random()` calls anywhere in viz.ts (grep-verified). Concepts are
+      collected via walkMd()'s `readdirSync(dir).sort()` (viz.ts:104) and
+      `elements` are independently re-sorted by toElements() (groups
+      codepoint-sorted; child nodes sorted by id; edges sorted
+      source-then-target — viz.ts:159-183), so ordering doesn't depend on
+      raw OS readdir order. Verified via dense-fixture.test.ts's "two
+      buildViz calls on the same sandbox are byte-identical" test and its
+      companion "two independent makeDenseSandbox() calls produce
+      byte-identical bundle content" test — both pass (ran the suite
+      myself, 42/42 across the four viz-adjacent test files).
+    code_locations:
+      - file: asbuilt/src/viz.ts
+        function: buildViz
+        lines: "221-329"
+      - file: asbuilt/tests/dense-fixture.test.ts
+        function: "byte-identical determinism tests"
+        lines: "725-757"
+    coverage: full
+
+  - ac_id: AC5
+    ac_text: >
+      Given the built page, when a node is hovered, clicked, searched for,
+      or filtered by state/area, then tooltip, detail panel, search
+      dimming, and filters behave as in the current template (same
+      information surfaced, same dimming semantics).
+    implementation_summary: >
+      hover() (viz-template.html:434-440) renders the same tooltip fields as
+      before (id, group, symbol count, enrichment, STALE flag), now wired via
+      `cy.on("mouseover"/"mousemove"/"mouseout", "node:child", ...)`
+      (447-449) instead of raw SVG pointer events. select()
+      (viz-template.html:492-529) still builds the identical detail-panel
+      HTML (kicker/path/title/stamp/metagrid/description/explanation/
+      decisions/connections/file-link), now triggered by
+      `cy.on("tap", "node:child", ...)` (528) and deselected by
+      `cy.on("tap", ev => ev.target === cy ...)` (529). mark()/applyFilters()
+      (452-478) toggle a cytoscape `.dim` class inside `cy.batch()` instead
+      of toggling SVG classList directly; the `.dim` opacity rule is
+      preserved 1:1 (`{ selector: ".dim", style: { "opacity": 0.08 } }`,
+      viz-template.html:406, carrying an explicit "parity with the prior
+      template's .dim (AC5; final-audit finding)" comment). The area filter
+      (`visible()`, line 466) now reads `n.test` in place of
+      `n.group === "tests"` since the spatial bucket no longer exists — the
+      "tests" filter chip's label and position in the controls bar are
+      unchanged. The pre-existing dark/light theme toggle needed a new line
+      (`cy.style(buildStyle())`, line 560) to re-resolve CSS custom
+      properties into a fresh cytoscape stylesheet on toggle, since
+      canvas-rendered cytoscape can't read CSS vars live the way the old SVG
+      could — this is plumbing to keep the pre-existing toggle working, not
+      new behavior.
+    code_locations:
+      - file: asbuilt/src/viz-template.html
+        function: hover / moveTip
+        lines: "434-449"
+      - file: asbuilt/src/viz-template.html
+        function: select
+        lines: "492-529"
+      - file: asbuilt/src/viz-template.html
+        function: mark / applyFilters
+        lines: "452-478"
+      - file: asbuilt/src/viz-template.html
+        function: theme toggle
+        lines: "556-561"
+    coverage: full
+
+  - ac_id: AC6
+    ac_text: >
+      Given the existing viz.test.ts intents (JSON embedding and counts,
+      cross-file edge collapsing to file links, `</` script-breakout
+      escaping, determinism), when the suite runs against the new template,
+      then all pass; the former group === "tests" assertion is updated to
+      the new grouping contract with a comment recording the claw-wsit
+      supersession.
+    implementation_summary: >
+      viz.test.ts's diff retains the JSON-embedding/count assertions
+      (re-anchored on the new `elements`-terminal embeddedData() helper,
+      lines 1747-1753), the cross-file edge-collapsing assertion, the
+      `</script>`-escaping assertion, and the determinism assertion. The old
+      `"test concepts group as 'tests' by classification, not path
+      (claw-wsit)"` assertion is replaced by `"grouping supersession (AC1): a
+      co-located test concept groups with its source directory, never a
+      spatial tests bucket"` (lines 1854-1863), whose comment explicitly
+      states "SPEC-004 supersedes claw-wsit's SPATIAL rule: classification
+      stays frontmatter-driven (test flag), grouping is path-derived." Ran
+      the full set of viz-adjacent test files myself: 42/42 pass.
+    code_locations:
+      - file: asbuilt/tests/viz.test.ts
+        function: "grouping supersession (AC1) test"
+        lines: "1854-1863"
+      - file: asbuilt/tests/viz.test.ts
+        function: "self-containment / determinism / escaping tests"
+        lines: "1795-1891"
+    coverage: full
+
+  - ac_id: AC7
+    ac_text: >
+      Given viz.ts, when invoked with --target/--out/--date, then the CLI
+      contract is unchanged, the sheet date comes only from --date (no clock
+      reads anywhere in build or template code), and building claudeclaw's
+      real bundle (docs/asbuilt/, 67 concepts) succeeds.
+    implementation_summary: >
+      The CLI entry guard (viz.ts:331-348, under `if (import.meta.main)`)
+      is unchanged in shape: reads `--target`/`--date` via `argValue()`,
+      exits 1 printing `CLI_USAGE` if either is missing, defaults `--out` to
+      `docs/asbuilt/viz.html`. `date` flows straight into `data.meta.date`
+      (viz.ts:301-302) with no `Date.now()`/`new Date()` anywhere in viz.ts
+      (grep-verified) or in the non-vendor template script
+      (viz-layout.test.ts's `test_ac8_no_clock_or_random_calls_...` test,
+      which strips the four `/*VENDOR:*/` regions before scanning, also
+      covers this clause — I ran it, 4/4 pass). `CLI_USAGE` is newly
+      exported so viz.test.ts's hardening-round-2 tests (lines 1902-1954)
+      can run the real CLI as a `Bun.spawnSync` subprocess and assert on
+      exit codes / stderr / default vs. explicit `--out` paths.
+    code_locations:
+      - file: asbuilt/src/viz.ts
+        function: CLI entry guard
+        lines: "331-348"
+      - file: asbuilt/tests/viz.test.ts
+        function: "CLI: bun src/viz.ts (AC7 entry-guard behavior)"
+        lines: "1902-1954"
+    coverage: partial
+    gap_notes: >
+      I found no test, fixture, or build artifact anywhere in this diff that
+      actually builds claudeclaw's real `docs/asbuilt/` bundle (67
+      concepts) — this repository (the asbuilt-viz-cytoscape worktree) has
+      no such directory, and none of the tests reference a 67-concept
+      build. The CLI-contract and no-clock-reads clauses of AC7 are
+      thoroughly covered by tests; the "building claudeclaw's real bundle
+      succeeds" clause is asserted only by the spec text and is not
+      independently verifiable from this diff alone — it would require a
+      manual run against the actual claudeclaw repository, outside the
+      scope of what's readable here cold.
+
+  - ac_id: AC8
+    ac_text: >
+      Given the template's layout invocation, when inspected and exercised,
+      then fcose runs with randomize: false seeded from the deterministic
+      hash-derived initial positions, our template code contains no
+      Math.random/Date.now/argless-new Date() calls, and two loads of the
+      same viz.html in the same browser settle to the same layout.
+    implementation_summary: >
+      The cytoscape instance (viz-template.html:411-428) passes
+      `layout: { name: "fcose", randomize: false, animate: false,
+      packComponents: true, tile: true, ... }`. Seed positions are computed
+      via the FNV `hash()` function (line 339, same formula the pre-diff SVG
+      sim used) and written onto each child element's `position` before
+      cytoscape construction (lines 348-352, 360-369).
+      viz-layout.test.ts's `test_ac8_fcose_positions_are_json_identical_
+      across_two_headless_runs` reproduces this exact pipeline (its own
+      hash()/seedPositions() helpers mirror the template's, lines 1400-1444)
+      against the real vendored fcose loaded headlessly
+      (helpers/vendor-load.ts's indirect-eval loader), runs it twice, and
+      JSON-diffs the 111 settled positions. Its companion test greps the
+      non-vendor HTML and viz.ts source for `Math.random`, `Date.now(`, and
+      argless `new Date()`. I ran `bun test tests/viz-layout.test.ts`
+      myself: 4/4 pass, including this determinism test.
+    code_locations:
+      - file: asbuilt/src/viz-template.html
+        function: "hash / seed positions / cytoscape() layout config"
+        lines: "339-352, 411-428"
+      - file: asbuilt/tests/viz-layout.test.ts
+        function: test_ac8_fcose_positions_are_json_identical_across_two_headless_runs
+        lines: "1547-1558"
+      - file: asbuilt/tests/viz-layout.test.ts
+        function: test_ac8_no_clock_or_random_calls_in_nonvendor_html_or_viz_ts
+        lines: "1560-1587"
+    coverage: full
+
+  - ac_id: AC9
+    ac_text: >
+      Given asbuilt/vendor/, when inspected, then each vendored file is a
+      pinned release version with its version and license recorded
+      (manifest or header), and bun tests do not require network access to
+      pass.
+    implementation_summary: >
+      asbuilt/vendor/VENDOR.md records a table (file / package / version /
+      license / source URL / shipped sha256) for all four vendored files
+      (cytoscape.min.js 3.30.2, layout-base.js 2.0.1, cose-base.js 2.2.0,
+      cytoscape-fcose.js 2.2.0, all MIT). vendor-provenance.test.ts
+      independently re-parses that exact table (scoped specifically to the
+      "shipped (minified) sha256" header block, to avoid VENDOR.md's other
+      superseded-hash tables from earlier minification rounds) and re-hashes
+      the shipped bytes against it, plus pins the literal MIT copyright
+      header text still present verbatim inside cytoscape.min.js (the one
+      file VENDOR.md documents as unmodified upstream). I independently
+      verified: `wc -c` on the four vendor files (45,919 / 20,898 / 373,304
+      / 59,912 bytes) sums to exactly the 500,033 B VENDOR.md claims as
+      total shipped size. No vendor file or test reaches for a package
+      registry or CDN (grep-verified: no `fetch(`/`XMLHttpRequest`/
+      `WebSocket(` in the vendor .js files); ran
+      `bun test tests/vendor-provenance.test.ts` myself alongside the rest
+      of the suite, all pass.
+    code_locations:
+      - file: asbuilt/vendor/VENDOR.md
+        function: "vendor pin table"
+        lines: "1976-1981"
+      - file: asbuilt/tests/vendor-provenance.test.ts
+        function: "vendor provenance (SPEC-004 AC9)"
+        lines: "996-1037"
+    coverage: full
+
+  - ac_id: AC10
+    ac_text: >
+      Given the dense fixture bundle, when the layout is settled in a
+      headless run with the production fcose options, then the packing
+      factor (axis-aligned bounding box of all settled clusters ÷ sum of
+      the individual clusters' bounding-box areas) does not exceed 4.5 —
+      a drift anchor pinned to the look approved at the 2026-07-16 spike
+      checkpoint (measured 4.116 there). Compactness itself is arbitrated
+      by the human look-gate, not this metric.
+    implementation_summary: >
+      viz-layout.test.ts's `extractProductionFcoseOptions()` (lines 1455-
+      1488) parses the live `layout: {...}` object literal directly out of
+      the shipped viz-template.html via indirect eval (not a hand-copied
+      duplicate — the comment explains this closes a hardening-round-2
+      coupling gap where a hand-copied literal drifted from production
+      without the test noticing). `runFcoseAndReadPositions()` runs the
+      real vendored fcose headlessly over the dense fixture's seeded
+      elements using those extracted options, and the test computes the
+      packing factor from settled per-group bounding boxes, asserting
+      `<= 4.5` (`PACKING_BOUND`, line 1591).
+    code_locations:
+      - file: asbuilt/tests/viz-layout.test.ts
+        function: extractProductionFcoseOptions
+        lines: "1455-1488"
+      - file: asbuilt/tests/viz-layout.test.ts
+        function: test_ac10_dense_fixture_packing_factor_stays_at_or_below_the_drift_anchor
+        lines: "1590-1645"
+    coverage: partial
+    gap_notes: >
+      I ran `bun test tests/viz-layout.test.ts` myself (3 separate runs,
+      identical each time): the measured packing factor is **2.636**, not
+      the **4.116** that both the spec's AC10 text and the test's own
+      `PACKING_BOUND` comment ("spike checkpoint measured 4.116") cite as
+      the approved-look reference. The test still passes — 2.636 ≤ 4.5 —
+      and the spec explicitly disclaims this ratio as a compactness
+      discriminator (the old rejected ring layout measured 2.63 by the
+      same metric and "would pass" too), so a passing result here doesn't
+      by itself confirm or deny visual compactness, and 2.636 vs 4.116
+      doesn't necessarily mean anything got worse (a lower ratio generally
+      means *less* wasted space, i.e. tighter packing, which would be a
+      good sign if trustworthy). But nothing in the diff reconciles why the
+      shipped code's own measured value differs this much (~36%) from the
+      number the drift-anchor's narrative is built around, and the
+      artifact should not repeat "matches the 4.116 checkpoint" as if
+      confirmed — it isn't, on the evidence I could gather cold.
+    intent_notes: >
+      The drift-anchor framing ("guards against silent layout degradation")
+      is weakened by this unreconciled gap between the recorded reference
+      value and the actual re-run measurement — see recommended flags.
+
+unexplained_behaviors:
+  - description: >
+      Theme toggle handler now calls cy.style(buildStyle()) to re-resolve
+      CSS custom properties into a fresh cytoscape stylesheet on every
+      light/dark switch.
+    file: asbuilt/src/viz-template.html
+    line_range: "556-561"
+    concern: minor_utility
+    recommendation: >
+      OK to ship — this is plumbing required to preserve the pre-existing
+      theme-toggle behavior (AC5) now that rendering is canvas-based and
+      can't read CSS vars live the way SVG did. No new user-facing feature.
+
+  - description: >
+      New exported constant CLI_USAGE, purely so viz.test.ts's subprocess
+      CLI tests can assert on stderr content.
+    file: asbuilt/src/viz.ts
+    line_range: "331"
+    concern: minor_utility
+    recommendation: "OK to ship — test-support export, no behavior change."
+
+  - description: >
+      New test helper loadCytoscape() indirect-evals the vendored UMD stack
+      at plain top-level script scope so headless bun tests can exercise
+      the real fcose engine (not a stand-in) for AC8/AC10.
+    file: asbuilt/tests/helpers/vendor-load.ts
+    line_range: "1-86"
+    concern: minor_utility
+    recommendation: "OK to ship — test infrastructure only, not shipped in viz.html."
+
+  - description: >
+      Ten per-AC eval files (docs/specs/asbuilt-viz-cytoscape/evals/ac-1.md
+      through ac-10.md) and two upstream gate-evidence files
+      (gate-1-scorecard.yml, gate-2a-eval-intent.yml) are new in this diff.
+    file: docs/specs/asbuilt-viz-cytoscape/evals/
+    line_range: "n/a"
+    concern: minor_utility
+    recommendation: >
+      OK to ship — Speculator SDLC pipeline process artifacts (Gate 1 /
+      Gate 2a evidence), not application behavior; expected scaffolding for
+      this spec, not scope creep.
+
+# Phase B output — the scoring block
+weights:
+  ac_coverage: 0.30
+  accuracy: 0.30
+  spec_fidelity: 0.25
+  scope_containment: 0.15
+dimensions:
+  ac_coverage: 8
+  accuracy: 8
+  spec_fidelity: 7
+  scope_containment: 8
+overall: 7.8
+threshold: 7.0
+per_dimension_minimum: 5
+result: pass
+
+flags:
+  blocking: []
+  recommended:
+    - "AC10 (viz-layout.test.ts:1591, spec.md AC10 text): the recorded 'spike checkpoint measured 4.116' reference does not match the actual measured packing factor when the shipped test suite is run today (2.636, reproduced across 3 separate runs). The test still passes (bound is 4.5), and the spec explicitly disclaims this ratio as a compactness discriminator, but nothing reconciles why the shipped code's own number differs ~36% from the cited reference. Recommend either re-measuring/updating the recorded checkpoint value or adding a comment explaining the expected divergence."
+    - "AC1 (viz-template.html:508): the detail panel's 'TEST' stamp checks `n.type === \"Test\"` only, not the full `n.test` (isTestConcept: type OR tag) signal used for the graph-node badge (viz.ts:174) and the area filter (viz-template.html:466). A tag-only-classified test concept is styled/filtered as a test on the graph but shows no TEST stamp in its detail panel. This line predates the diff (present on main too) but AC1's 'distinct visual identity...from their frontmatter classification' clause makes it newly relevant; recommend reconciling it to use `n.test`."
+    - "AC7: no test or build artifact in this diff builds claudeclaw's real 67-concept docs/asbuilt/ bundle, which AC7's text explicitly requires to succeed. This repo has no such directory to build against. Recommend adding that build as an explicit CI/manual-verification step and recording its evidence, since it's currently unverifiable from the diff alone."
+  advisory:
+    - "The spec's 700KB size-budget constraint (for a ~110-concept bundle) isn't asserted by any test. I measured the dense fixture's built output myself: 573.2 KB (111 concepts) — comfortably under budget today, but with no regression guard as the vendored stack or bundle sizes grow."
+    - "AC3 and AC9 both target spec anti-pattern #4 (CDN loading) from different lifecycle angles (view-time vs. build-time); a one-line cross-reference between their respective code comments/tests, mirroring how AC10's test already cross-references the spike checkpoint, would make the split explicit rather than implicit."
+
+reasoning:
+  ac_coverage: >
+    Every AC (1-10) has its own entry naming specific files, functions, and
+    line ranges, and each entry distinguishes the AC's expected behavior
+    from the mechanism delivering it (e.g. AC2 separates the zoom-threshold
+    mechanism from the "no population-based suppression" verification; AC9
+    separates the VENDOR.md record from the independent re-hash test).
+    Partial coverage is explicitly marked and reasoned for AC1, AC7, and
+    AC10 rather than glossed over. Falls short of 9-10 because rejected-
+    alternatives/decision rationale isn't present for every entry, only the
+    ones where it was clearly load-bearing (inlineVendor's split/join
+    choice, AC10's live-extraction rationale).
+  accuracy: >
+    Spot-checked well beyond the required 3 entries by actually running the
+    test suite (bun test across viz.test.ts, viz-elements.test.ts,
+    dense-fixture.test.ts, vendor-provenance.test.ts — 42/42 pass — and
+    viz-layout.test.ts — 4/4 pass) and by independently re-verifying vendor
+    file byte sizes against VENDOR.md's claims (500,033 B total, exact
+    match) and grepping vendor .js for network primitives (none found).
+    This process surfaced one genuine, reproducible discrepancy (AC10's
+    measured 2.636 vs. the cited 4.116 checkpoint) and one narrow
+    pre-existing inconsistency (AC1's detail-panel badge signal) — both
+    disclosed as partial coverage with gap_notes rather than asserted with
+    false confidence, which is the behavior this dimension rewards. Not
+    9-10 because not every line-range citation was pinned to an exact diff
+    hunk boundary (some point at nearby regions rather than the precise
+    changed lines).
+  spec_fidelity: >
+    The implementation honors the problem statement's dual mandate (compact
+    layout AND labels that survive density) via the compound-node fcose
+    layout plus zoom-gated labels, and explicitly avoids all five named
+    anti-patterns — verified, not just asserted: no population-based label
+    suppression (AC2), no baked-in coordinates (data + seed only, AC4/AC8),
+    no CDN loading (AC3/AC9, vendor-file grep confirms no network
+    primitives), and grouping is genuinely path-derived rather than a
+    relabeled spatial bucket (AC1's toElements()/groupOf() verified). The
+    AC10 discrepancy (2.636 vs. 4.116) and the AC1 badge-signal gap are
+    narrow, disclosed shortfalls rather than "implementation games the AC"
+    or a named-forbidden-pattern violation, which keeps this at "good"
+    rather than "excellent" — the drift anchor's stated purpose ("guards
+    against silent layout degradation... pinned to the approved look") is
+    not fully honored while its own reference number goes unreconciled with
+    the shipped code's actual measurement.
+  scope_containment: >
+    Four unexplained behaviors were identified and listed, all correctly
+    classified minor_utility (a theme-toggle re-style call required for
+    AC5 parity, a test-support CLI_USAGE export, a headless-test vendor
+    loader, and the per-AC eval/gate-evidence process files) with a
+    recommendation field on each. No new user-visible behavior beyond what
+    an AC already asked for was found in the diff; the Constraints
+    section's file-scope restriction ("Changes confined to...") is
+    respected by every touched file in `git diff --name-only`.

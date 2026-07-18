@@ -1,6 +1,6 @@
 ---
 id: SPEC-004
-status: approved
+status: closed
 author: Dustin Cheng
 date: 2026-07-15
 epic: speculator-0d6

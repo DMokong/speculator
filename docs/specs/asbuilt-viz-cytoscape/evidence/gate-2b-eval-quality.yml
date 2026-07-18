@@ -1,0 +1,50 @@
+gate: eval-quality
+spec_id: SPEC-004
+timestamp: 2026-07-18T04:33:01Z
+test_files_evaluated:
+  - asbuilt/tests/viz.test.ts
+  - asbuilt/tests/viz-elements.test.ts
+  - asbuilt/tests/viz-layout.test.ts
+  - asbuilt/tests/viz-surface.test.ts
+  - asbuilt/tests/dense-fixture.test.ts
+  - asbuilt/tests/vendor-provenance.test.ts
+  - asbuilt/tests/helpers/vendor-load.ts
+  - asbuilt/tests/helpers/dense-fixture.ts
+ac_count: 10
+dimensions:
+  ac_coverage: 8
+  behavioral_specificity: 7
+  intent_fidelity: 8
+  sensitivity: 8
+  scenario_completeness: 8
+  assertion_density: 9
+  test_independence: 7
+weights:
+  ac_coverage: 0.25
+  behavioral_specificity: 0.25
+  intent_fidelity: 0.20
+  sensitivity: 0.15
+  scenario_completeness: 0.10
+  assertion_density: 0.03
+  test_independence: 0.02
+overall: 7.8
+threshold: 6.5
+per_dimension_minimum: 4
+result: pass
+flags:
+  blocking: []
+  recommended:
+    - "AC7's 'building claudeclaw's real bundle (docs/asbuilt/, 67 concepts) succeeds' clause still has zero regression coverage inside `bun test asbuilt/tests/` — confirmed by grep (no reference to a 67-concept fixture or a real claudeclaw-shaped bundle build anywhere in asbuilt/tests/). The CLI contract (--target/--out/--date requiredness and defaults) and the no-clock-reads requirement ARE covered (viz.test.ts's CLI describe block; viz-layout.test.ts's test_ac8_no_clock_or_random_calls_in_nonvendor_html_or_viz_ts, which doubles as AC7 evidence), so this is a partial gap on one AC clause, not zero-coverage of the AC — kept at recommended rather than blocking. Verification of the 'real bundle succeeds' clause still lives only in manual shell dispatch recorded in fable-stream reports, unanchored to CI."
+    - "viz-surface.test.ts's AC5 tests verify wiring/information-surface via string-presence checks against the extracted hover()/visible() function source (e.g., `hoverFn.toContain('esc(n.enrichment)')`, exact-line match on the area-filter predicate) rather than by executing the interaction in a real DOM and reading rendered tooltip/panel/dim output. This is an honest, well-documented trade-off given the suite has no headless-browser harness, and it does read the live shipped template rather than a hand copy — but a behavior-preserving refactor that renames the underlying variables/helpers would fail this suite even though nothing observable changed, and a logic bug that leaves the pinned substrings untouched (e.g., an off-by-one in dim application, a swapped boolean elsewhere) could still slip through. Full AC5 confidence still depends on the separate T05 browser-driven smoke evidence, which is not a committed regression anchor."
+    - "Several describe blocks (viz.test.ts's buildViz block, dense-fixture.test.ts's main block, viz-elements.test.ts's path-grouping block) still compute a shared target/result once at the describe level and rely on bun:test's in-file declaration-order execution plus a trailing 'cleanup' test to remove the temp sandbox, rather than an afterAll/beforeAll hook. Carried over unaddressed from the prior eval-quality round; not a correctness bug today but a latent ordering assumption."
+  advisory:
+    - "AC9's 'bun tests do not require network access to pass' clause is satisfied implicitly (every vendor/test code path in the reviewed files is local-file-only — readFileSync against asbuilt/vendor/, no fetch/XHR) but has no explicit regression pin (e.g., stubbing or blocking network access and asserting the suite still passes) protecting it from a future accidental network dependency."
+    - "Test naming discipline is excellent and has improved further in this round — the new viz-surface.test.ts uses a clean `test_ac2_*`/`test_ac5_*` prefix convention matching viz-layout.test.ts's `test_ac8_*`/`test_ac10_*` style. Consider retrofitting this exact prefix convention onto the older AC1/AC3/AC4/AC6/AC7/AC9 tests (which currently use descriptive names + inline '(ACn)' comments) for fully uniform grep-based traceability across the whole SPEC-004 surface."
+reasoning:
+  ac_coverage: "All 10 ACs now have clearly-named, well-mapped tests, closing the prior round's two zero-coverage blockers: viz-surface.test.ts adds three explicitly-named test_ac2_* tests (verified live against viz-template.html, not a hand copy) and six test_ac5_* tests covering hover/click/search/filter/chips/table+theme. The one residual gap is AC7's 'real 67-concept bundle succeeds' clause, which has no automated test anywhere in the suite — a partial, not total, AC7 gap, which keeps this at 'Good' (8) rather than 'Excellent' (9-10)."
+  behavioral_specificity: "The large majority of assertions are genuinely behavioral: embedded JSON payload contents, byte-equal vendor regions, independently-computed sha256 hashes, real settled node positions from the actual vendored fcose engine run headlessly, and real CLI subprocess exit codes/stderr. AC2's structural/inspection-style assertions are correctly matched to that AC's own letter ('when its stylesheet and script are inspected'), so they aren't a deduction. AC5's six tests, however, verify information-surface and wiring via source-text presence checks on extracted JS functions rather than executing the interaction and reading rendered output — a legitimate stand-in given the runtime, but one that would break on a behavior-preserving rename and wouldn't necessarily catch a logic bug that leaves the pinned substrings intact, which keeps this dimension at 'Good' rather than 'Excellent'."
+  intent_fidelity: "Intent fidelity is strong across the board, evidenced by multiple documented hardening rounds that closed letter-vs-spirit gaps (asymmetric type-only/tag-only OR-branch classification, insertion-order-vs-codepoint-sort determinism invisible to same-process reinvocation, a self-referential vendor-hash check replaced with an independent VENDOR.md ground truth, a hand-copied fcose-options literal replaced with a live read of the shipped template). AC2's suppression tests target the exact reverted anti-patterns named in the spec's own Problem Statement/Anti-Patterns sections, and AC10's packing-factor test correctly encodes the 2026-07-16 amendment (the reverted ring no longer needs to fail this metric) rather than testing a superseded, stricter requirement. AC5's proxy-verification approach is the main thing keeping this from a 9-10."
+  sensitivity: "Sensitivity is strong: exact numeric pins (dim opacity 0.08, min-zoomed-font-size 24, packing bound 4.5 with the measured value logged alongside it, diameter formula via toBeCloseTo, exact sha256 hashes), a broad no-conditional-logic check on buildStyle() that would catch most reintroductions of population-conditional suppression regardless of variable naming, and a documented multi-round adversarial-mutation history (named survivors closed) for AC1/AC4/AC6/AC7/AC9/AC10. AC5's source-text checks are moderately but not maximally discriminating — they'd catch a dropped field or handler but could miss a subtler logic regression that leaves the literal substrings in place."
+  scenario_completeness: "Most ACs cover more than the happy path: AC1 covers the 2-segment path-grouping boundary plus both halves of an OR-condition classification signal tested independently; AC7's CLI block covers missing --target, missing --date, default --out, and explicit --out override; AC8 covers both a positive (positions match across runs) and negative (no Math.random/Date.now/new Date()) scenario; AC9 covers hash equality and a license-substring pin as two independent signals; AC2 and AC5 each cover the full explicit scenario space their AC text names (child-gated/parent-ungated/no-suppression; hover/click/search/filter/chips/table+theme respectively)."
+  assertion_density: "Assertions throughout are precise and multi-part rather than presence checks — single tests assert exact concepts/audited/target_commit/date/folds counts together, exact per-group node counts across four-plus groups, exact sha256 equality plus a specific license substring, and exact diameter/class/parent values per node. No vacuous is-not-None-style assertions were found in any of the reviewed files, including the new viz-surface.test.ts."
+  test_independence: "Every sandbox is built via mkdtempSync with a unique per-call temp directory and torn down via rmSync in a finally block or an explicit trailing cleanup test; viz-surface.test.ts introduces no shared mutable state (a single module-scope readFileSync of the template, read-only). The unaddressed soft spot carried over from the prior round is describe blocks that rely on in-file declaration order plus a trailing cleanup test rather than an afterAll hook — a latent, not yet realized, ordering assumption."

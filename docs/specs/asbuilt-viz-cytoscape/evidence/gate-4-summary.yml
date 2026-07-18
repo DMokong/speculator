@@ -1,0 +1,19 @@
+# Gate 4 — evidence package summary, SPEC-004 asbuilt-viz-cytoscape
+gate: evidence-package
+spec_id: SPEC-004
+timestamp: 2026-07-18T04:55:00Z
+mechanical_verifier: "verify-evidence.sh: 33 passed, 0 failed, 0 skipped, 0 warnings (after adding the test_command field it flagged)"
+gates:
+  spec-quality:      { result: pass, score: 8.7, threshold: 7.0, note: "blind re-score after AC10 drift-anchor amendment (spike checkpoint ruling)" }
+  code-quality:      { result: pass, note: "362/362 tests, coverage 86.25% lines (viz.ts 93.69%/100% funcs) vs threshold 80" }
+  eval-intent:       { result: pass, score: 8.0, threshold: 6.5, note: "round 2 — round 1 blocking flag (no compactness coverage) fixed at root with AC10" }
+  eval-quality:      { result: pass, score: 7.8, threshold: 6.5, note: "round 2 — round 1 fail 5.7 (AC2/AC5 zero coverage) remediated with viz-surface.test.ts structural pins" }
+  comprehension:     { result: pass, score: 7.8, threshold: 7.0, note: "legacy-mode cold-read; its 3 findings adjudicated: TEST-stamp classification fix 63a049c, AC10 reconciliation comment, AC7 real-bundle clause accepted as manual-verification-only" }
+  review:
+    result: pass
+    warnings: 1
+    note: "1 warn dimension (spec_alignment: look-gate reliance by design + label-overlap polish item); 4 observations recorded; zero blocking"
+overall: pass
+blocking_flags: none  # gate-1 scorecard carries zero blocking flags
+worktree: true        # .claude/worktrees/asbuilt-viz-cytoscape, branch asbuilt-viz-cytoscape
+beads_epic: "speculator-0d6 — closed 2026-07-18; no child stories (task tracking lived in the fable-conductor stream ledger docs/fable-streams/2026-07-15-asbuilt-viz-cytoscape/)"
