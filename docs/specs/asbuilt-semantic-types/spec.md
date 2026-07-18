@@ -1,6 +1,6 @@
 ---
 id: SPEC-005
-status: draft
+status: compacted
 author: Dustin Cheng (shaped interactively; conducted by Cindy/Fable)
 date: 2026-07-19
 epic: claw-j65u
@@ -67,7 +67,11 @@ unchanged resources, so no re-fold ever happens for them.
       mechanical `reclassifyType` path), proven by a fixture round-trip.
 - [ ] AC4: Given a test-classified resource (filename test pattern), when a
       draft carries any `suggested_type`, then the folded type remains
-      `Test` — the machine owns test classification.
+      `Test` — the machine owns test classification. [Amended 2026-07-19,
+      per the Constraints section: binding on both fold and reclassify, in
+      either direction — a suggestion is never applied across the test
+      boundary, and a pre-existing human-assigned semantic type on a test
+      resource is preserved, not repaired to Test.]
 - [ ] AC5: Given a folded concept carrying a semantic type, when refresh
       processes its resource (changed or unchanged), then the semantic type
       survives in the rewritten frontmatter.
