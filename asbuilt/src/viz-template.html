@@ -505,7 +505,7 @@ function select(n) {
     <div class="kicker">Concept · ${esc(n.type ?? "Module")}</div>
     <div class="path">${esc(n.concept)}</div>
     <h2>${esc(n.title)}</h2>
-    <div class="stamp ${stateOf(n)}">${n.enrichment === "none" ? "skeleton — unaudited" : esc(n.enrichment)}</div>${n.type === "Test" ? '<span class="stamp test">TEST</span>' : ""}
+    <div class="stamp ${stateOf(n)}">${n.enrichment === "none" ? "skeleton — unaudited" : esc(n.enrichment)}</div>${n.test ? '<span class="stamp test">TEST</span>' : ""}
     ${n.from.length ? `<div class="path">provenance: ${esc(n.from.join(", "))}</div>` : ""}
     <div class="metagrid">
       <div><div class="lbl">Area</div><div class="val">${esc(n.group)}</div></div>

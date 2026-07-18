@@ -227,6 +227,11 @@ describe("viz layout determinism (SPEC-004 AC8)", () => {
 
 describe("viz layout packing drift anchor (SPEC-004 AC10)", () => {
   const PACKING_BOUND = 4.5; // SPEC-004 AC10 drift anchor — spike checkpoint measured 4.116 (2026-07-16); look-gate arbitrates compactness, this guards drift.
+  // Reconciliation (Gate 2c cold-read finding): 4.116 was measured with the
+  // spike's tilingPadding 4. T05's judgment sweep then shipped padding 16,
+  // which measures ~2.6-2.8 on this fixture — the layout got MORE compact
+  // after the checkpoint. The anchor stays 4.5: it bounds drift from the
+  // approved look; the currently-measured value is logged below each run.
 
   test("test_ac10_dense_fixture_packing_factor_stays_at_or_below_the_drift_anchor", () => {
     const cytoscape = loadCytoscape();

@@ -69,9 +69,13 @@ describe("AC5: interaction surface — same information, same wiring as the prio
   test("test_ac5_click_selects_and_background_tap_clears", () => {
     expect(html).toContain('cy.on("tap", "node:child"');
     expect(html).toContain("select(null)");
-    // Detail panel still opens and still carries the TEST stamp.
+    // Detail panel still opens and still carries the TEST stamp — driven by
+    // the full classification flag (n.test, type-OR-tag), matching the graph
+    // badge and area filter (Gate 2c cold-read finding: the old
+    // n.type === "Test" check missed tag-only test concepts).
     expect(html).toContain('panel.classList.add("open")');
-    expect(html).toContain('n.type === "Test"');
+    expect(html).toContain("n.test ? '<span class=\"stamp test\">TEST</span>'");
+    expect(html).not.toContain('n.type === "Test"');
   });
 
   test("test_ac5_search_dims_nonmatches_over_the_same_haystack", () => {
