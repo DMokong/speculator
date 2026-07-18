@@ -54,6 +54,7 @@ Plan: plan.md (Phase 3, awaiting human approval — last mandatory touchpoint)
 | 10-vendor-order-provenance | F1 | done | 0 | dd0ff79; PR#2 review I2 + I5b: script-tag order assertion; false async.js citation (conductor-verified absent) |
 | 11-seed-live-extraction | F1 | done | 0 | dd0ff79; PR#2 review I3: seed block hand-copied in viz-layout.test.ts — same treatment as extractProductionFcoseOptions |
 | 12-cyelement-union | F2 | done | 0 | dd0ff79; PR#2 review I4: three-arm discriminated union; serialized after 08 (shared viz.ts scope) |
+| 13-compound-deoverlap | F3 | done | 1 | claw-dsob; conductor-executed (recorded); sweep-parity de-overlap pass; browser 8→0 compound overlaps; dense no-op |
 
 
 ## Spike checkpoint (2026-07-16, opus tier)
