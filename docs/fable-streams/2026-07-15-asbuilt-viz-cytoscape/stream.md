@@ -49,6 +49,11 @@ Plan: plan.md (Phase 3, awaiting human approval — last mandatory touchpoint)
 | 04-data-model | 3 | done | 1 | 6bb6a36; minified vendor 488KB runs fcose (conductor-verified); 13/13 new tests; grep done-check had stray-space bug (brief error, documented) |
 | 05-template | 4 | done | 0 | 69e3a82; full pipeline pass round 1; conductor-verified renders (573KB/600KB, semantic zoom + co-located tests visible); label-overlap polish item to final review |
 | 06-tests-hardening | 5 | done | 1 | f3b465d+8015c7d+7131e0d; adversary: 9 gaps found, hardened, residue empty; 352/352 green (conductor-verified) |
+| 08-interp-dollar | F1 | done | 0 | dd0ff79; PR#2 review C1: $-pattern corruption on data/project interpolation + build-time round-trip guard + rotted inlineVendor comment (I5a) |
+| 09-error-banner | F1 | done | 1 | dd0ff79; PR#2 review I1: window.onerror surface in shipped artifact |
+| 10-vendor-order-provenance | F1 | done | 0 | dd0ff79; PR#2 review I2 + I5b: script-tag order assertion; false async.js citation (conductor-verified absent) |
+| 11-seed-live-extraction | F1 | done | 0 | dd0ff79; PR#2 review I3: seed block hand-copied in viz-layout.test.ts — same treatment as extractProductionFcoseOptions |
+| 12-cyelement-union | F2 | done | 0 | dd0ff79; PR#2 review I4: three-arm discriminated union; serialized after 08 (shared viz.ts scope) |
 
 
 ## Spike checkpoint (2026-07-16, opus tier)
@@ -72,3 +77,18 @@ G4 33/33 mechanical. Blinded final-audit: 10/10 ACs; its AC5 panel finding
 SYSTEM-SPEC.md (11 entries). Epic speculator-0d6 closed; lock released.
 Worktree stays until PR merge. Deferred out of scope: claw-j65u (semantic
 types), claw-8b8v (backfill skill), label-overlap polish (Gate-3 warn).
+
+## Fix-wave closing record (2026-07-18, fable tier)
+
+External PR #2 review (1 Critical + 5 Important + suggestions) fully addressed
+in commit dd0ff79 via waves F1 (08-11, parallel) + F2 (12), 20 worker agents,
+zero escalations, one fix round (09). Blinded whole-delta review (opus): 1
+minor finding (round-trip guard was parse-level; comment overclaimed) — fixed
+in-session by conductor, recorded in 08/report.md fable round 2. Conductor
+look-gate re-run: dense + claudeclaw bundles rebuilt, 0 node-body overlaps
+both, corrupted-artifact banner demo verified in-browser. Known pre-existing
+tiny-compound overlap on claudeclaw bundle quantified (8 bbox pairs, worst
+30.3%) and filed as claw-dsob. Suggestions triaged into claw-04ku/claw-dsob.
+Full final-audit AC panel NOT re-run for this delta (ran at ship; delta is
+review-scoped) — disclosed conductor judgment. PR merge remains with Dustin.
+Tracking: claw-bpjd (closed on push).

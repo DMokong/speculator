@@ -371,3 +371,31 @@ const cy = cytoscape({
 - **Placeholders:** VENDOR.md sha256 "<fill>" cells are instructions to the implementer with the exact command given — acceptable; no TBDs elsewhere. ✓
 - **Type consistency:** `toElements(nodes, links)`, `CyElement`, `test: boolean`, `dir:${group}` parent ids, marker comment format `/*VENDOR:name:start*/` used consistently across T04/T05/T06. ✓
 - **Known judgment points routed to the checkpoint:** fcose option set, `min-zoomed-font-size` value, AC10 constant — all T03 outputs approved by Dustin before waves 3–5. ✓
+
+## Fix wave — PR #2 review findings (2026-07-18)
+
+External PR review delivered 1 Critical + 5 Important findings + a suggestions
+list. All six conductor-verified at source before planning. Suggestions are
+non-blockers → folded into claw-04ku, EXCEPT the post-interpolation corruption
+guard, which rides with the Critical fix (it hardens the same failure mode).
+
+Waves (continuing task numbering from 07):
+
+- **Wave F1 (parallel, disjoint file scopes):**
+  - 08-interp-dollar — C1 ($-pattern corruption, viz.ts:321) + build-time
+    embedded-JSON round-trip guard + I5a (rotted inlineVendor doc comment).
+    Scope: asbuilt/src/viz.ts, asbuilt/tests/viz.test.ts. testable.
+  - 09-error-banner — I1 (window.onerror surface). Scope:
+    asbuilt/src/viz-template.html, asbuilt/tests/viz-surface.test.ts. testable.
+  - 10-vendor-order-provenance — I2 (script-tag order assertion) + I5b (false
+    "async.js port notice" citation). Scope: asbuilt/tests/vendor-provenance.test.ts.
+  - 11-seed-live-extraction — I3 (hand-copied seed block → live extraction,
+    extractProductionFcoseOptions precedent). Scope: asbuilt/tests/viz-layout.test.ts.
+- **Wave F2 (serialized after 08 — shared viz.ts scope):**
+  - 12-cyelement-union — I4 (CyElement three-arm discriminated union).
+    Scope: asbuilt/src/viz.ts + type-fallout in tests. Zero runtime delta.
+
+All tasks tier: standard (sonnet impl/review, haiku verify). Post-wave:
+conductor full suite + typecheck + lint, both-bundle look-gate rebuild,
+corrupted-artifact banner demo, blinded whole-delta review, push to PR branch.
+Merge stays with Dustin.
