@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildViz, inlineVendor, toElements, type VizConceptNode, type VizLink } from "../src/viz";
+import { type VizConceptNode, type VizLink, buildViz, inlineVendor, toElements } from "../src/viz";
 
 // Copied from viz.test.ts's makeSandbox/writeConcept conventions (tasks may be
 // read out of order — see T04 brief).
@@ -250,8 +250,22 @@ describe("inlineVendor() (SPEC-004 AC3/AC9 plumbing)", () => {
     expect(inlineVendor(template)).toBe(template);
   });
 
-  test("no-op against the real (pre-T05) viz-template.html — byte-identical, no placeholders yet", () => {
+  // T05 (commit 69e3a82) shipped the real template's vendor slots as bare
+  // `__VENDOR_*__` placeholders (see viz.ts:199's own doc comment: "a no-op
+  // ... until T05 lands"). This test originally pinned the pre-T05,
+  // placeholder-free state; it now pins the post-T05 contract instead —
+  // inlineVendor must actually inline all four vendor files into the real
+  // shipped template, wrapped in start/end markers, with no placeholder
+  // left behind (mirrors the synthetic round-trip test above, against the
+  // real template instead of a hand-built one; T06/viz.test.ts separately
+  // byte-compares these regions end-to-end via buildViz's output).
+  test("inlines all four vendor placeholders in the real (post-T05) viz-template.html, wrapped in start/end markers", () => {
     const realTemplate = readFileSync(new URL("../src/viz-template.html", import.meta.url), "utf8");
-    expect(inlineVendor(realTemplate)).toBe(realTemplate);
+    const out = inlineVendor(realTemplate);
+    expect(out).toContain(`/*VENDOR:layout-base:start*/${layoutBase}/*VENDOR:layout-base:end*/`);
+    expect(out).toContain(`/*VENDOR:cose-base:start*/${coseBase}/*VENDOR:cose-base:end*/`);
+    expect(out).toContain(`/*VENDOR:cytoscape:start*/${cytoscape}/*VENDOR:cytoscape:end*/`);
+    expect(out).toContain(`/*VENDOR:fcose:start*/${fcose}/*VENDOR:fcose:end*/`);
+    expect(out).not.toContain("__VENDOR_"); // every placeholder was replaced
   });
 });
