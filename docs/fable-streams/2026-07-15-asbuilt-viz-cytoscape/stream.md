@@ -1,6 +1,6 @@
 ---
 stream: 2026-07-15-asbuilt-viz-cytoscape
-phase: execute
+phase: finalize
 entry: idea
 conductor_model: fable (phases R–4 waves 1-2 + spike checkpoint), opus-emulation (waves 3-4 incl. T05 interruption recovery), fable (wave 5+, 2026-07-18)
 weave:
@@ -48,7 +48,7 @@ Plan: plan.md (Phase 3, awaiting human approval — last mandatory touchpoint)
 | 03-spike | 2 | done | 0 | judgment; look approved 2026-07-16; fcose mandatory (cose non-deterministic); ship patched-minified stack ~518KB; AC10 reframed to drift anchor ≤4.5 |
 | 04-data-model | 3 | done | 1 | 6bb6a36; minified vendor 488KB runs fcose (conductor-verified); 13/13 new tests; grep done-check had stray-space bug (brief error, documented) |
 | 05-template | 4 | done | 0 | 69e3a82; full pipeline pass round 1; conductor-verified renders (573KB/600KB, semantic zoom + co-located tests visible); label-overlap polish item to final review |
-| 06-tests-hardening | 5 | done | 1 | f3b465d+8015c7d; 341/341 green (conductor-verified); AC10 anchor 4.5 w/ 4.116 recorded; test-adversary N=3 running |
+| 06-tests-hardening | 5 | done | 1 | f3b465d+8015c7d+7131e0d; adversary: 9 gaps found, hardened, residue empty; 352/352 green (conductor-verified) |
 
 
 ## Spike checkpoint (2026-07-16, opus tier)
