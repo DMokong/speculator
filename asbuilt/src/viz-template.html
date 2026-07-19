@@ -337,20 +337,27 @@ footer {
 "use strict";
 const DATA = JSON.parse(document.getElementById("asbuilt-data").textContent);
 const nodes = DATA.nodes, meta = DATA.meta;
+/* Defense in depth vs buildViz's own empty-bundle throw: this sheet may be a
+   foreign or hand-edited artifact the current builder never saw. An empty
+   nodes array must surface via the global error banner above, never render
+   as a professional-looking blank canvas (PR #2 review C2). */
+if (!Array.isArray(nodes) || nodes.length === 0) {
+  throw new Error("empty visualize sheet — the embedded data contains no concepts (bundle was empty or malformed at build time)");
+}
 const byId = new Map(nodes.map(n => [n.id, n]));
 const links = DATA.links.map(l => ({ s: byId.get(l.source), t: byId.get(l.target), w: l.w }));
 const neighbors = new Map(nodes.map(n => [n.id, []]));
 for (const l of links) { neighbors.get(l.s.id).push({ other: l.t, w: l.w, dir: "out" }); neighbors.get(l.t.id).push({ other: l.s, w: l.w, dir: "in" }); }
 
 /* ---------- header blocks ---------- */
-const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); // quotes too — esc lands in attribute position (data-id="...")
 document.getElementById("sheetblock").innerHTML = [
   ["Rev", meta.folds.length ? meta.folds[meta.folds.length - 1] : "—"],
   ["Sheet date", meta.date],
   ["Commit", meta.target_commit.slice(0, 7)],
   ["Format", "OKF v" + meta.okf_version],
 ].map(([l, v]) => `<div><span class="lbl">${l}</span><span class="val">${esc(String(v))}</span></div>`).join("");
-const pct = Math.round(100 * meta.audited / meta.concepts);
+const pct = meta.concepts > 0 ? Math.round(100 * meta.audited / meta.concepts) : 0; // guard 0/0 → NaN% (PR #2 review C2)
 document.getElementById("tiles").innerHTML = `
   <div class="tile"><div class="lbl">Concepts</div><div class="num">${meta.concepts}</div><div class="sub">src + tests</div></div>
   <div class="tile"><div class="lbl">Audited</div><div class="num">${meta.audited}</div>
@@ -521,7 +528,10 @@ cy.layout({
 deOverlapCompoundBoxes(cy);
 cy.fit(undefined, 40);
 
-const stateOf = n => n.enrichment === "none" ? "skeleton" : n.enrichment === "accuracy-audited" ? "accuracy" : "full";
+/* Explicit enum, unknown → skeleton — mirrors viz.ts stateOf: a typo'd
+   enrichment value must not render as the deepest-audited state. */
+const stateOf = n => n.enrichment === "fully-audited" ? "full" : n.enrichment === "accuracy-audited" ? "accuracy" : "skeleton";
+const isAudited = n => n.enrichment === "accuracy-audited" || n.enrichment === "fully-audited";
 
 /* ---------- hover / tooltip ---------- */
 const tip = document.getElementById("tooltip");
@@ -529,7 +539,7 @@ function hover(n, oe) {
   tip.style.display = "block";
   tip.innerHTML = `<div class="t">${esc(n.id)}</div>
     <div class="m">${esc(n.group)} · ${n.symbols} symbols · ${esc(n.enrichment)}${n.stale ? " · STALE" : ""}</div>
-    <div class="m">${n.enrichment !== "none" ? "click for the audited explanation" : "skeleton — extracted structure only"}</div>`;
+    <div class="m">${isAudited(n) ? "click for the audited explanation" : "skeleton — extracted structure only"}</div>`;
   moveTip(oe); mark(m => m === n || neighbors.get(n.id).some(x => x.other === m));
 }
 function moveTip(oe) {
@@ -553,8 +563,8 @@ function mark(keep) {
 /* ---------- filters ---------- */
 let fState = "all", fArea = "all", fQuery = "";
 function visible(n) {
-  if (fState === "audited" && n.enrichment === "none") return false;
-  if (fState === "none" && n.enrichment !== "none") return false;
+  if (fState === "audited" && !isAudited(n)) return false;
+  if (fState === "none" && isAudited(n)) return false;
   /* area filter now reads the classification flag (n.test): the spatial "tests"
      group no longer exists — tests live under their source directory. */
   if (fArea !== "all" && (fArea === "tests") !== (n.test === true)) return false;
@@ -628,11 +638,11 @@ cy.on("tap", ev => { if (ev.target === cy || (ev.target.isParent && ev.target.is
 /* ---------- table view ---------- */
 const tablewrap = document.getElementById("tablewrap");
 const tableBtn = document.getElementById("tableBtn");
-const stateColor = n => n.enrichment === "none" ? "var(--skeleton)" : n.enrichment === "accuracy-audited" ? "var(--audited)" : "var(--full)";
+const stateColor = n => n.enrichment === "fully-audited" ? "var(--full)" : n.enrichment === "accuracy-audited" ? "var(--audited)" : "var(--skeleton)";
 tablewrap.innerHTML = `<table><thead><tr>
   <th>Concept</th><th>Area</th><th>State</th><th>Symbols</th><th>Exports</th><th>Provenance</th>
 </tr></thead><tbody>` + [...nodes].sort((a, b) => a.id < b.id ? -1 : 1).map(n => `
-  <tr class="${n.enrichment !== "none" ? "audited-row" : ""}">
+  <tr class="${isAudited(n) ? "audited-row" : ""}">
     <td class="c1" data-id="${esc(n.id)}">${esc(n.id)}</td><td>${esc(n.group)}</td>
     <td><span class="statedot" style="background:${stateColor(n)}"></span>${esc(n.enrichment)}</td>
     <td>${n.symbols}</td><td>${n.exports.length}</td><td>${esc(n.from.join(", ") || "—")}</td>

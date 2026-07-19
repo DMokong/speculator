@@ -93,10 +93,13 @@ file also assigns to `module.exports` elsewhere, and that rewrite is what
 breaks global-eval loading. The T03 spike (finding 6) and this task's brief
 supply the fix: **pre-patch the wrapper's `this` → `globalThis` before
 minifying**, so there is no top-level `this` left for `bun build` to
-rewrite. `bun --version` used: `1.3.14` (same as round 2 — reproducible,
-byte-identical minified output was confirmed against round 2's earlier
-attempt at the same sizes: layout-base 59,912 / cose-base 45,919 / fcose
-20,898, matching the spike's measured sizes exactly).
+rewrite. `bun --version` used: `1.3.14` (same as round 2 — reproducible).
+This round's sizes — layout-base 59,912 / cose-base 45,919 / fcose 20,898 —
+match the T03 spike's measured sizes exactly, and sit exactly +3 B/file
+above round 2's unpatched attempt (59,909 / 45,916 / 20,895, table above):
+the `this`→`globalThis` wrapper patch is the whole delta. (An earlier
+revision of this paragraph claimed byte-identity with round 2 "at the same
+sizes" — false on both counts; corrected in PR #2 review wave 2.)
 
 Originals were re-staged from the git history commit `ddfc32e` (which holds
 the round-1 pinned originals, unchanged since — confirmed by re-hashing

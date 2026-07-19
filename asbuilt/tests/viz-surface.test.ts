@@ -53,6 +53,33 @@ describe("AC2: label zoom-gating is structural, never population-conditional", (
     // conditional-creation pattern (and the SVG label layer) must stay gone.
     expect(html).not.toContain("createElementNS");
   });
+
+  // PR #2 review wave 2 (claw-kt2c): the pins above only pinned historical
+  // SPELLINGS — a population-gated suppression rewritten with fresh names
+  // (extra style rule + addClass, an imperative el.style("label", ...) call,
+  // or an el.data("label", ...) write, each outside buildStyle) passed the
+  // full suite. These pins close the vector CLASS instead: the template's
+  // label surface is exactly two static data(label) bindings, and no code
+  // path may mutate label styling or label data at runtime. Validated
+  // against reconstructed variants of all three vectors (each passed the
+  // old pins, each fails these; the literal reverted patch is no longer
+  // recoverable from history, so vector coverage stands in for it).
+  test("test_ac2_label_surface_is_exactly_two_static_data_bindings", () => {
+    expect(html.match(/"label":/g) ?? []).toHaveLength(2);
+    expect(html.match(/"label": "data\(label\)"/g) ?? []).toHaveLength(2);
+  });
+
+  test("test_ac2_no_runtime_label_mutation_vectors", () => {
+    expect(html).not.toContain("text-opacity"); // the classic CSS suppression vector
+    expect(html).not.toMatch(/\.style\(\s*["']/); // imperative per-element style writes
+    // Stylesheet re-application is legal ONLY as the theme toggle's verbatim
+    // buildStyle() re-resolve — never with any other argument (which could
+    // swap in a label-suppressing sheet).
+    const styleCalls = html.match(/cy\.style\(/g) ?? [];
+    const legalCalls = html.match(/cy\.style\(buildStyle\(\)\)/g) ?? [];
+    expect(styleCalls.length).toBe(legalCalls.length);
+    expect(html).not.toMatch(/\.data\(\s*["']label["']\s*,/); // label data WRITES (reads stay legal)
+  });
 });
 
 describe("AC5: interaction surface — same information, same wiring as the prior template", () => {

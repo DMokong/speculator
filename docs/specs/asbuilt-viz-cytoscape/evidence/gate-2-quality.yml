@@ -21,7 +21,7 @@ checks:
     result: pass
     evidence: "All 28 pre-existing asbuilt test files pass unchanged apart from the two spec-mandated assertion evolutions (grouping supersession, dense-fixture flip) recorded with claw-wsit supersession comments per AC6. 306 pre-SPEC-004 tests remain green within the 353."
   ac_traceability: { enabled: false, result: n/a }
-  build: { enabled: false, result: n/a, note: "bunx tsc --noEmit run anyway during task verification — clean (T04/T06 reports)" }
+  build: { enabled: false, result: n/a, note: "bunx tsc --noEmit was clean at T04/T06 but REGRESSED afterward: the 12-cyelement-union fix wave's test-file property-sniffing produced 18 tsc errors at c344165 while this note still said clean (PR #2 review wave 2, claw-kt2c). Reconciled: in-operator narrowing predicates restore a clean tsc, and `bun run typecheck` is now a CI job (.github/workflows/ci.yml asbuilt-typecheck) so this claim has an enforcement point instead of a hand-run." }
   lint: { enabled: false, result: n/a, note: "bunx biome check tests/ run anyway during T06 verification — clean" }
   type_check: { enabled: false, result: n/a }
 result: pass

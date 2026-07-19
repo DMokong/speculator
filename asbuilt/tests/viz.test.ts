@@ -472,3 +472,105 @@ describe("round-trip corruption guard (C1 build-time invariant)", () => {
     }
   });
 });
+
+// PR #2 review wave 2 (claw-kt2c): regression pins for the second external
+// review's verified findings. Each test here kills a mutation or reproduces
+// a failure that the pre-wave suite provably let through.
+describe("PR #2 review wave 2: silent-degradation guards", () => {
+  test("C2: a CRLF-encoded concept file still parses (Windows checkout must not blank the sheet)", () => {
+    const target = makeSandbox();
+    try {
+      const bundleDir = join(target, "docs", "asbuilt");
+      const lf = readFileSync(join(bundleDir, "src", "alpha.md"), "utf8");
+      writeFileSync(join(bundleDir, "src", "alpha.md"), lf.replace(/\n/g, "\r\n"));
+      const data = embeddedData(buildViz(target, "2026-07-18").html);
+      expect(data.nodes.map((n) => n.id)).toContain("src/alpha.ts");
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  test("C2: a bundle where every .md is skipped throws instead of shipping a blank sheet", () => {
+    const target = mkdtempSync(join(tmpdir(), "viz-empty-"));
+    try {
+      const bundleDir = join(target, "docs", "asbuilt");
+      mkdirSync(bundleDir, { recursive: true });
+      writeFileSync(
+        join(bundleDir, ".graph-manifest.json"),
+        JSON.stringify({ target_commit: "abc1234", symbols: [], edges: [] }),
+      );
+      writeFileSync(join(bundleDir, "log.md"), "# Log\n\nno frontmatter at all\n");
+      expect(() => buildViz(target, "2026-07-18")).toThrow(/no concepts parsed/);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  test("I4: a manifest missing target_commit fails the build, not the browser", () => {
+    const target = makeSandbox();
+    try {
+      const manifestPath = join(target, "docs", "asbuilt", ".graph-manifest.json");
+      const { target_commit: _dropped, ...manifestWithoutCommit } = JSON.parse(readFileSync(manifestPath, "utf8"));
+      writeFileSync(manifestPath, JSON.stringify(manifestWithoutCommit));
+      expect(() => buildViz(target, "2026-07-18")).toThrow(/missing target_commit/);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  test("I2: an unknown enrichment value renders as skeleton and is not counted audited", () => {
+    const target = makeSandbox();
+    try {
+      writeConcept(join(target, "docs", "asbuilt"), "src/typo.md", {
+        title: "Typo",
+        type: "Module",
+        resource: "src/typo.ts",
+        tags: [],
+        enrichment: "acuracy-audited", // typo'd on purpose
+        from: [],
+        explains: [],
+      });
+      const data = embeddedData(buildViz(target, "2026-07-18").html);
+      const el = data.elements.find((e) => e.data.id === "src/typo.ts") as
+        | { data: { id: string }; classes?: string }
+        | undefined;
+      expect(el?.classes).toBe("skeleton");
+      // audited must count ONLY the legal audited states, never unknowns.
+      const legal = new Set(["accuracy-audited", "fully-audited"]);
+      expect(data.meta.audited).toBe(data.nodes.filter((n) => legal.has(n.enrichment)).length);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  test("scalar list frontmatter (tags: test) reaches the client as a real array", () => {
+    const target = makeSandbox();
+    try {
+      const bundleDir = join(target, "docs", "asbuilt");
+      // Hand-written frontmatter with a scalar tags spelling — writeConcept
+      // always emits list syntax, which is exactly why this slipped through.
+      writeFileSync(
+        join(bundleDir, "src", "scalar.md"),
+        "---\ntitle: Scalar\ntype: Module\nresource: src/scalar.ts\ntags: smoke\nenrichment: none\n---\n\n# Structure\n\nx\n",
+      );
+      const data = embeddedData(buildViz(target, "2026-07-18").html);
+      const node = data.nodes.find((n) => n.id === "src/scalar.ts") as (EmbeddedNode & { tags: string[] }) | undefined;
+      expect(Array.isArray(node?.tags)).toBe(true);
+      expect(node?.tags).toEqual(["smoke"]);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  test("I3a: the round-trip guard's byte-compare branch rejects a divergent expected object", () => {
+    // Kills the mutation that survived the pre-wave suite: deleting the
+    // `expected` comparison branch left all tests green even though the
+    // whole point of the C1 upgrade was content-level (not parse-level)
+    // corruption detection.
+    const guardFn = (vizModule as unknown as { assertDataRoundTrip: (html: string, expected?: unknown) => void })
+      .assertDataRoundTrip;
+    const html = `<script id="asbuilt-data" type="application/json">{"meta":{},"elements":[]}</script>`;
+    expect(() => guardFn(html, { meta: {}, elements: [] })).not.toThrow();
+    expect(() => guardFn(html, { meta: { concepts: 1 }, elements: [] })).toThrow(/round-trip/);
+  });
+});

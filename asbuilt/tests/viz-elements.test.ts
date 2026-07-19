@@ -5,7 +5,16 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type VizConceptNode, type VizLink, buildViz, inlineVendor, toElements } from "../src/viz";
+import {
+  type CyChildElement,
+  type CyEdgeElement,
+  type CyParentElement,
+  type VizConceptNode,
+  type VizLink,
+  buildViz,
+  inlineVendor,
+  toElements,
+} from "../src/viz";
 
 // Copied from viz.test.ts's makeSandbox/writeConcept conventions (tasks may be
 // read out of order — see T04 brief).
@@ -189,17 +198,28 @@ describe("toElements() mapping", () => {
   ];
   const links: VizLink[] = [{ source: "a/one.ts", target: "b/two.ts", w: 3 }];
 
+  // "in"-based type predicates (not `!== undefined` field-presence checks):
+  // the union arms don't share these keys at all, so a plain property access
+  // on the CyElement union doesn't typecheck. Same runtime filtering result
+  // as before — parents/children/edges are still exactly the elements that
+  // do/don't carry these keys — just spelled so strict tsc can narrow the
+  // union (claw brief 12-cyelement-union).
+  const isParentEl = (e: CyChildElement | CyEdgeElement | CyParentElement): e is CyParentElement =>
+    e.data.id.startsWith("dir:");
+  const isChildEl = (e: CyChildElement | CyEdgeElement | CyParentElement): e is CyChildElement => "parent" in e.data;
+  const isEdgeEl = (e: CyChildElement | CyEdgeElement | CyParentElement): e is CyEdgeElement => "source" in e.data;
+
   test("one parent element per group, id dir:<group>, codepoint-sorted", () => {
     const els = toElements(nodes, links);
-    const parents = els.filter((e) => e.data.id.startsWith("dir:"));
+    const parents = els.filter(isParentEl);
     expect(parents.map((p) => p.data.id)).toEqual(["dir:a", "dir:b"]);
     expect(parents.map((p) => p.data.label)).toEqual(["a", "b"]);
-    for (const p of parents) expect(p.classes).toBeUndefined();
+    for (const p of parents) expect((p as { classes?: unknown }).classes).toBeUndefined();
   });
 
   test("every child node wires parent to dir:<its own group>", () => {
     const els = toElements(nodes, links);
-    const children = els.filter((e) => e.data.parent !== undefined);
+    const children = els.filter(isChildEl);
     expect(children).toHaveLength(3);
     for (const c of children) {
       const src = nodes.find((n) => n.id === c.data.id);
@@ -209,7 +229,7 @@ describe("toElements() mapping", () => {
 
   test("child nodes sorted by id; label is basename; diameter + state class + test suffix", () => {
     const els = toElements(nodes, links);
-    const children = els.filter((e) => e.data.parent !== undefined);
+    const children = els.filter(isChildEl);
     expect(children.map((c) => c.data.id)).toEqual(["a/one.test.ts", "a/one.ts", "b/two.ts"]);
 
     const test1 = children.find((c) => c.data.id === "a/one.test.ts");
@@ -235,7 +255,7 @@ describe("toElements() mapping", () => {
       { source: "a/one.ts", target: "a/one.test.ts", w: 2 },
     ];
     const els = toElements(nodes, twoLinks);
-    const edges = els.filter((e) => e.data.source !== undefined);
+    const edges = els.filter(isEdgeEl);
     expect(edges.map((e) => e.data.id)).toEqual([
       "a/one.ts->a/one.test.ts",
       "a/one.ts->b/two.ts",
@@ -287,9 +307,19 @@ describe("inlineVendor() (SPEC-004 AC3/AC9 plumbing)", () => {
     expect(out).not.toContain("__VENDOR_"); // every placeholder was replaced
   });
 
-  test("no-op on a synthetic template without placeholders", () => {
+  // Inverted from the original "no-op without placeholders" pin: silently
+  // skipping a missing slot ships a dead viewer with exit 0, violating the
+  // build's own "never emit a broken artifact" invariant (PR #2 review
+  // wave 2). A template that lost or renamed ANY vendor slot must throw.
+  test("throws when the template is missing a vendor placeholder (renamed/dropped slot)", () => {
     const template = "<html><body>no vendor slots here at all</body></html>";
-    expect(inlineVendor(template)).toBe(template);
+    expect(() => inlineVendor(template)).toThrow(/missing the __VENDOR_LAYOUT_BASE__ slot/);
+  });
+
+  test("throws when one placeholder is renamed while the rest are intact", () => {
+    const realTemplate = readFileSync(new URL("../src/viz-template.html", import.meta.url), "utf8");
+    const renamed = realTemplate.replace("__VENDOR_FCOSE__", "__VENDOR_FCOSE_V2__");
+    expect(() => inlineVendor(renamed)).toThrow(/missing the __VENDOR_FCOSE__ slot/);
   });
 
   // T05 (commit 69e3a82) shipped the real template's vendor slots as bare
