@@ -1,0 +1,82 @@
+# Gate 3 evidence — SPEC-004 asbuilt-viz-cytoscape
+# Canonical schema per rubrics/review.md. Produced by the fable-conductor
+# stream's Phase 5 whole-branch final review (fable tier), informed by but
+# not limited to the blinded final-audit (10/10 ACs satisfied, 1 panel
+# finding adjudicated) — see docs/fable-streams/2026-07-15-asbuilt-viz-cytoscape/tasks/07-final-audit/report.md.
+
+gate: review
+spec_id: SPEC-004
+spec_path: docs/specs/asbuilt-viz-cytoscape/spec.md
+reviewer: "Claude Fable 5 (fable-conductor Phase 5 final review)"
+review_method: agent-assisted
+timestamp: 2026-07-18T04:21:53Z
+checks:
+  correctness:
+    verdict: pass
+    notes: >-
+      Every AC walked with evidence: grouping/test-flag at viz.ts:256 +
+      toElements (viz.ts:158-184), semantic zoom min-zoomed-font-size:24 at
+      viz-template.html:386-391 with ungated :parent labels (:398-403), fcose
+      randomize:false FNV-seeded (:339-363, :421). Byte-determinism verified
+      by two CLI builds cmp-identical and suite tests. Renders conductor-
+      eyeballed on dense fixture + claudeclaw bundle (headless Chrome
+      screenshots, zero console errors); interactions driven programmatically
+      (T05 report) — tooltip/panel/search/filters/table/theme all live.
+  error_handling:
+    verdict: pass
+    notes: >-
+      CLI entry guard validates --target/--date and exits 1 with usage
+      (viz.ts:334-348), now exercised via subprocess tests
+      (viz.test.ts:250-302, adversary hardening). buildViz throws on missing
+      manifest/bundle (fail-loud, appropriate for a build tool); no silent
+      catches introduced anywhere in the diff.
+  readability:
+    verdict: pass
+    notes: >-
+      Template code sectioned with the same comment-banner idiom as the prior
+      version; viz.ts additions (toElements, inlineVendor, stateOf) carry
+      why-comments including the claw-wsit supersession note and the
+      split/join-not-replace rationale. VENDOR.md documents the full
+      minification derivation including the failed round-2 attempt and why.
+  security:
+    verdict: pass
+    notes: >-
+      Mandatory secrets scan over git diff main...HEAD: 0 hits on credential
+      patterns (AWS/GitHub/Slack/OpenAI/Anthropic/Google/private-key/
+      connection-string), 0 secret-named literal assignments. Script-breakout:
+      embedded JSON keeps the </ escape (viz.test.ts:222-228); vendor bytes
+      are inlined verbatim, so a new guard test pins that no vendor file
+      contains a </script sequence (final-review finding, commit 48547bb) —
+      current pins verified clean. No network paths at view time (AC3 test +
+      live scan).
+  performance:
+    verdict: pass
+    notes: >-
+      Layout runs once, synchronously, animate:false (no rAF loop — the old
+      sim ran ~230 frames). Suite runtime 7-11s for 353 tests. Output size
+      573KB dense / 600KB claudeclaw, under the 700KB budget via the
+      patched-minified vendor stack (488KB). No unbounded loops introduced;
+      elements built in one pass with codepoint sorts.
+  spec_alignment:
+    verdict: warn
+    notes: >-
+      All R1-R7 and AC1-AC10 traced to implementation and tests (blinded
+      audit: 10/10 satisfied; per-AC evidence in the audit report). Scope
+      containment verified: diff touches only asbuilt/src, asbuilt/tests,
+      asbuilt/vendor, and the spec's own docs — matching the spec's
+      Constraints. One warn recorded: the dense-bundle *look* remains
+      partially aesthetic — AC10 is deliberately only a drift anchor
+      (checkpoint ruling 2026-07-16), so compactness regressions subtler
+      than the 4.5 bound rely on the human look-gate; and a minor polish
+      item is carried (adjacent tiny compound labels can overlap at fit in
+      the claudeclaw view).
+  skill_description:
+    verdict: skipped
+    notes: "No SKILL.md or AGENT.md files in the branch diff."
+observations:
+  - "spec_alignment warn: compactness below the 4.5 drift anchor is guarded by the human look-gate, not a metric — by design per the 2026-07-16 checkpoint ruling; revisit an automated metric only with a real field fixture (spike finding)."
+  - "spec_alignment warn: polish item — adjacent tiny compound labels can overlap at fit view on the claudeclaw bundle (finance-ui / scripts-asbuilt-viz corner); cosmetic, not an AC violation."
+  - "Final-audit AC5 panel finding (dim opacity 0.15 vs prior 0.08) was real, root-caused to the T05 brief, and fixed in 07fdb7a before this evidence was written."
+  - "Adversary phase found 9 genuine suite-sensitivity gaps, all hardened with zero residue — the AC10 test now parses the shipped template's real options rather than a hand-copied literal."
+blocking_issues: []
+result: pass

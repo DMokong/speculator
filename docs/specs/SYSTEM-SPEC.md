@@ -100,3 +100,23 @@
 - If split layout is detected via sibling files but the index lacks a Domains table, the compactor repairs the index by adding the table with one row per existing `SYSTEM-SPEC-*.md` sibling before routing. [from: SPEC-003]
 - The `spec-compact` skill's `--all` bootstrap mode regenerates the split layout (index plus all domain files, with all provenance trails intact) when the project is split, and regenerates the single file otherwise. [from: SPEC-003]
 - In single-file layout, every SYSTEM-SPEC consumer behaves byte-for-byte as it did before layout detection was introduced — no index is created, no domain prompts appear, and no migration is performed or suggested as a side effect of normal operation. [from: SPEC-003]
+
+## As-Built Viz Renderer
+
+- Cytoscape.js with the fcose layout replaces the hand-rolled SVG force sim in `asbuilt/src/viz-template.html`; OKF directory groups are modeled as compound parent nodes so fcose packs clusters compactly by construction rather than via hand-tuned anchor rings. [from: SPEC-004]
+- Node labels use semantic zoom: compound group labels are always visible with no zoom threshold; individual node labels appear only once zoomed in past a `min-zoomed-font-size` (or equivalent zoom-conditional rendering) threshold; no label is ever permanently suppressed by group population or any other static property. [from: SPEC-004]
+- Test concepts are spatially grouped under their source directory's compound node, carrying distinct visual identity (badge/styling) driven by their frontmatter classification, and the global `tests` bucket is removed. Classification itself remains frontmatter-driven, never path-derived — this supersedes only the *spatial* half of the claw-wsit rule, not its classification half. [from: SPEC-004]
+- Existing interactions are preserved with identical behavior across the engine swap: hover tooltip (id, group, symbol count, enrichment state), click-to-detail panel, search that dims non-matching nodes, and state/area filters. [from: SPEC-004]
+
+## As-Built Viz Artifact Contract
+
+- `viz.html` remains a single self-contained artifact with no external script/link/import references and no network-fetching code path reachable at view time (only XML/SVG namespace URLs or URLs embedded inside bundle-data strings may appear); it opens fully functional from `file://` with no network. [from: SPEC-004]
+- `viz.ts` regeneration is byte-deterministic: given an unchanged bundle and manifest, two builds produce byte-identical output. The `viz.ts` CLI contract (`--target/--out/--date`) is unchanged, the sheet date comes only from `--date`, and no clock reads (`Date.now`, argless `new Date()`) or `Math.random` calls occur anywhere in build or template code. [from: SPEC-004]
+- The fcose layout runs with `randomize: false`, seeded from deterministic hash-derived initial positions, rather than baking floating-point layout coordinates into the artifact — the file carries data and seed, and layout settles client-side, preserving byte-determinism across platforms and browsers. [from: SPEC-004]
+- Cytoscape.js and fcose (plus fcose's `cose-base`/`layout-base` dependencies) are vendored as pinned minified files under `asbuilt/vendor/`, with each file's version and license recorded (manifest or header), and are inlined by `viz.ts` at build time; no package registry or CDN access is required at build or test time. [from: SPEC-004]
+
+## As-Built Viz Regression Anchors
+
+- A synthetic dense-bundle fixture (a ≥50-concept group plus ≥40 test concepts) exercises the crowding case in the test suite as a regression anchor for the viz renderer. [from: SPEC-004]
+- The dense-fixture layout carries a packing-factor drift anchor: the axis-aligned bounding box of all settled clusters, divided by the sum of the individual clusters' bounding-box areas, must not exceed 4.5. The bound is pinned to the look approved at the 2026-07-16 spike checkpoint (measured 4.116 there), and the test records bound and measured value side by side to guard against silent layout degradation. [from: SPEC-004]
+- Compactness itself is arbitrated by the human look-gate, not by the packing-factor metric alone: the spike found the ratio cannot discriminate the reverted population-scaled-ring layout (measured 2.63, which would "pass") from a genuinely good layout, so the earlier rule that the reverted ring layout must fail this bound is withdrawn as unenforceable by this metric (amended 2026-07-16 at the spike checkpoint, per Dustin's ruling). [from: SPEC-004]

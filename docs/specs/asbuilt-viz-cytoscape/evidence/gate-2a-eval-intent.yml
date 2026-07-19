@@ -1,0 +1,45 @@
+gate: eval-intent
+spec_id: SPEC-004
+timestamp: 2026-07-16T00:00:00Z
+eval_files_evaluated:
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-1.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-2.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-3.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-4.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-5.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-6.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-7.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-8.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-9.md
+  - docs/specs/asbuilt-viz-cytoscape/evals/ac-10.md
+ac_count: 10
+dimensions:
+  intent_coverage: 8
+  anti_pattern_detection: 9
+  journey_completeness: 7
+  implementation_independence: 8
+weights:
+  intent_coverage: 0.30
+  anti_pattern_detection: 0.25
+  journey_completeness: 0.25
+  implementation_independence: 0.20
+overall: 8.0
+threshold: 6.5
+per_dimension_minimum: 4
+result: pass
+system_spec_conflicts: []
+regression_signals: []
+flags:
+  blocking: []
+  recommended:
+    - "Journey 1 ('a reviewer opens viz.html for a dense flat-package Go bundle: sees named, compactly packed directory clusters at default zoom; zooms into one cluster and reads individual file labels; hovers/clicks for detail') has no single eval tracing the full trigger-to-outcome path in one narrative. Its beats are each fully covered but split across four files: compactness at default zoom (ac-10.md), zoom-driven label reveal (ac-2.md), test-marking within clusters (ac-1.md), and hover/click detail (ac-5.md). Consider one consolidated end-to-end eval, or explicit cross-references chaining the four, to make the journey traceable as a single unit."
+    - "Journey 3 ('a claudeclaw user opens the existing 67-concept bundle: at least as legible as today, all current interactions intact') is split across two evals: ac-7.md asserts the bundle-specific legibility claim ('its five directory clusters and their labels must remain as readable at default zoom as in the current renderer') but does not re-assert interaction continuity for that specific bundle; ac-5.md asserts interaction continuity generically, not tied to the 67-concept bundle. Together they cover the journey's substance but not as one bundle-scoped trace."
+  advisory:
+    - "ac-3.md (view-time CDN loading) and ac-9.md (build-time CDN/network dependency) both target spec anti-pattern #4 from different angles. This is a deliberate and defensible split (different failure points in the lifecycle) but could be made explicit with a one-line cross-reference in each file, the way ac-10.md already cross-references ac-2.md as a joint condition."
+    - "ac-6.md's language ('the project's viz test suite', 'the embedded data reports correct concept/audit counts') is the one spot in the set that presupposes a specific internal artifact category (a test suite, an embedded-data contract) rather than staying in pure user-observable terms. This is defensible since AC6 itself is a meta-AC about preserving existing test-suite guarantees under the engine swap, but it's the softest spot in an otherwise clean implementation-independence set."
+    - "ac-8.md's 'same relative positions' and 'same arrangement' could be made more falsifiable with a concrete comparison method (e.g., coordinate-level or pixel-level diff tolerance), mirroring the precision ac-4.md achieves with 'byte for byte' and ac-10.md achieves with the recorded 4.5/4.116 packing-factor pair."
+reasoning:
+  intent_coverage: "9 of 10 evals are stated in terms a reviewer, maintainer, or operator could verify by looking at the running artifact without reading source -- e.g. ac-8.md: 'opens the same viz.html twice in the same browser and sees the same arrangement both times'; ac-3.md: 'double-clicks the generated viz.html from file:// on a machine with networking disabled and gets the complete experience.' None of the ten evals reference min-zoomed-font-size, fcose, compound nodes, Cytoscape, or other AC-text implementation vocabulary even though the spec's own AC2/AC8 text uses those terms -- the eval authors consistently translated spec-level implementation nouns into zoom/reload/arrangement language a non-engineer could check. ac-6.md leans more technical ('embedded data', 'the project's viz test suite') because its subject -- preserving an existing test suite's guarantees across the engine swap -- is inherently about a technical artifact; that keeps the set at 'good' rather than 'excellent', since no eval explicitly states it would remain valid across differing implementations the way the rubric's 9-10 exemplar does."
+  anti_pattern_detection: "All 5 of the spec's named anti-patterns are explicitly cited by number with a dedicated 'would fail if' clause built around that specific failure mode: ac-2.md names anti-pattern #1 (permanent label suppression keyed on group size); ac-10.md names anti-pattern #2 (population-scaled anchor rings / empty-space-between-clusters), including an explicit callback to the reverted ring layout's 2.63 measurement from the spec's Problem Statement and amended AC10; ac-4.md names anti-pattern #3 (baking layout coordinates into the artifact); ac-3.md and ac-9.md jointly cover anti-pattern #4 (CDN loading) from the view-time and build-time angles respectively; ac-1.md names anti-pattern #5 (renaming the tests bucket while still clustering spatially). Every named anti-pattern has dedicated, explicitly-labeled coverage -- short of a 10 only because the anti-pattern citation lives in a separate 'Anti-patterns this catches' section rather than inline within each 'Would fail if' bullet."
+  journey_completeness: "2 of 4 critical journeys are traced end-to-end by a single eval: Journey 2 ('unchanged bundle -> byte-identical rebuild, drift diffs stay quiet') by ac-4.md, and Journey 4 ('double-clicks viz.html from file:// with no network: fully functional') by ac-3.md, which explicitly enumerates every interaction (zoom/pan, tooltips, detail panel, search, filters) as part of the offline-functional claim. The other two journeys have full beat-level coverage but are each split across multiple files rather than chained into one narrative: Journey 1's four beats live in ac-1.md/ac-2.md/ac-5.md/ac-10.md, and Journey 3's legibility claim (ac-7.md) is separated from its interaction-continuity claim (ac-5.md, asserted generically rather than bundle-scoped). The dense-fixture bundle used throughout ac-1/ac-2/ac-6/ac-10 functions as the de facto high-risk edge case for Journey 1, which is a point in the set's favor, but the lack of any single full-path eval for two of the four journeys keeps this below 'excellent'."
+  implementation_independence: "The set consistently avoids naming Cytoscape, fcose, compound nodes, min-zoomed-font-size, Math.random/Date.now, viz.ts, or viz-template.html, or any internal data structure, even where the spec's own AC text uses those terms -- ac-8.md describes reload-stable arrangement without mentioning seeded randomization or randomize:false, and ac-9.md says 'third-party rendering libraries' rather than naming Cytoscape/fcose by name. ac-10.md's bounding-box-ratio measurement is inherited directly from the spec's own (amended) AC10 definition -- a spec-level acceptance formula computed from settled node positions, not an eval-author implementation choice -- and remains a generically measurable property regardless of which layout engine produced the arrangement; the eval also correctly withdraws the discriminator claim in step with the 2026-07-16 amendment, stating plainly that the ratio alone cannot distinguish the reverted ring layout (2.63) from a good one and that compactness itself is the human look-gate's job. 'viz.html' appears throughout the set as the spec's own named deliverable artifact (R5), not an internal implementation detail, so it does not count against this dimension. A team shipping a materially different rendering architecture that hit the same observable outcomes would pass every eval in this set. ac-6.md's presupposition of 'a test suite' as an artifact category is the one soft spot, keeping this at 'good' rather than 'excellent'."

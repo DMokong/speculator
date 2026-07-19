@@ -1,0 +1,89 @@
+# Gate 1: Spec Quality Scorecard
+# Scores + flags + weights + dimension_minimum recorded by the spec-scorer agent
+# (weights and minimum arrive inline in its dispatch prompt); threshold + result
+# stamped post-dispatch by the invoking skill (scorer never sees the threshold).
+# Do not edit manually.
+
+gate: spec-quality
+spec_id: SPEC-004
+spec_path: docs/specs/asbuilt-viz-cytoscape/spec.md
+timestamp: 2026-07-16T00:00:00Z
+scorer: llm-as-judge
+model: claude-sonnet-5
+
+weights:                    # recorded by the scorer from the inline-provided values —
+  completeness: 0.20        # makes `overall` mechanically recomputable by verify-evidence.sh
+  clarity: 0.20
+  testability: 0.20
+  intent_verifiability: 0.15
+  feasibility: 0.15
+  scope: 0.10
+
+scores:
+  completeness: 8            # all sections substantive, R->AC traceability, dense-fixture edge
+                              # case covered; but no enumerated failure/error-mode ACs (fcose
+                              # non-convergence, missing/corrupt vendor file, 0-concept bundle)
+  clarity: 9                 # line-number citations, exact API names (min-zoomed-font-size,
+                              # randomize:false), exact numeric thresholds (4.5 bound, 4.116
+                              # measured, 700KB budget); one soft spot: R3's "distinct visual
+                              # identity (badge/styling)" leaves exact styling undefined
+  testability: 9              # every AC is Given/When/Then with measurable/observable outcomes
+                              # (byte-identical diff, packing-factor bound, absence of
+                              # Math.random/Date.now call sites); AC5's "same information
+                              # surfaced" needs a baseline snapshot to fully operationalize
+  intent_verifiability: 9    # explicit purpose + failure-of-purpose framing ("density must cost
+                              # zoom effort, never information"), anti-patterns with reasoning
+                              # tied to real field reverts, explicit letter-vs-spirit anti-pattern
+                              # (renaming the tests bucket while still clustering it spatially),
+                              # traced critical user journeys
+  feasibility: 9              # Cytoscape.js+fcose are real, established libraries; AC10 was
+                              # amended from first-hand spike evidence (packing factor measured
+                              # 4.116 fcose / 2.631 reverted-ring, independently reproduced by a
+                              # verifier and adversarial-reviewer role per
+                              # tasks/03-spike/report.md); byte-determinism risk mitigated via
+                              # seeded-hash + client-side settle; alternatives (iterate hand-rolled
+                              # sim, treemap view) evaluated and rejected in the linked design.md.
+                              # Held short of 10: exact vendor library versions aren't pinned in
+                              # the spec text itself (R6/AC9 defer to recording them at build time)
+  scope: 8                   # cohesive single-purpose (replace rendering engine to fix compactness
+                              # + label survival); R3's test-node regrouping is directly tied to
+                              # the traced cross-cutting-tests-supergroup cause, not tangential;
+                              # R6/R7 are necessary implementation-support requirements, not
+                              # separate features. Not 9-10: 7 requirements / 10 ACs / vendoring +
+                              # fixture + interaction re-wiring is a fair amount of surface for one
+                              # spec, appropriately matched to a genuine engine-replacement's
+                              # complexity but not "every requirement essential, nothing extraneous"
+                              # territory
+  overall: 8.7                # weighted: 8*0.20 + 9*0.20 + 9*0.20 + 9*0.15 + 9*0.15 + 8*0.10
+                              # = 1.6 + 1.8 + 1.8 + 1.35 + 1.35 + 0.8 = 8.7 (already one decimal,
+                              # no rounding needed)
+
+threshold: 7.0              # gates.spec-quality.threshold, stamped by spec-score skill
+dimension_minimum: 5        # recorded by the scorer from the inline-provided value — each dimension must be >= this
+result: pass                # overall 8.7 >= 7.0, all dims >= 5, no blocking flags (blind re-score post-AC10-amendment)
+
+flags:
+  blocking:
+    # none identified. No contradictory requirements, no untestable ACs, no missing
+    # critical section, no nonexistent/deprecated dependency. Risk validation skipped
+    # (no risk-signal keyword list configured). Impact validation: clean pass — no
+    # semantic overlap detected between this spec's requirements/ACs and any domain
+    # header or behavior entry in SYSTEM-SPEC.md (SYSTEM-SPEC.md documents Speculator's
+    # own gate/scorer/compactor pipeline behaviors; this spec is entirely about the
+    # As-Built viz renderer, a disjoint area of the codebase); the declared
+    # `impact_rating: none` with empty `amends: []` matches the Decision Matrix's
+    # "None / none / Empty -> Pass" row.
+  recommended:
+    - "Completeness: no explicit failure/error-mode ACs — e.g., expected behavior when fcose fails to converge, when a vendored file is missing/corrupted at build time, or when a bundle has 0 concepts/groups. The 10 ACs cover happy-path and boundary-density scenarios well but not degraded/failure states; adding at least one would move Completeness toward the 9-10 band."
+    - "Feasibility: exact target/minimum versions for the vendored libraries (Cytoscape.js, fcose, cose-base, layout-base) are not pinned in the spec text itself — R6/AC9 only require versions to be recorded at implementation time. The linked spike report (tasks/03-spike/report.md) already exercised and measured a specific vendored stack (minified, patched, 518.1KB); stating target versions in the spec would close the traceability loop."
+  advisory:
+    - "R3's 'this supersedes only the spatial half of the claw-wsit rule' assumes reader familiarity with the original claw-wsit rule. The spec does clarify the substance (\"classification remains frontmatter-driven, never path-derived\"), but a one-line inline summary of what claw-wsit originally asserted would make the spec fully self-contained without requiring the linked ticket."
+    - "AC10 references 'the look approved at the 2026-07-16 spike checkpoint' without a direct path to the backing evidence. A one-line cross-reference to docs/fable-streams/2026-07-15-asbuilt-viz-cytoscape/tasks/03-spike/report.md (which independently reproduces the packing-factor inversion via implementer + verifier + adversarial-reviewer roles) would make the drift-anchor rationale directly traceable from the spec."
+    - "The design doc's 'Rejected alternatives' section (iterate the hand-rolled sim; dense-bundle alternate view / treemap) is strong architectural justification currently living only in the linked design.md. Surfacing a one-line summary in the spec's Problem Statement or Requirements would strengthen in-spec feasibility traceability for readers who don't follow the design.md link."
+
+# Human override (fill in manually if overriding a fail)
+override:
+  overridden: false
+  justification:
+  overridden_by:
+  override_date:

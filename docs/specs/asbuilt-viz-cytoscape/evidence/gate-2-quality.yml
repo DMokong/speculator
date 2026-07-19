@@ -1,0 +1,27 @@
+# Gate 2 evidence — SPEC-004 asbuilt-viz-cytoscape
+# Config (gates.code-quality): tests_required: true, coverage_threshold: 80,
+# ac_traceability/build/lint/type_check: false. No-regressions always on.
+
+gate: code-quality
+spec_id: SPEC-004
+timestamp: 2026-07-18T04:21:53Z
+test_command: "bun test asbuilt/tests/ (run from the worktree root; coverage via bun test --coverage from asbuilt/)"
+checks:
+  tests_pass:
+    enabled: true
+    result: pass
+    evidence: "bun test asbuilt/tests/ → 353 pass / 0 fail / 2119 expect() calls across 30 files (7.4-10.6s), run from the worktree at 07fdb7a. Includes the adversary-hardened suite (9 sensitivity gaps closed, recheck residue empty)."
+  coverage:
+    enabled: true
+    threshold: 80
+    result: pass
+    evidence: "bun test --coverage: All files 86.25% lines / 96.72% funcs (≥80). Changed build-side file asbuilt/src/viz.ts: 93.69% lines / 100% funcs — uncovered 335-347 is the CLI entry guard, which IS exercised via Bun.spawnSync subprocess tests (viz.test.ts:250-302) that line coverage cannot attribute. viz-template.html is a browser artifact: covered behaviorally via headless-Chrome render + interaction probes (T05 report) and the template-parsing layout tests (viz-layout.test.ts:93-152)."
+  no_regressions:
+    enabled: true
+    result: pass
+    evidence: "All 28 pre-existing asbuilt test files pass unchanged apart from the two spec-mandated assertion evolutions (grouping supersession, dense-fixture flip) recorded with claw-wsit supersession comments per AC6. 306 pre-SPEC-004 tests remain green within the 353."
+  ac_traceability: { enabled: false, result: n/a }
+  build: { enabled: false, result: n/a, note: "bunx tsc --noEmit was clean at T04/T06 but REGRESSED afterward: the 12-cyelement-union fix wave's test-file property-sniffing produced 18 tsc errors at c344165 while this note still said clean (PR #2 review wave 2, claw-kt2c). Reconciled: in-operator narrowing predicates restore a clean tsc, and `bun run typecheck` is now a CI job (.github/workflows/ci.yml asbuilt-typecheck) so this claim has an enforcement point instead of a hand-run." }
+  lint: { enabled: false, result: n/a, note: "bunx biome check tests/ run anyway during T06 verification — clean" }
+  type_check: { enabled: false, result: n/a }
+result: pass

@@ -22,6 +22,28 @@ jobs:
       - name: verify-evidence.sh self-test (known-good dogfood evidence)
         run: scripts/verify-evidence.sh docs/specs/eval-quality-scoring
 
+  asbuilt-typecheck:
+    # PR #2 review wave 2 (claw-kt2c): `bun test` strips types, so a tsc
+    # regression is invisible to the test suite — this job is the typecheck
+    # invariant's only enforcement point. (The bun test suite itself is not
+    # yet in CI pending the flake investigation; see claw-kt2c follow-ups.)
+    name: asbuilt typecheck + lint (bun)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14 # match the pinned vendor-minification toolchain (VENDOR.md)
+      - name: Install asbuilt deps
+        working-directory: asbuilt
+        run: bun install --frozen-lockfile
+      - name: Typecheck
+        working-directory: asbuilt
+        run: bun run typecheck
+      - name: Lint
+        working-directory: asbuilt
+        run: bun run lint
+
   benchmark-tests:
     name: Spec-Bench unit tests (pytest)
     runs-on: ubuntu-latest
