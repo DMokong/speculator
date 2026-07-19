@@ -93,3 +93,22 @@ tiny-compound overlap on claudeclaw bundle quantified (8 bbox pairs, worst
 Full final-audit AC panel NOT re-run for this delta (ran at ship; delta is
 review-scoped) — disclosed conductor judgment. PR merge remains with Dustin.
 Tracking: claw-bpjd (closed on push).
+
+## Fix-wave 2 closing record (2026-07-19, fable tier)
+
+Second external PR #2 review (2 Critical + 6 Important + suggestions) fully
+addressed in commit e20b49c, conductor-executed (single-session verify-then-
+fix, no dispatched waves). Every finding independently reproduced before
+fixing: C1's 18 tsc errors at c344165 (gate-2 evidence claimed clean — note
+reconciled, typecheck+lint now a CI job); C2's CRLF→blank-sheet path
+(build now throws on 0 concepts, client banner on empty data,
+NaN% guarded — browser-verified both ways); I3a's surviving byte-compare
+deletion (mutation test added); I3b's spelling-pinned AC2 guard (three
+reconstructed population-gating variants all passed old pins — replaced
+with vector-class pins, all three killed). Enrichment enum made explicit
+(unknown → skeleton, audited allowlist), manifest validated at read,
+inlineVendor throws on renamed slots, VENDOR.md size claim corrected
+(+3 B/file globalThis delta), scalar-tags coercion. Flake unreproduced
+(1161/1161 × rerun-each 3); PR body count corrected 362→387. Follow-ups:
+claw-s5iz/pdd4/mv7n/34v3 + cap-exhaustion note on claw-dsob. Tracking:
+claw-kt2c (closed on push). Merge remains with Dustin.
