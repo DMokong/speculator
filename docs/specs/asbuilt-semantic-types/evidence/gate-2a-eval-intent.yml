@@ -1,0 +1,46 @@
+gate: eval-intent
+spec_id: SPEC-005
+round: 2
+timestamp: 2026-07-18T15:26:55Z
+eval_files_evaluated:
+  - docs/specs/asbuilt-semantic-types/evals/ac-1.md
+  - docs/specs/asbuilt-semantic-types/evals/ac-2.md
+  - docs/specs/asbuilt-semantic-types/evals/ac-3.md
+  - docs/specs/asbuilt-semantic-types/evals/ac-4.md
+  - docs/specs/asbuilt-semantic-types/evals/ac-5.md
+  - docs/specs/asbuilt-semantic-types/evals/ac-6.md
+  - docs/specs/asbuilt-semantic-types/evals/ac-7.md
+  - docs/specs/asbuilt-semantic-types/evals/ac-8.md
+  - docs/specs/asbuilt-semantic-types/evals/ac-9.md
+  - docs/specs/asbuilt-semantic-types/evals/ac-9a.md
+  - docs/specs/asbuilt-semantic-types/evals/ac-10.md
+ac_count: 11
+dimensions:
+  intent_coverage: 8
+  anti_pattern_detection: 9
+  journey_completeness: 9
+  implementation_independence: 7
+weights:
+  intent_coverage: 0.30
+  anti_pattern_detection: 0.25
+  journey_completeness: 0.25
+  implementation_independence: 0.20
+overall: 8.3
+threshold: 6.5
+per_dimension_minimum: 4
+result: pass
+system_spec_conflicts: []
+regression_signals: []
+flags:
+  blocking: []
+  recommended:
+    - "Several evals lean on domain vocabulary that is spec-mandated as the artifact/CLI contract itself (suggested_type, applied/preserved/skipped counts, the generator artifact, the shipped AGENT.md) rather than an author's private implementation choice, so this is defensible — but it is still fairly technical for a reader with zero prior exposure to the As-Built pipeline. A one-line plain-language gloss per eval (e.g. 'the record of what the AI enrichment step decided') would push several evals from Good into the Excellent intent-coverage band without weakening their precision."
+    - "The anti-pattern citation lives in a separate 'Anti-patterns this catches' section rather than inline inside the 'Would fail if' bullet itself (contrast the rubric's 9-10 calibration example: 'Would fail if: ... (anti-pattern 1: implementation-biased evals)'). Coverage of all 5 named anti-patterns is otherwise complete; inlining the citation into each matching bullet would make the failure-mode-to-assertion mapping unambiguous at the point of the pass/fail statement, not just nearby."
+  advisory:
+    - "ac-9.md and ac-9a.md both cover suggested_type vocabulary edge cases (novel-but-valid values vs. redundant Module/Test restatement) and read naturally as a matched pair; no change needed, but a cross-reference between the two (as ac-2.md already does toward ac-5.md/ac-7.md for the correction journey) would make the open-vocabulary edge-case set as legible as the correction-journey set."
+    - "ac-10.md's 'would fail if' names 'codepoint sort' as the required ordering strategy — accurately reflecting the spec's own Constraints section, but stated as a specific algorithm rather than purely the observable outcome (byte-identical reruns). Framing it as 'ordering does not depend on filesystem/OS enumeration' would preserve the intent while leaving the exact deterministic-sort strategy unconstrained for the reader."
+reasoning:
+  intent_coverage: "Every eval states an operator-observable outcome — a frontmatter diff, a printed applied/preserved/skipped count, a per-entry skip reason, byte-identical reruns — verifiable without reading source (ac-4.md, ac-6.md, ac-9a.md are especially clean examples). No eval names an internal function, file path, or private data structure; the technical terms that do appear (suggested_type, generator artifact, AGENT.md) are the spec's own mandated contract surface, not invented implementation detail, which keeps the set in the Good band rather than Adequate. It falls short of Excellent because evals state the outcome and its mechanism together rather than explicitly separating 'what the user sees' from 'how it could be achieved.'"
+  anti_pattern_detection: "All 5 anti-patterns named in the spec's Anti-Patterns section are explicitly covered with a dedicated 'Anti-patterns this catches' section plus a matching 'Would fail if' bullet that would specifically catch it: LLM-calls/nondeterminism (ac-6.md, ac-10.md), fold-time enum rejection (ac-9.md), suggestion churn/human-edit clobbering (ac-2.md), backfill body rewrites (ac-6.md), and hand-copied agent-contract tests (ac-8.md). Full 5-of-5 coverage with concrete failure conditions exceeds the 7-8 band's 'at least half' bar; the only gap versus the 9-10 calibration example is that the anti-pattern label sits in an adjacent section rather than inline in the 'Would fail if' bullet."
+  journey_completeness: "All 3 critical user journeys are traced end-to-end from trigger to observable outcome with edge cases: the forward-fold journey (ac-1 happy path; ac-2, ac-3, ac-4, ac-9, ac-9a edge cases), the one-shot backfill journey (ac-6 happy path; ac-7, ac-10 edge cases), and the human-correction-survives journey, which ac-2.md now narrates explicitly end-to-end with pointers to AC5 (refresh) and AC7 (reclassify's already-semantic skip) rather than requiring the reader to reconstruct the path themselves. This explicit cross-referencing is what separates this set from a merely 'assemble the files yourself' Good score."
+  implementation_independence: "No eval references an internal function, file path, or module structure; the artifact-schema vocabulary that does appear (suggested_type, the type frontmatter field, applied/preserved/skipped labels) is the literal contract stated in the spec's own AC text and Requirements (R1, R3), not a private implementation choice an author invented — a differently-architected implementation would still need to satisfy that same AC-mandated contract to comply with the spec at all. This keeps the set in the Good band; it stops short of Excellent because the domain (a CLI/artifact-schema spec) inherently pins evals to that schema, leaving little room to state outcomes in fully architecture-agnostic terms."

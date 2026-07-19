@@ -100,3 +100,35 @@
 - If split layout is detected via sibling files but the index lacks a Domains table, the compactor repairs the index by adding the table with one row per existing `SYSTEM-SPEC-*.md` sibling before routing. [from: SPEC-003]
 - The `spec-compact` skill's `--all` bootstrap mode regenerates the split layout (index plus all domain files, with all provenance trails intact) when the project is split, and regenerates the single file otherwise. [from: SPEC-003]
 - In single-file layout, every SYSTEM-SPEC consumer behaves byte-for-byte as it did before layout detection was introduced — no index is created, no domain prompts appear, and no migration is performed or suggested as a side effect of normal operation. [from: SPEC-003]
+
+## Asbuilt Enrichment Contract
+
+- The asbuilt-generator agent's enrichment output contract (`EnrichmentDraft`) gains an optional per-draft `suggested_type` field carrying the agent's judgment of a concept's architectural role (service, model, handler, config, etc.), previously discarded even when the agent's Explanation prose correctly identified it. [from: SPEC-005]
+- `suggested_type` is guided by a curated core vocabulary (Service, Model, Handler, Repository, Config, CLI, Util, UI, Schema, Script) with an open fallback: any well-formed novel single-token type outside the curated list is accepted as-is by both fold and reclassify — no enum rejection, per OKF's tolerant-consumer contract (only malformed values, not unknown ones, are rejected). [from: SPEC-005]
+- The agent is instructed to omit `suggested_type` entirely when not confident in the classification — an honest `Module` default is preferred over a guessed wrong type. [from: SPEC-005]
+- `agents/asbuilt-generator/AGENT.md` documents a separate "Reclassification duty (backfill mode)" section for backfill dispatch, reusing the same curated vocabulary and omission rule and carrying an explicit "never rewrite concept content" guarantee. [from: SPEC-005]
+
+## Asbuilt Fold
+
+- Fold applies a draft's `suggested_type` in place of the mechanical `Module` default, following a canonical precedence checked in order: malformed value -> literal `Module`/`Test` value -> resource-filename-derived test boundary -> existing semantic type -> apply. [from: SPEC-005]
+- A `suggested_type` of exactly `Module` or `Test` is treated exactly as if the field were absent — a no-op on the mechanical path, not an error — and counted as skipped in the fold summary. [from: SPEC-005]
+- A malformed `suggested_type` on the fold path (empty string, multi-line string, or non-string) is treated as absent and counted as skipped-invalid; one malformed draft field does not abort applying valid suggestions to sibling concepts in the same fold run. [from: SPEC-005]
+- Absent a `suggested_type` field, fold's output is byte-identical to the pre-SPEC-005 mechanical `reclassifyType` path, preserving backward compatibility with existing `gate-2c-asbuilt.yml` artifacts and bundles. [from: SPEC-005]
+- When fold decides a type, it preserves the SPEC-049 frontmatter field order — only the `type` value changes, never the key ordering. [from: SPEC-005]
+
+## Asbuilt Semantic Type Preservation
+
+- First-semantic-wins governs every path that could overwrite a concept's type: a `suggested_type` never overwrites an existing semantic (non-`Module`/non-`Test`) frontmatter type; fold counts this outcome as preserved, not applied. [from: SPEC-005]
+- A human's manual frontmatter type correction survives every later fold, refresh, and reclassify pass — first-semantic-wins is the invariant that protects it from suggestion churn or silent clobbering. [from: SPEC-005]
+- Refresh's pre-existing `reclassifyType` call preserves any non-`Module`/non-`Test` semantic type unconditionally, whether or not the underlying resource changed in that refresh pass. [from: SPEC-005]
+- Test classification remains filename-derived and machine-owned, binding absolutely on both fold and reclassify: neither automated path ever applies a `suggested_type` (or a reclassification entry) across the test boundary, in either direction. [from: SPEC-005]
+- A pre-existing human-assigned semantic type on a test-classified resource is preserved exactly as-is, never repaired to `Test` — the test-boundary check is derived from the resource's filename (not the concept's current frontmatter type) and is evaluated before the existing-semantic-type check in both fold and reclassify. [from: SPEC-005]
+
+## Asbuilt Reclassify Backfill
+
+- `asbuilt/src/reclassify.ts` is a mechanical CLI (`bun asbuilt/src/reclassify.ts --target <repo> --artifact <path>`) that backfills types onto already-enriched concepts from a reclassification artifact — a YAML list of `{concept, suggested_type}` entries. [from: SPEC-005]
+- Reclassify validates the entire artifact in a first pass before any write: every violation (a malformed `suggested_type` or an unresolvable concept path) is collected, and if any concept path is unknown the whole run fails with a nonzero exit before any file is touched (all-or-nothing validation). [from: SPEC-005]
+- A skeleton-only concept (enrichment: none) or a concept already carrying an existing semantic type is skipped with a per-entry reason, and the run still exits 0. [from: SPEC-005]
+- A reclassification entry whose `suggested_type` is literally `Module` or `Test` is treated as machine vocabulary — skipped, not written — mirroring fold's handling of the same literal values. [from: SPEC-005]
+- For a validated entry targeting a concept currently typed `Module`, reclassify rewrites exactly the frontmatter `type` line — body bytes and the rest of the frontmatter stay byte-untouched — and the CLI prints applied/preserved/skipped counts before exiting 0. [from: SPEC-005]
+- Reclassify is idempotent and deterministic: entries are processed in codepoint-sorted concept-path order with no clock reads or randomness, so a second run over already-applied state is a no-op reporting zero applied, and re-running the same inputs always produces byte-identical output. [from: SPEC-005]

@@ -1,0 +1,224 @@
+gate: review
+spec_id: SPEC-005
+spec_path: docs/specs/asbuilt-semantic-types/spec.md
+reviewer: code-reviewer
+review_method: agent-assisted
+timestamp: 2026-07-18T17:56:55Z
+checks:
+  correctness:
+    verdict: warn
+    notes: >-
+      All 10 requirements/ACs have direct test coverage and pass — verified
+      by running `bun test asbuilt/tests/` from the checkout root: 356 pass,
+      0 fail, 2180 expect() calls (matches the expected 356-green baseline).
+      decideConceptType (asbuilt/src/fold.ts:98-134) and reclassify.ts's
+      apply-phase branches (asbuilt/src/reclassify.ts:221-273) correctly
+      implement the canonical precedence adjudicated in the final-audit fix
+      (malformed -> literal Module/Test -> test-boundary -> existing-semantic
+      -> apply); hand-traced against AC1/AC2/AC4/AC9/AC9a and confirmed
+      consistent with the 4 mirrored hardening tests commit 8fd6e3c added.
+      Two residual, untested edge-case divergences remain between the two
+      "canonical" appliers: (1) fold.ts:115 treats only the exact empty
+      string as malformed, while reclassify.ts:193 treats any whitespace-only
+      string as malformed via .trim() — a suggested_type of a single space
+      would be silently written into a concept's frontmatter type by fold but
+      rejected by reclassify's validation pass; (2) fold.ts's existing-
+      semantic check (fold.ts:127-128) excludes existingType === "Test" from
+      "semantic", so a concept whose CURRENT frontmatter type is literally
+      Test but whose resource is not test-pattern-named would have a new
+      suggestion applied by fold, while reclassify.ts:254-258's unconditional
+      currentType === "Test" guard would leave the identical concept
+      untouched. Both are narrow (the underlying reclassifyType() already
+      self-heals this drift on any no-suggestion fold/refresh pass) and
+      neither is exercised by a test on either path — see observations.
+  error_handling:
+    verdict: pass
+    notes: >-
+      Both files translate raw fs errors into the existing "refusing to
+      fold/reclassify: ..." convention (fold.ts:264-270, reclassify.ts:103-
+      109) instead of leaking ENOENT/EACCES. reclassify's validation phase
+      (reclassify.ts:183-214) collects every violation before throwing,
+      satisfying AC9's "not just the first" requirement — confirmed by
+      test_ac9_validation_collects_multiple_violations_together_not_fail_fast
+      (reclassify.test.ts:366-391). fold's per-draft malformed handling
+      (fold.ts:115-117) buckets a bad suggested_type as skippedInvalid rather
+      than aborting sibling drafts, confirmed by
+      test_ac9_fold_malformed_suggestions_skipped_invalid_and_siblings_still_apply
+      (fold.test.ts). rewriteTypeLine (reclassify.ts:120-128) throws a
+      specific, actionable error ("frontmatter block has no type field")
+      instead of writing corrupt output when the invariant it depends on
+      doesn't hold.
+  readability:
+    verdict: pass
+    notes: >-
+      Both files carry the codebase's established doc-comment density and
+      explicitly cross-reference AC numbers against the logic implementing
+      them (fold.ts:75-97 decideConceptType's precedence docstring,
+      reclassify.ts:1-54 header), which materially sped up hand-verification
+      of the precedence order. reclassify.test.ts and fold.test.ts's new
+      describe blocks are named per-AC/per-scenario and each carries a
+      one-line rationale for adversarial fixtures (e.g. fold.test.ts's "AC3
+      hardening" comment explaining why a naive implementation could pass the
+      old fixture set). One maintainability concern is recorded as an
+      observation below rather than a verdict-lowering finding: the
+      precedence rule is hand-duplicated across fold.ts's decideConceptType
+      and reclassify.ts's inline apply-phase branches instead of a single
+      shared helper.
+  security:
+    verdict: pass
+    notes: >-
+      Mandatory secrets scan executed against asbuilt/src/fold.ts,
+      asbuilt/src/reclassify.ts, agents/asbuilt-generator/AGENT.md, and all
+      four SPEC-005 test files (fold.test.ts, reclassify.test.ts,
+      refresh.test.ts, agents.test.ts) across all 5 required pattern classes
+      (credential-variable assignments, known API key formats, connection
+      strings with embedded credentials, inline bearer/authorization headers,
+      base64-encoded secret assignments) — zero matches on any pattern. No
+      new endpoints, no shell/SQL execution, no untrusted network input
+      introduced. reclassify.ts's concept-path resolution
+      (reclassify.ts:203-207, normalizeConceptPath at :94-96) uses the same
+      join(bundleDir, concept) + existsSync() convention fold.ts already used
+      pre-spec (fold.ts:513-514) — reclassify.ts's own header (:18-21) states
+      this is a deliberate mirror of fold's existing normalization, so this
+      is not a new deviation introduced by this diff.
+  performance:
+    verdict: pass
+    notes: >-
+      Both appliers do at most one read and one write per concept/entry,
+      proportional to artifact size, with no repeated I/O, no N+1 patterns,
+      and no unbounded loops (fold.ts:504-538,546-561; reclassify.ts:185-
+      210,221-273). Sorting is a single O(n log n) codepoint sort per run
+      (fold.ts:497, reclassify.ts:173-177), which doubles as the AC10
+      determinism mechanism rather than adding separate cost.
+  spec_alignment:
+    verdict: pass
+    notes: >-
+      All 10 requirements/ACs trace to concrete code and a passing test: R1/
+      AC8 -> AGENT.md:191-199,242-268 + agents.test.ts:355-416 (live-parses
+      the shipped AGENT.md, no hand-copied contract constants, per the
+      suite's standing anti-coupling rule); R2/AC1-AC4/AC9a -> fold.ts's
+      decideConceptType + fold.test.ts's AC1-AC4/AC9a describe blocks; R3/
+      AC6/AC7/AC9/AC10 -> reclassify.ts + reclassify.test.ts; R4/AC5 ->
+      refresh.test.ts:470-513, correctly test-only (refresh.ts already called
+      reclassifyType before this spec, confirmed via
+      `grep -n reclassifyType asbuilt/src/refresh.ts` returning an unchanged
+      pre-existing call site, so R4's "pin the existing preserve behavior
+      with tests" is honored literally, not gold-plated with an unneeded src
+      change); R5/AC3 -> fold.test.ts's AC3 describe block, including a
+      hardening test forcing the mechanical-reclassifyType-vs-filename-only
+      divergence. FoldResult gained typeCounts additively (fold.ts:53-57)
+      with folded/skipped untouched; `git diff main...HEAD -- agents/asbuilt-
+      generator/AGENT.md` shows zero removed lines (100% additive). Out-of-
+      scope items (viz visual encoding, backfill orchestration, refresh's
+      hash-equality retro-change) are untouched, confirmed via `git diff
+      main...HEAD --stat` showing no changes to viz.ts, refresh.ts (src), or
+      any orchestration/skill file.
+  skill_description:
+    verdict: pass
+    notes: >-
+      agents/asbuilt-generator/AGENT.md is in the diff; the check applies
+      even though the diff only touched the body (new suggested_type duty,
+      new "Reclassification duty (backfill mode)" section) and left the
+      frontmatter `description` field itself unchanged: "Cold-reads spec +
+      diff + graph slice; writes per-AC comprehension artifact citing graph
+      node ids, plus enrichment drafts. Never scores." Mental eval against 5
+      should-trigger phrasings ("generate the asbuilt comprehension artifact
+      for this spec's diff", "write enrichment drafts for the touched
+      concepts", "produce the asbuilt-artifact.yml from this graph slice",
+      "cold-read this spec+diff and cite graph node ids", "run the asbuilt
+      generator over this diff range") all match the description's
+      distinctive vocabulary (comprehension artifact / enrichment drafts /
+      graph node ids) with no ambiguity. 5 should-not-trigger near-misses
+      ("score this comprehension artifact against the rubric" — explicitly
+      excluded by the description's own "Never scores" clause and belongs to
+      asbuilt-judge instead; "write unit tests for fold.ts"; "summarize this
+      PR for Slack"; "edit AGENT.md to add a new duty"; "explain what this
+      codebase does") show no overtrigger risk — the description's
+      vocabulary doesn't overlap with any of them. The additive backfill-mode
+      duty is still accurately covered by the existing description's "writes
+      ... enrichment drafts" scope (backfill dispatch is explicit,
+      orchestration-driven context, not natural-language-routed), so no
+      description update was needed and none is missing.
+observations:
+  - >-
+    Verified independently by the reviewer: `bun test asbuilt/tests/` -> 356
+    pass / 0 fail / 2180 expect() calls; `cd asbuilt && bun run typecheck`
+    (tsc --noEmit) -> clean; `cd asbuilt && bun run lint` (biome check src/
+    tests/) -> "Checked 64 files in 60ms. No fixes applied." Mandatory
+    secrets scan across the full implementation surface (fold.ts,
+    reclassify.ts, AGENT.md, and all four SPEC-005 test files) returned zero
+    matches across all 5 required pattern classes.
+  - >-
+    correctness/warn, finding 1: fold.ts:115 and reclassify.ts:193 define
+    "malformed suggested_type" differently — fold only rejects the exact
+    empty string while reclassify also rejects whitespace-only strings via
+    .trim(). A whitespace-only suggested_type (e.g. a single space) would be
+    silently written into a concept's frontmatter `type` field by fold but
+    refused by reclassify's all-or-nothing validation. Neither path has a
+    test exercising this specific input. Low real-world likelihood (AGENT.md
+    instructs the agent to emit single capitalized tokens), but worth
+    aligning fold's check to reclassify's .trim()-based one for true
+    parity.
+  - >-
+    correctness/warn, finding 2: fold.ts's existing-semantic check
+    (fold.ts:127-128) explicitly excludes existingType === "Test" from being
+    "semantic", so a concept whose CURRENT frontmatter type is literally Test
+    but whose resource filename is NOT test-pattern (a drifted/hand-edited
+    state) would have a new suggestion applied by fold's precedence chain.
+    reclassify.ts:254-258 has an unconditional currentType === "Test" guard
+    that would leave the identical concept untouched instead. Both behaviors
+    are defensible in isolation (fold's arguably matches reclassifyType()'s
+    own "Test is machine vocabulary, re-derive from resource" philosophy;
+    reclassify's is the more conservative "never touch anything currently
+    typed Test" reading), but the two "canonical" precedence implementations
+    are not, in fact, identical for this input, and it is untested on either
+    path. The underlying reclassifyType() self-heals this drift on any
+    no-suggestion fold/refresh pass, which bounds the practical impact.
+  - >-
+    readability, non-blocking: the type-precedence decision is hand-
+    duplicated between fold.ts's decideConceptType (fold.ts:98-134) and
+    reclassify.ts's inline apply-phase branches (reclassify.ts:221-273)
+    rather than factored into one shared function alongside the existing
+    reclassifyType/conceptType helpers in concept.ts. This duplication is
+    exactly what produced the divergence the final-audit commit (8fd6e3c) had
+    to fix, and the two residual gaps recorded above suggest the risk isn't
+    fully retired. A follow-up extracting a single shared "decide semantic
+    type" helper (parameterized on whether the caller needs a Reason string,
+    for reclassify's skip/preserve messages) would remove this class of bug
+    at the source rather than relying on doc-comment discipline to keep two
+    copies in sync.
+  - >-
+    The final-audit fix (commit 8fd6e3c, "canonical precedence + resource-
+    filename test-boundary guard") was independently re-verified, not just
+    trusted: `git show 8fd6e3c -- asbuilt/src/fold.ts asbuilt/src/
+    reclassify.ts` was read in full, the reordered precedence in
+    decideConceptType and the new resource-filename-derived test-boundary
+    guard in reclassify.ts were hand-traced against the spec's amended
+    Constraints language ("a human-assigned semantic type on a test resource
+    is preserved, not repaired") and found correctly adjudicated; the 4
+    mirrored hardening tests it added (fold.test.ts's "SPEC-005 canonical
+    precedence" describe block, reclassify.test.ts's "resource-filename test
+    boundary" describe block) meaningfully exercise the fix's specific claims
+    (AC9a unconditional-skip, AC4 boundary-outranks-first-semantic-wins)
+    rather than merely restating them.
+  - >-
+    reclassify.ts's surgical single-line rewrite (rewriteTypeLine,
+    reclassify.ts:120-128) is a stronger byte-untouched guarantee than
+    fold.ts's full-frontmatter re-render, well-suited to AC6's "body bytes
+    unchanged" requirement. Its one theoretical gap: a suggested_type long
+    enough to trigger the `yaml` library's default line-wrapping would break
+    the "exactly the type line changes" invariant that
+    test_ac6_frontmatter_diff_is_exactly_the_type_line checks — bounded in
+    practice by AGENT.md's own instruction that suggested_type be a single
+    capitalized token (typically well under any wrap threshold), so not
+    flagged as blocking.
+  - >-
+    R4/AC5 correctly required no asbuilt/src/refresh.ts change: confirmed via
+    `grep -n reclassifyType asbuilt/src/refresh.ts` that refresh.ts already
+    called reclassifyType(fm.type, resource) at line 118 before this branch
+    existed, so refresh.test.ts's new AC5 describe block (refresh.test.ts:
+    470-513) is a pure regression pin, not dead test coverage for
+    unimplemented behavior.
+blocking_issues: []
+result: pass
+model: claude-sonnet-5

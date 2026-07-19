@@ -1,0 +1,59 @@
+gate: 4
+spec: SPEC-005
+name: evidence-package
+assembled_by: conductor (fable) — disclosed; mechanical checklist mirrored from the gate registry, not skill-dispatched
+date: 2026-07-19
+result: pass
+evidence:
+  gate-1-scorecard:
+    file: gate-1-scorecard.yml
+    result: pass
+    score: 8.6
+    threshold: 7.0
+    notes: 3 recommended findings amended into spec same-day (AC1 pointer attribution, AC9a no-op, AC9 validation split)
+  gate-2a-eval-intent:
+    file: gate-2a-eval-intent.yml
+    result: pass
+    score: 8.3
+    round: 2
+    threshold: 6.5
+    notes: round 1 failed on blocking flag (internal function named in ac-5 eval); behavioral rewrite; blind re-score
+  gate-2-code-quality:
+    result: pass
+    tests: 358 pass / 0 fail (2186 expect) — bun test asbuilt/tests/
+    coverage_lines: 85.25   # threshold 80; fold.ts 87.18, reclassify.ts 85.71, concept.ts 95.65
+    coverage_funcs: 96.23
+    typecheck: clean (tsc --noEmit, strict)
+    lint: clean (biome, 64 files)
+  test-adversary:
+    breakers: 3
+    gaps_found: 3   # AC4 fixture divergence, AC3 absent-suggestion re-fold on semantic concept, AC9a bucket order
+    hardened: true
+    residue: []
+  final-audit:
+    cold_read: 11/11 ACs satisfied
+    panel: 3 haiku voters per AC
+    findings: 2 real (AC9a precedence divergence 3/3, AC4 test-boundary gap 2/3)
+    adjudication: fixed in 8fd6e3c + AC4 clarifying amendment; recorded in stream tasks/05-final-audit/report.md fable round 2
+  gate-2c-comprehension:
+    file: gate-2c-comprehension.yml
+    result: pass
+    score: 7.6
+    threshold: 7.0
+    notes: cold-read found whitespace-only malformed asymmetry (fixed 1a52cd3 + regression tests both paths) and 2 stale doc comments (fixed)
+  gate-3-review:
+    file: gate-3-review.yml
+    result: pass
+    blocking_issues: 0
+    notes: >
+      2 correctness warns — whitespace asymmetry (fixed 1a52cd3, review predates commit;
+      independent convergence with Gate 2c) and the drifted Test-typed non-test-resource
+      corner (accepted residual: no automated ingress, self-heals on any mechanical pass,
+      alignment would require an AC6 amendment; disclosed in PR). Duplication observation
+      filed as follow-up refactor issue.
+  product-demo:
+    description: full agent→artifact→applier backfill on a copy of the origin bundle
+    result: 9/9 enriched concepts typed (4 Service, 3 Util, 1 Repository, 1 UI); frontmatter-only single-line diffs; second run applied=0 preserved=9 (idempotent)
+residuals:
+  - drifted Test-typed concept on a non-test-classified resource: fold heals-then-applies, reclassify skips (divergent, unreachable via automated paths, self-healing)
+  - long suggested_type could theoretically trigger yaml line-wrapping in reclassify's surgical rewrite (bounded by AGENT.md single-token instruction)

@@ -22,7 +22,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { parse } from "yaml";
 import { argValue, hasFlag } from "./cli";
-import { parseFrontmatter, reclassifyTags, reclassifyType, renderFrontmatter, resolveTags, splitConcept } from "./concept";
+import { conceptType, parseFrontmatter, reclassifyTags, reclassifyType, renderFrontmatter, resolveTags, splitConcept } from "./concept";
 import { type GraphManifest, loadManifest } from "./manifest";
 import { headingLines, isExactHeading } from "./md";
 
@@ -37,15 +37,103 @@ export interface FoldOptions {
   allowUnchecked?: boolean;
 }
 
+/**
+ * Per-concept frontmatter `type` decision outcome counts (SPEC-005 R2/AC1-
+ * AC5/AC9a/AC9). Additive to `FoldResult` — existing consumers reading only
+ * `folded`/`skipped` are unaffected. A draft with no `suggested_type` field
+ * at all (the AC3 backward-compat case) registers in none of these buckets.
+ */
+export interface TypeCounts {
+  applied: number; // suggestion accepted over the mechanical Module default (AC1)
+  preserved: number; // existing semantic type kept, first-semantic-wins (AC2)
+  skipped: number; // test-classified resource (AC4) or literal Module/Test suggestion (AC9a) — mechanical path, not an error
+  skippedInvalid: number; // malformed suggestion (empty / multi-line / non-string) — treated as absent, never written (AC9 fold half)
+}
+
 export interface FoldResult {
   folded: string[]; // concept paths written (content changed)
   skipped: string[]; // concept paths already current (byte-identical — no write)
+  typeCounts: TypeCounts;
 }
 
 interface EnrichmentDraft {
   concept: string;
   explanation: string;
   decisions: string;
+  /** Agent's judgment of the concept's architectural role (SPEC-005 R1). Optional for backward compatibility (AC3) — absent entirely on drafts predating this field. Declared `string` per the contract; validated defensively at the application site since a loosely-typed YAML artifact can carry any scalar here (AC9's non-string malformed case). */
+  suggested_type?: string;
+}
+
+/** The outcome bucket a concept's type decision falls into for summary counting, or `null` when the draft carried no `suggested_type` field at all (nothing to count — AC3). */
+type TypeCountBucket = "applied" | "preserved" | "skipped" | "skippedInvalid";
+
+interface TypeDecision {
+  type: unknown;
+  bucket: TypeCountBucket | null;
+}
+
+/**
+ * Decides a folded concept's frontmatter `type`, applying the enrichment
+ * agent's `suggested_type` over the mechanical `Module` default under
+ * first-semantic-wins precedence (SPEC-005 AC1-AC5, AC9a, fold half of AC9).
+ * Precedence, checked in order (CANONICAL across fold and reclassify —
+ * final-audit adjudication 2026-07-19):
+ *
+ * 1. A malformed suggestion (non-string, empty/whitespace-only, or
+ *    containing a newline) is treated as absent and never reaches a written
+ *    file (AC9 fold half).
+ * 2. A literal `Module`/`Test` suggestion is a no-op on the mechanical path,
+ *    unconditionally — even on an already-semantic concept (AC9a).
+ * 3. A test-classified RESOURCE (filename pattern) never has a suggestion
+ *    applied across the boundary; its current machine type stays, and a
+ *    pre-existing semantic type (human ingress) is preserved in value,
+ *    never repaired to `Test` (AC4 as amended).
+ * 4. An existing semantic (non-Module/non-Test) type wins — a suggestion
+ *    never overwrites a prior human/agent judgment (AC2).
+ * 5. Otherwise: a well-formed, novel suggestion is applied over the
+ *    mechanical `Module` default (AC1; open vocabulary — AC9).
+ *
+ * `bucket` is `null` exactly when `suggestedTypeRaw` is `undefined` (the
+ * field is genuinely absent from the draft) — the AC3 byte-compat case,
+ * where this concept's type handling must not register in the summary at
+ * all, and `type` is then just today's mechanical `reclassifyType` result.
+ */
+function decideConceptType(existingType: unknown, resource: string, suggestedTypeRaw: unknown): TypeDecision {
+  const mechanicalType = reclassifyType(existingType, resource);
+
+  if (suggestedTypeRaw === undefined) {
+    return { type: mechanicalType, bucket: null };
+  }
+
+  // Precedence is CANONICAL across fold and reclassify (final-audit findings,
+  // 2026-07-19): malformed -> literal Module/Test -> test-boundary ->
+  // existing-semantic -> apply. The literal check runs before the
+  // existing-semantic check so an already-semantic concept receiving literal
+  // machine vocabulary buckets as `skipped` in BOTH paths (AC9a is
+  // unconditional); the test-boundary check runs before the existing-semantic
+  // check so a suggestion is never applied across the test boundary, while a
+  // pre-existing semantic type on a test resource (human ingress only) is
+  // preserved in VALUE, never repaired to Test (AC4 as amended — repair would
+  // clobber the human-correction journey and diverge from refresh).
+  if (typeof suggestedTypeRaw !== "string" || suggestedTypeRaw.trim() === "" || suggestedTypeRaw.includes("\n")) {
+    return { type: mechanicalType, bucket: "skippedInvalid" };
+  }
+
+  if (suggestedTypeRaw === "Module" || suggestedTypeRaw === "Test") {
+    return { type: mechanicalType, bucket: "skipped" };
+  }
+
+  if (conceptType(resource) === "Test") {
+    return { type: mechanicalType, bucket: "skipped" };
+  }
+
+  const existingIsSemantic =
+    existingType !== "Module" && existingType !== "Test" && existingType !== undefined && existingType !== null;
+  if (existingIsSemantic) {
+    return { type: mechanicalType, bucket: "preserved" };
+  }
+
+  return { type: suggestedTypeRaw, bucket: "applied" };
 }
 
 interface CodeLocation {
@@ -192,7 +280,8 @@ function repoRelativePath(targetRepo: string, absPath: string): string {
 
 /**
  * Renders a concept's full new file content: unchanged frontmatter keys
- * (type/title/description/resource/graph_hash), `tags` preserved-or-
+ * (title/description/resource/graph_hash), `type` per the caller's already-
+ * decided value (`decideConceptType` — SPEC-005 R2), `tags` preserved-or-
  * re-derived (see `resolveTags`), plus this fold's updates
  * (enrichment/from/explains/stale/stale_reason), the untouched machine zone,
  * and a freshly rendered enriched zone (Explanation replaced verbatim;
@@ -205,6 +294,7 @@ function renderConceptContent(
   allCitedSymbols: string[],
   evidenceAbsPath: string,
   graphManifest: GraphManifest | null,
+  decidedType: unknown,
 ): string {
   const resource = typeof p.frontmatter.resource === "string" ? p.frontmatter.resource : "";
   const matchingSymbols = allCitedSymbols.filter((sym) => sym.split("#")[0] === resource);
@@ -227,7 +317,7 @@ function renderConceptContent(
   // present, else re-derived from the bundle's committed graph manifest (T4,
   // SPEC-049 Task 4) — see concept.ts's `resolveTags`.
   const frontmatterBlock = renderFrontmatter({
-    type: reclassifyType(p.frontmatter.type, resource),
+    type: decidedType,
     title: p.frontmatter.title,
     description: p.frontmatter.description,
     resource: p.frontmatter.resource,
@@ -454,9 +544,15 @@ export function fold(opts: FoldOptions): FoldResult {
   const folded: string[] = [];
   const skipped: string[] = [];
   const logBullets: string[] = [];
+  const typeCounts: TypeCounts = { applied: 0, preserved: 0, skipped: 0, skippedInvalid: 0 };
 
   for (const p of prepared) {
-    const newContent = renderConceptContent(p, opts, allCitedSymbols, evidenceAbsPath, graphManifest);
+    const resource = typeof p.frontmatter.resource === "string" ? p.frontmatter.resource : "";
+    const typeDecision = decideConceptType(p.frontmatter.type, resource, p.draft.suggested_type);
+    if (typeDecision.bucket !== null) {
+      typeCounts[typeDecision.bucket]++;
+    }
+    const newContent = renderConceptContent(p, opts, allCitedSymbols, evidenceAbsPath, graphManifest, typeDecision.type);
     if (newContent === p.oldContent) {
       skipped.push(p.draft.concept);
     } else {
@@ -471,7 +567,7 @@ export function fold(opts: FoldOptions): FoldResult {
     appendLogBullets(join(bundleDir, "log.md"), date, logBullets);
   }
 
-  return { folded, skipped };
+  return { folded, skipped, typeCounts };
 }
 
 export const CLI_USAGE =
@@ -500,7 +596,7 @@ if (import.meta.main) {
   const provenance: "fully-audited" | "accuracy-audited" = provenanceRaw ?? "fully-audited";
 
   try {
-    const { folded, skipped } = fold({
+    const { folded, skipped, typeCounts } = fold({
       evidencePath,
       targetRepo,
       specId,
@@ -508,7 +604,9 @@ if (import.meta.main) {
       ...(dateRaw !== undefined ? { date: dateRaw } : {}),
       ...(allowUnchecked ? { allowUnchecked: true as const } : {}),
     });
-    console.log(`folded=${folded.length} skipped=${skipped.length}`);
+    console.log(
+      `folded=${folded.length} skipped=${skipped.length} types_applied=${typeCounts.applied} types_preserved=${typeCounts.preserved} types_skipped=${typeCounts.skipped} types_skipped_invalid=${typeCounts.skippedInvalid}`,
+    );
     process.exit(0);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));

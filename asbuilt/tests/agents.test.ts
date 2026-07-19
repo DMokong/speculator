@@ -351,3 +351,66 @@ if (existsSync(CLOSE_SKILL_PATH)) {
 } else {
   console.log("[agents.test.ts] Skipping: skills/sdlc-close/SKILL.md not present.");
 }
+
+// SPEC-005 AC8 (03-generator-contract): pins the asbuilt-generator's
+// suggested_type output duty and reclassification (backfill) duty by
+// live-parsing the shipped AGENT.md — no hand-copied contract text blobs,
+// per the suite's standing anti-coupling rule. GENERATOR_PATH is already
+// known to exist (read ungated above), so no existsSync guard is needed
+// here.
+describe("SPEC-005 AC8: asbuilt-generator suggested_type + reclassification contract", () => {
+  const text = readFileSync(GENERATOR_PATH, "utf8");
+  const { body } = splitFrontmatter(text);
+
+  // Curated core vocabulary, verbatim per spec.md AC8 / brief Required
+  // content #1. Order matches the spec's listing; the test only checks
+  // presence, not order, in the prose.
+  const CURATED_VOCAB = ["Service", "Model", "Handler", "Repository", "Config", "CLI", "Util", "UI", "Schema", "Script"];
+
+  test("test_ac8_suggested_type_field_in_enrichment_output_contract", () => {
+    // Scope to the "## Output contract" section and specifically the
+    // enrichment_drafts block within it, so this pins suggested_type as
+    // part of the actual schema fold.ts/check.ts consume — not merely
+    // mentioned somewhere in unrelated prose.
+    const contractStart = body.indexOf("## Output contract");
+    expect(contractStart).toBeGreaterThan(-1);
+    const contractSection = body.slice(contractStart);
+    const draftsStart = contractSection.indexOf("enrichment_drafts");
+    expect(draftsStart).toBeGreaterThan(-1);
+    expect(contractSection.slice(draftsStart)).toContain("suggested_type");
+  });
+
+  test("test_ac8_curated_vocabulary_all_ten_terms_present", () => {
+    for (const term of CURATED_VOCAB) {
+      const wordBoundaryRe = new RegExp(`\\b${term}\\b`);
+      expect(body).toMatch(wordBoundaryRe);
+    }
+  });
+
+  test("test_ac8_omit_when_unsure_instruction_present", () => {
+    // Stable anchor phrase (introduced by this task) for the omission rule
+    // described in brief Required content #1: "omit the field entirely
+    // when not confident — never guess; Module is an honest default, a
+    // wrong Service is not." The implementer must use this exact phrasing
+    // (or a superset containing it) so this pin has a fixed target.
+    expect(body).toContain("omit the field entirely when not confident");
+    expect(body).toMatch(/never guess/i);
+  });
+
+  test("test_ac8_reclassification_backfill_duty_documents_yaml_artifact", () => {
+    // Required content #2: a clearly-marked backfill-mode duty emitting a
+    // top-level `reclassifications` list of {concept, suggested_type}
+    // entries, with a never-rewrite-content guarantee distinct from the
+    // enrichment-draft duty (which does write concept content).
+    expect(body).toMatch(/backfill/i);
+    expect(body).toContain("reclassifications");
+    // The reclassification duty reuses the same suggested_type vocabulary
+    // — pin that it's documented within reach of the reclassifications
+    // anchor, not just anywhere in the file (already covered generically
+    // by the enrichment-contract test above).
+    const reclassifyIdx = body.indexOf("reclassifications");
+    const nearbyWindow = body.slice(Math.max(0, reclassifyIdx - 1500), reclassifyIdx + 1500);
+    expect(nearbyWindow).toContain("suggested_type");
+    expect(nearbyWindow).toMatch(/never rewrite concept content/i);
+  });
+});

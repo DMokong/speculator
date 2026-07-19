@@ -1,0 +1,69 @@
+# Gate 1: Spec Quality Scorecard
+# Scores + flags + weights + dimension_minimum recorded by the spec-scorer agent
+# (weights and minimum arrive inline in its dispatch prompt); threshold + result
+# stamped post-dispatch by the invoking skill (scorer never sees the threshold).
+# Do not edit manually.
+
+gate: spec-quality
+spec_id: SPEC-005
+spec_path: docs/specs/asbuilt-semantic-types/spec.md
+timestamp: 2026-07-19T00:00:00Z
+scorer: llm-as-judge
+model: claude-sonnet-5
+
+weights:                    # rubric defaults used — no override provided inline
+  completeness: 0.20
+  clarity: 0.20
+  testability: 0.20
+  intent_verifiability: 0.15
+  feasibility: 0.15
+  scope: 0.10
+
+scores:
+  completeness: 9
+  clarity: 8
+  testability: 9
+  intent_verifiability: 8
+  feasibility: 9
+  scope: 8
+  overall: 8.6
+
+threshold:                  # left unset — stamped post-dispatch by the invoking skill
+dimension_minimum: 5        # rubric default used — no override provided inline
+result:                     # left unset — stamped post-dispatch by the invoking skill (pass | fail)
+
+flags:
+  blocking:
+    # none identified
+  recommended:
+    - "AC1 attributes `enrichment_drafts` directly to `gate-2c-asbuilt.yml`, but per fold.ts's actual schema (EvidenceShape vs. the separately-referenced ArtifactShape), `enrichment_drafts` lives in the generator artifact file that `gate-2c-asbuilt.yml`'s `generator.artifact` field points to, not in `gate-2c-asbuilt.yml` itself. Tighten AC1's wording to name the artifact chain explicitly so a test author doesn't look for the field in the wrong file."
+    - "R2/AC1/AC2 don't specify behavior when `suggested_type` is literally the string \"Module\" or \"Test\" (the two machine-owned values) rather than absent. Clarify whether this should be treated as a no-op (ignored, mechanical default still applies) or is disallowed/invalid input from the agent."
+    - "AC9's empty/multi-line-value rejection rule is scoped to reclassify.ts artifact entries (R3 path). It's not stated whether the same validation applies to `suggested_type` arriving via the enrichment-draft/fold path (R1/R2) — clarify whether fold-time application of `suggested_type` also rejects malformed values or silently ignores them."
+  advisory:
+    - "The dispatch context named `docs/fable-streams/2026-07-19-asbuilt-semantic-types/design.md` as the approved design backing this spec, but that path does not exist in the checkout (only `2026-07-15-asbuilt-viz-cytoscape` is present under docs/fable-streams/). Worth confirming the design stream was captured/committed, since it can't be cross-checked against the spec as delivered."
+    - "Consider linking the 'asbuilt-knowledge-system spec' (R3's trust invariant, per fold.ts's header comment) and SPEC-049 by path where first mentioned, for readers unfamiliar with the numbering."
+    - "The field-evidence count ('68 concepts typed Module, 42 Test') is a snapshot from an external bundle (sdlc-clients) not present in this repo — fine as motivating evidence, but not independently reproducible from this checkout; consider a pointer to where the count was captured."
+
+# Impact validation (runs after 6-dimension scoring; does not affect the score above)
+# system_spec_path: docs/specs/SYSTEM-SPEC.md (single-file layout: no Domains table, no
+# SYSTEM-SPEC-*.md siblings detected — full single-file SYSTEM-SPEC.md read).
+# SYSTEM-SPEC.md is present and parseable (## domain headers + "-" behavior entries).
+# Its content covers only Speculator's own pipeline-gate machinery (Gate 2b eval-quality
+# scorer, Gate 2c comprehension gate, gate-check skill, spec template, comprehension
+# scorer/rubric, doctor-init template, conditional gate surfaces, gate wiring registry,
+# README/roadmap, system-spec layout, compactor) — none of which overlaps semantically
+# with this spec's As-Built Knowledge System concept-typing behavior (concept.ts,
+# fold.ts, refresh.ts, asbuilt-generator enrichment drafts). Detected domain overlap:
+# none. Declared impact_rating: low, amends: [] (empty). Per the Impact Mismatch
+# Decision Matrix (None overlap + low+ rating + any amends) this is a clean Pass —
+# no impact_mismatch/impact_underspecified/impact_incomplete/system_spec_malformed
+# flag is warranted. This independently confirms the spec's own Impact Declaration
+# section's reasoning.
+# impact_validation_result: pass (no flags emitted)
+
+# Human override (fill in manually if overriding a fail)
+override:
+  overridden: false
+  justification:
+  overridden_by:
+  override_date:
