@@ -167,14 +167,70 @@ export function conceptType(resource: string): "Test" | "Module" {
 }
 
 /**
+ * The machine-vocabulary membership test — THE canonical predicate for "does
+ * this concept carry a human/LLM semantic type, or only machine defaults?"
+ * `Module`, `Test`, absent, and null are all machine values (PR #3 review C4:
+ * reclassify.ts hand-rolled `!== "Module"` here and silently preserved
+ * absent/null types that fold correctly treated as machine vocabulary —
+ * the 4th divergence bred by duplicating this predicate; claw-jeh5).
+ */
+export function isMachineType(existing: unknown): boolean {
+  return existing === "Module" || existing === "Test" || existing === undefined || existing === null;
+}
+
+/**
  * Reclassifies a machine-vocabulary type ("Module"/"Test"/absent) from the resource's
  * test convention; any other producer-defined type is preserved untouched.
  */
 export function reclassifyType(existing: unknown, resource: string): unknown {
-  if (existing === "Module" || existing === "Test" || existing === undefined || existing === null) {
-    return conceptType(resource);
-  }
-  return existing;
+  return isMachineType(existing) ? conceptType(resource) : existing;
+}
+
+/**
+ * Outcome of the SHARED semantic-type precedence core (claw-jeh5 extraction,
+ * PR #3 review). Callers map outcomes onto their own bucket/reason
+ * vocabulary; the precedence ORDER lives here exactly once.
+ */
+export type SemanticTypeOutcome =
+  | "apply" // machine-typed, boundary-clear: the suggestion wins
+  | "preserve" // existing semantic type wins (first-semantic-wins)
+  | "skip-machine-literal" // suggested is literal Module/Test (treated as absent)
+  | "skip-unknown-resource" // resource missing/non-string: test boundary indeterminate — fail toward skip
+  | "skip-test-boundary" // resource classifies as Test: suggestion never crosses the boundary
+  | "skip-machine-owned"; // existing type is machine-owned "Test" and the caller enforces ownership
+
+/**
+ * Shared precedence core for applying a WELL-FORMED semantic type suggestion
+ * — the single implementation both fold.ts (`decideConceptType`) and
+ * reclassify.ts consume. Four precedence divergences across three audits all
+ * came from each file re-implementing this chain by hand (claw-jeh5).
+ *
+ * Precedence, in order: literal Module/Test suggestion → unknown resource
+ * (fail toward skip: a missing/non-string `resource` used to short-circuit
+ * the test-boundary guard straight through to apply in BOTH files — PR #3
+ * review) → test-boundary → machine-owned existing "Test" (only when
+ * `machineOwnedTestGuard` — reclassify defers to machine ownership; fold
+ * deliberately does not, a DISCLOSED divergence for drifted `type: Test` on
+ * non-test resources) → first-semantic-wins → apply.
+ *
+ * Malformed-suggestion handling stays caller-side BY DESIGN: fold buckets
+ * `skippedInvalid` and keeps folding siblings (tolerant of LLM draft
+ * output); reclassify treats it as a validation violation that aborts the
+ * whole run (its artifact is an authored, all-or-nothing input — AC9). That
+ * divergence is intentional and documented at both call sites.
+ */
+export function decideSemanticType(
+  existingType: unknown,
+  resource: unknown,
+  suggested: string,
+  opts: { machineOwnedTestGuard: boolean },
+): SemanticTypeOutcome {
+  if (suggested === "Module" || suggested === "Test") return "skip-machine-literal";
+  if (typeof resource !== "string" || resource === "") return "skip-unknown-resource";
+  if (conceptType(resource) === "Test") return "skip-test-boundary";
+  if (opts.machineOwnedTestGuard && existingType === "Test") return "skip-machine-owned";
+  if (!isMachineType(existingType)) return "preserve";
+  return "apply";
 }
 
 /** Ensures the `test` tag matches the resource's classification while preserving every other tag and their order. */

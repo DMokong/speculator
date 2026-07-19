@@ -1,11 +1,15 @@
 // Mechanical backfill applier for the As-Built Knowledge System (SPEC-005
-// R3, AC6, AC7, AC9, AC9a, AC10) — the ONLY way an already-enriched concept
-// (one fold's hash-equality early-return can never re-visit; see refresh.ts's
-// header, claw-nb9j) ever gets a semantic frontmatter `type`. Companion to
-// fold.ts's `suggested_type` forward path (SPEC-005 R2): this file backfills
-// the SAME field, mechanically, from a pre-computed artifact instead of a
-// live LLM judgment — the mechanical/judgment boundary this whole spec turns
-// on (docs/specs/asbuilt-semantic-types/spec.md "Intent & Anti-Patterns").
+// R3, AC6, AC7, AC9, AC9a, AC10) — the mechanical backfill path for semantic
+// frontmatter `type` on already-enriched concepts. (Not literally the ONLY
+// writer that can touch `type` on an enriched concept: refresh.ts's
+// machine-zone rewrite re-derives `type` mechanically via `reclassifyType`
+// — it just never applies a SEMANTIC value. The hash-equality early-return
+// that keeps unchanged concepts from being revisited lives in refresh.ts,
+// claw-nb9j.) Companion to fold.ts's `suggested_type` forward path (SPEC-005
+// R2): this file backfills the SAME field, mechanically, from a pre-computed
+// artifact instead of a live LLM judgment — the mechanical/judgment boundary
+// this whole spec turns on (docs/specs/asbuilt-semantic-types/spec.md
+// "Intent & Anti-Patterns").
 //
 // Artifact format (YAML):
 //
@@ -23,44 +27,58 @@
 // (AC9) — any well-formed value outside the curated core vocabulary is
 // accepted and applied as-is, no enum check.
 //
-// Two-phase run (mirrors fold.ts's validate-then-write shape):
+// Two-phase run (PR #3 review C1 restructure — phase 1 does EVERYTHING that
+// can fail, phase 2 only writes):
 //
-//   1. VALIDATION (whole artifact, before any write): every entry's
-//      `suggested_type` must be a non-empty, single-line string, and every
-//      entry's `concept` must resolve to a real concept file in the target
-//      bundle. ANY violation anywhere in the artifact aborts the ENTIRE run
-//      (all-or-nothing) with a nonzero exit and zero writes — every
-//      violation is collected and reported together, not just the first.
-//   2. APPLY (only reached if validation found zero violations): entries are
-//      processed in codepoint-sorted concept-path order (determinism; no
-//      clock reads, no randomness — AC10) and each is classified (canonical
-//      precedence, aligned with fold.ts — final-audit adjudication
-//      2026-07-19: skeleton -> literal Module/Test -> resource-filename
-//      test boundary -> existing-semantic -> apply):
-//        - concept is skeleton-only (frontmatter `enrichment` is "none" or
-//          absent) -> skipped, untouched.
-//        - `suggested_type` is literally "Module" or "Test" -> skipped,
-//          untouched (AC9a: treated exactly as if the field were absent).
-//        - concept's current frontmatter `type` is "Test" -> skipped,
-//          untouched (machine-owned classification; never reclassified).
-//        - concept's current frontmatter `type` is already semantic
-//          (anything other than "Module") -> preserved, untouched
-//          (first-semantic-wins).
-//        - otherwise (enriched, currently `type: Module`) -> applied:
-//          exactly the frontmatter `type` line is rewritten; every other
-//          byte of the file (every other frontmatter field, in its original
-//          SPEC-049 field order, and the entire body) is left untouched.
+//   1. VALIDATE + STAGE (whole artifact, before any write): the artifact
+//      must be a YAML mapping owning a `reclassifications` array (a typo'd
+//      or missing wrapper key is a loud error, never a green zero-work run —
+//      review C3). Every entry's `suggested_type` must be a non-empty,
+//      single-line string; every entry's `concept` must resolve to a real
+//      concept file INSIDE the target bundle (a `../` path that escapes
+//      docs/asbuilt/ is a violation, not a write target — review C2); and
+//      every referenced concept file must READ and PARSE (a malformed
+//      concept is a phase-1 violation collected with the rest — it can
+//      never abort mid-write, review C1). Entries that will be applied have
+//      their rewritten content staged in memory here. ANY violation
+//      anywhere aborts the ENTIRE run (all-or-nothing) with a nonzero exit
+//      and zero writes — every violation is collected and reported
+//      together, not just the first.
+//   2. WRITE (only reached if phase 1 found zero violations): a pure loop
+//      over the staged rewrites — no reads, no parsing, nothing left that
+//      can throw between the first write and the last. Entries were staged
+//      in codepoint-sorted concept-path order (determinism; no clock reads,
+//      no randomness — AC10).
+//
+// Per-entry classification during phase 1, in precedence order (the
+// literal → boundary → ownership → first-semantic-wins core is SHARED with
+// fold.ts via concept.ts's decideSemanticType — claw-jeh5):
+//   - concept is not verifiably enriched (frontmatter `enrichment` absent,
+//     "none", or any unrecognized value — fail toward skip) -> skipped.
+//   - `suggested_type` is literally "Module"/"Test" -> skipped (AC9a).
+//   - concept's `resource` is missing/non-string -> skipped (test boundary
+//     indeterminate; this used to fall through to apply — PR #3 review).
+//   - `resource` classifies as Test (filename pattern) -> skipped (AC4).
+//   - current `type` is machine-owned "Test" -> skipped. DISCLOSED
+//     divergence: fold applies over a drifted Test-typed non-test resource;
+//     reclassify defers to machine ownership.
+//   - current `type` is semantic (not Module/Test/absent/null) -> preserved
+//     (first-semantic-wins).
+//   - otherwise (enriched, machine-typed: Module, absent, or null — the
+//     absent/null case aligned with fold's reclassifyType by review C4) ->
+//     applied: exactly the frontmatter `type` line is rewritten; every
+//     other byte of the file is left untouched.
 //
 // Idempotent by construction (AC10): a concept whose type reclassify already
-// wrote no longer reads as `type: Module` on a later run, so it falls into
+// wrote no longer reads as machine-typed on a later run, so it falls into
 // the "already semantic" (preserved) branch instead of being rewritten
 // again — no need to special-case "already-applied" separately.
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { parse, stringify } from "yaml";
 import { argValue } from "./cli";
-import { conceptType, parseFrontmatter, splitConcept } from "./concept";
+import { decideSemanticType, parseFrontmatter, splitConcept } from "./concept";
 
 export interface ReclassifyOptions {
   targetRepo: string;
@@ -85,12 +103,6 @@ interface RawEntry {
 
 interface ArtifactShape {
   reclassifications?: RawEntry[];
-}
-
-interface NormalizedEntry {
-  rawConcept: string; // exactly as given in the artifact (used in violation/skip messages)
-  concept: string; // bundle-relative, one leading "docs/asbuilt/" prefix stripped
-  suggestedType: string;
 }
 
 /** Strips a single leading "docs/asbuilt/" prefix — mirrors fold.ts's concept-path normalization. */
@@ -122,11 +134,16 @@ function readFileOrThrow(path: string): string {
  */
 function rewriteTypeLine(frontmatterBlock: string, newType: string): string {
   const lines = frontmatterBlock.split("\n");
+  const rendered = stringify({ type: newType }).replace(/\n$/, "");
   const idx = lines.findIndex((line, i) => i > 0 && line.startsWith("type:"));
   if (idx === -1) {
-    throw new Error("refusing to reclassify: frontmatter block has no type field");
+    // Absent-type concepts are machine-typed and DO receive the suggestion
+    // (PR #3 review C4 — aligned with fold's reclassifyType). With no line
+    // to rewrite, insert one at `type`'s canonical SPEC-049 position: first
+    // field, immediately after the opening `---`.
+    return [lines[0], rendered, ...lines.slice(1)].join("\n");
   }
-  lines[idx] = stringify({ type: newType }).replace(/\n$/, "");
+  lines[idx] = rendered;
   return lines.join("\n");
 }
 
@@ -165,10 +182,33 @@ export function reclassify(opts: ReclassifyOptions): ReclassifyResult {
   const artifactAbsPath = resolve(opts.artifactPath);
   const artifactText = readFileOrThrow(artifactAbsPath);
   const parsed: unknown = parse(artifactText);
-  const artifact: ArtifactShape = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as ArtifactShape) : {};
-  const rawEntries = Array.isArray(artifact.reclassifications) ? artifact.reclassifications : [];
+
+  // Artifact SHAPE is validated loudly (PR #3 review C3): an empty file, a
+  // top-level scalar/array, or a typo'd wrapper key used to degrade to zero
+  // entries and a green `applied=0 preserved=0 skipped=0` run — the
+  // operator believes the backfill ran. Only an explicitly-empty
+  // `reclassifications: []` is a legal zero-work artifact.
+  if (parsed === null || parsed === undefined || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(
+      `refusing to reclassify: artifact ${opts.artifactPath} is not a YAML mapping (got: ${Array.isArray(parsed) ? "array" : parsed === null || parsed === undefined ? "empty document" : typeof parsed})`,
+    );
+  }
+  const artifact = parsed as ArtifactShape;
+  if (!("reclassifications" in artifact)) {
+    const found = Object.keys(artifact);
+    throw new Error(
+      `refusing to reclassify: artifact ${opts.artifactPath} has no "reclassifications" key (found top-level key(s): ${found.length ? found.map((k) => JSON.stringify(k)).join(", ") : "none"})`,
+    );
+  }
+  if (!Array.isArray(artifact.reclassifications)) {
+    throw new Error(
+      `refusing to reclassify: artifact ${opts.artifactPath} "reclassifications" is not a list (got: ${typeof artifact.reclassifications})`,
+    );
+  }
+  const rawEntries = artifact.reclassifications;
 
   const bundleDir = join(opts.targetRepo, "docs/asbuilt");
+  const bundleDirAbs = resolve(bundleDir);
 
   // Codepoint-sorted deterministic order (AC10) — applied to validation
   // reporting order too, so violation messages and apply-phase writes are
@@ -179,12 +219,17 @@ export function reclassify(opts: ReclassifyOptions): ReclassifyResult {
     return ac < bc ? -1 : ac > bc ? 1 : 0;
   });
 
-  // Phase 1 (validate-all-before-write-any): resolve + validate every
-  // entry's suggested_type shape and concept-path existence BEFORE the
-  // first write. Collects EVERY violation instead of throwing on the first
-  // (AC9's multi-violation test).
+  // Phase 1 (validate + stage — EVERYTHING that can fail happens here,
+  // before the first write): suggested_type shape, concept-path containment
+  // and existence, concept readability/parseability, classification, and
+  // the rewritten content itself. Collects EVERY violation instead of
+  // throwing on the first (AC9's multi-violation test).
   const violations: string[] = [];
-  const prepared: NormalizedEntry[] = [];
+  const applied: string[] = [];
+  const preserved: ReclassifySkip[] = [];
+  const skipped: ReclassifySkip[] = [];
+  const stagedWrites: { conceptAbsPath: string; concept: string; newContent: string }[] = [];
+
   for (const raw of sortedRaw) {
     const rawConcept = typeof raw.concept === "string" ? raw.concept : String(raw.concept ?? "");
     const concept = normalizeConceptPath(rawConcept);
@@ -202,77 +247,109 @@ export function reclassify(opts: ReclassifyOptions): ReclassifyResult {
       violations.push(`${rawConcept}: ${malformedReason}`);
       continue;
     }
+    const suggestedType = suggested as string;
 
-    const conceptAbsPath = join(bundleDir, concept);
+    // Bundle containment (PR #3 review C2): `join` resolves `..` happily, so
+    // a concept path like `../../outside.md` used to rewrite arbitrary repo
+    // markdown and report it as a clean apply. The expected failure mode is
+    // an LLM emitting one wrong relative prefix — refuse it loudly.
+    const conceptAbsPath = resolve(bundleDirAbs, concept);
+    const relToBundle = relative(bundleDirAbs, conceptAbsPath);
+    if (relToBundle.startsWith("..") || isAbsolute(relToBundle)) {
+      violations.push(`${rawConcept}: escapes the bundle (resolves outside docs/asbuilt/)`);
+      continue;
+    }
     if (!existsSync(conceptAbsPath)) {
       violations.push(`${rawConcept}: unknown concept path`);
       continue;
     }
 
-    prepared.push({ rawConcept, concept, suggestedType: suggested as string });
+    // Read + parse HERE, not in the write phase (PR #3 review C1): a concept
+    // with malformed frontmatter — ordinary drift — is a collected phase-1
+    // violation like any other, never a mid-write abort that leaves earlier
+    // entries on disk while "refusing to reclassify" implies nothing happened.
+    let read: ReturnType<typeof readConcept>;
+    try {
+      read = readConcept(conceptAbsPath, concept);
+    } catch (err) {
+      const message = (err instanceof Error ? err.message : String(err)).replace(/^refusing to reclassify: /, "");
+      violations.push(`${rawConcept}: ${message}`);
+      continue;
+    }
+    const { content, frontmatterBlock, frontmatter, rawBody } = read;
+
+    // Enrichment gate — explicit allowlist, failing toward skip (PR #3
+    // review: any value other than the literal "none" used to count as
+    // enriched, so a typo'd or future vocabulary value fell through to
+    // apply; same permissive-fallthrough shape PR #2's review found).
+    const enrichment = frontmatter.enrichment;
+    if (enrichment === undefined || enrichment === "none" || typeof enrichment !== "string") {
+      skipped.push({ concept, reason: "skeleton-only concept (enrichment: none)" });
+      continue;
+    }
+    if (enrichment !== "accuracy-audited" && enrichment !== "fully-audited") {
+      skipped.push({
+        concept,
+        reason: `unrecognized enrichment value ${JSON.stringify(enrichment)} — not treated as enriched (fail toward skip)`,
+      });
+      continue;
+    }
+
+    // Shared precedence core (concept.ts decideSemanticType, claw-jeh5) —
+    // machineOwnedTestGuard: reclassify defers to a machine-owned existing
+    // `type: Test` even on a non-test resource (DISCLOSED divergence: fold
+    // applies there).
+    const outcome = decideSemanticType(frontmatter.type, frontmatter.resource, suggestedType, {
+      machineOwnedTestGuard: true,
+    });
+    switch (outcome) {
+      case "skip-machine-literal":
+        skipped.push({
+          concept,
+          reason: `suggested_type "${suggestedType}" is machine vocabulary (Module/Test); treated as absent`,
+        });
+        break;
+      case "skip-unknown-resource":
+        skipped.push({
+          concept,
+          reason: "resource missing or non-string — test boundary indeterminate; suggestion not applied (fail toward skip)",
+        });
+        break;
+      case "skip-test-boundary":
+        skipped.push({
+          concept,
+          reason: "test-classified resource (filename pattern); type is machine-owned — suggestion never applied across the test boundary",
+        });
+        break;
+      case "skip-machine-owned":
+        skipped.push({ concept, reason: "current type is machine-owned Test classification; not reclassified" });
+        break;
+      case "preserve":
+        preserved.push({
+          concept,
+          reason: `existing type ${JSON.stringify(frontmatter.type)} preserved (first-semantic-wins)`,
+        });
+        break;
+      case "apply": {
+        const newFrontmatterBlock = rewriteTypeLine(frontmatterBlock, suggestedType);
+        const newContent = newFrontmatterBlock + rawBody;
+        if (newContent !== content) {
+          stagedWrites.push({ conceptAbsPath, concept, newContent });
+        }
+        applied.push(concept);
+        break;
+      }
+    }
   }
 
   if (violations.length > 0) {
     throw new Error(`refusing to reclassify: ${violations.length} violation(s):\n${violations.map((v) => `  - ${v}`).join("\n")}`);
   }
 
-  // Phase 2: APPLY — every entry here already passed validation.
-  const applied: string[] = [];
-  const preserved: ReclassifySkip[] = [];
-  const skipped: ReclassifySkip[] = [];
-
-  for (const entry of prepared) {
-    const conceptAbsPath = join(bundleDir, entry.concept);
-    const { content, frontmatterBlock, frontmatter, rawBody } = readConcept(conceptAbsPath, entry.concept);
-
-    const enrichment = typeof frontmatter.enrichment === "string" ? frontmatter.enrichment : "none";
-    if (enrichment === "none") {
-      skipped.push({ concept: entry.concept, reason: "skeleton-only concept (enrichment: none)" });
-      continue;
-    }
-
-    if (entry.suggestedType === "Module" || entry.suggestedType === "Test") {
-      skipped.push({
-        concept: entry.concept,
-        reason: `suggested_type "${entry.suggestedType}" is machine vocabulary (Module/Test); treated as absent`,
-      });
-      continue;
-    }
-
-    // Test-boundary guard (final-audit AC4 finding, 2026-07-19): the boundary
-    // is derived from the concept's RESOURCE filename, not its current
-    // frontmatter type — a drifted test concept still typed Module must never
-    // receive a semantic type via this automated path, and a pre-existing
-    // semantic type on a test resource is left alone (preserved in value,
-    // suggestion skipped), mirroring fold's canonical precedence.
-    const resource = typeof frontmatter.resource === "string" ? frontmatter.resource : "";
-    if (resource !== "" && conceptType(resource) === "Test") {
-      skipped.push({
-        concept: entry.concept,
-        reason: "test-classified resource (filename pattern); type is machine-owned — suggestion never applied across the test boundary",
-      });
-      continue;
-    }
-
-    const currentType = frontmatter.type;
-    if (currentType === "Test") {
-      skipped.push({ concept: entry.concept, reason: "current type is machine-owned Test classification; not reclassified" });
-      continue;
-    }
-    if (currentType !== "Module") {
-      preserved.push({
-        concept: entry.concept,
-        reason: `existing type ${JSON.stringify(currentType)} preserved (first-semantic-wins)`,
-      });
-      continue;
-    }
-
-    const newFrontmatterBlock = rewriteTypeLine(frontmatterBlock, entry.suggestedType);
-    const newContent = newFrontmatterBlock + rawBody;
-    if (newContent !== content) {
-      writeFileSync(conceptAbsPath, newContent);
-    }
-    applied.push(entry.concept);
+  // Phase 2: WRITE — a pure loop over staged content. No reads, no parsing,
+  // nothing left that can throw between the first write and the last.
+  for (const write of stagedWrites) {
+    writeFileSync(write.conceptAbsPath, write.newContent);
   }
 
   return { applied, preserved, skipped };
@@ -294,6 +371,16 @@ if (import.meta.main) {
   try {
     const { applied, preserved, skipped } = reclassify({ targetRepo, artifactPath });
     console.log(`applied=${applied.length} preserved=${preserved.length} skipped=${skipped.length}`);
+    // Per-entry reasons, not just counts (PR #3 review): `skipped=47` alone
+    // cannot tell an operator whether those were skeleton-only,
+    // machine-vocabulary, or test-boundary skips — three completely
+    // different remediations. Order is already deterministic (AC10).
+    for (const entry of preserved) {
+      console.log(`  preserved: ${entry.concept} — ${entry.reason}`);
+    }
+    for (const entry of skipped) {
+      console.log(`  skipped: ${entry.concept} — ${entry.reason}`);
+    }
     process.exit(0);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));

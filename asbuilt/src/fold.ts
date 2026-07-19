@@ -22,7 +22,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { parse } from "yaml";
 import { argValue, hasFlag } from "./cli";
-import { conceptType, parseFrontmatter, reclassifyTags, reclassifyType, renderFrontmatter, resolveTags, splitConcept } from "./concept";
+import { decideSemanticType, parseFrontmatter, reclassifyTags, reclassifyType, renderFrontmatter, resolveTags, splitConcept } from "./concept";
 import { type GraphManifest, loadManifest } from "./manifest";
 import { headingLines, isExactHeading } from "./md";
 
@@ -76,21 +76,30 @@ interface TypeDecision {
  * Decides a folded concept's frontmatter `type`, applying the enrichment
  * agent's `suggested_type` over the mechanical `Module` default under
  * first-semantic-wins precedence (SPEC-005 AC1-AC5, AC9a, fold half of AC9).
- * Precedence, checked in order (CANONICAL across fold and reclassify —
- * final-audit adjudication 2026-07-19):
+ * The precedence core is SHARED with reclassify.ts via concept.ts's
+ * `decideSemanticType` (claw-jeh5 extraction — four hand-duplication
+ * divergences across three audits forced it). Order, as implemented there:
  *
  * 1. A malformed suggestion (non-string, empty/whitespace-only, or
  *    containing a newline) is treated as absent and never reaches a written
- *    file (AC9 fold half).
+ *    file (AC9 fold half). CALLER-SIDE, intentionally divergent: fold
+ *    buckets `skippedInvalid` and keeps folding siblings; reclassify aborts
+ *    its whole run in validation (authored all-or-nothing artifact, AC9).
  * 2. A literal `Module`/`Test` suggestion is a no-op on the mechanical path,
  *    unconditionally — even on an already-semantic concept (AC9a).
- * 3. A test-classified RESOURCE (filename pattern) never has a suggestion
+ * 3. A missing/non-string RESOURCE fails toward skip — the test boundary
+ *    cannot be derived, so the suggestion is never applied (PR #3 review:
+ *    this used to short-circuit straight through to apply).
+ * 4. A test-classified RESOURCE (filename pattern) never has a suggestion
  *    applied across the boundary; its current machine type stays, and a
  *    pre-existing semantic type (human ingress) is preserved in value,
  *    never repaired to `Test` (AC4 as amended).
- * 4. An existing semantic (non-Module/non-Test) type wins — a suggestion
- *    never overwrites a prior human/agent judgment (AC2).
- * 5. Otherwise: a well-formed, novel suggestion is applied over the
+ * 5. (reclassify only — DISCLOSED divergence) an existing machine-owned
+ *    `type: Test` on a NON-test resource is skipped by reclassify; fold
+ *    applies the suggestion over it.
+ * 6. An existing semantic (non-Module/non-Test/non-absent) type wins — a
+ *    suggestion never overwrites a prior human/agent judgment (AC2).
+ * 7. Otherwise: a well-formed, novel suggestion is applied over the
  *    mechanical `Module` default (AC1; open vocabulary — AC9).
  *
  * `bucket` is `null` exactly when `suggestedTypeRaw` is `undefined` (the
@@ -98,42 +107,29 @@ interface TypeDecision {
  * where this concept's type handling must not register in the summary at
  * all, and `type` is then just today's mechanical `reclassifyType` result.
  */
-function decideConceptType(existingType: unknown, resource: string, suggestedTypeRaw: unknown): TypeDecision {
+// Exported for the type-precedence parity suite (tests/type-precedence-parity.test.ts),
+// which drives fold's and reclassify's decision paths over one shared input
+// matrix — the mechanical guard against a fifth hand-duplication divergence.
+export function decideConceptType(existingType: unknown, resource: string, suggestedTypeRaw: unknown): TypeDecision {
   const mechanicalType = reclassifyType(existingType, resource);
 
   if (suggestedTypeRaw === undefined) {
     return { type: mechanicalType, bucket: null };
   }
 
-  // Precedence is CANONICAL across fold and reclassify (final-audit findings,
-  // 2026-07-19): malformed -> literal Module/Test -> test-boundary ->
-  // existing-semantic -> apply. The literal check runs before the
-  // existing-semantic check so an already-semantic concept receiving literal
-  // machine vocabulary buckets as `skipped` in BOTH paths (AC9a is
-  // unconditional); the test-boundary check runs before the existing-semantic
-  // check so a suggestion is never applied across the test boundary, while a
-  // pre-existing semantic type on a test resource (human ingress only) is
-  // preserved in VALUE, never repaired to Test (AC4 as amended — repair would
-  // clobber the human-correction journey and diverge from refresh).
+  // Malformed handling is fold-side by design (see decideSemanticType's doc
+  // comment): a bad LLM draft suggestion must not sink the fold of its
+  // siblings — bucket it and continue. Reclassify makes the opposite call
+  // for its authored artifact (whole-run abort). Everything below this
+  // check is the SHARED precedence core.
   if (typeof suggestedTypeRaw !== "string" || suggestedTypeRaw.trim() === "" || suggestedTypeRaw.includes("\n")) {
     return { type: mechanicalType, bucket: "skippedInvalid" };
   }
 
-  if (suggestedTypeRaw === "Module" || suggestedTypeRaw === "Test") {
-    return { type: mechanicalType, bucket: "skipped" };
-  }
-
-  if (conceptType(resource) === "Test") {
-    return { type: mechanicalType, bucket: "skipped" };
-  }
-
-  const existingIsSemantic =
-    existingType !== "Module" && existingType !== "Test" && existingType !== undefined && existingType !== null;
-  if (existingIsSemantic) {
-    return { type: mechanicalType, bucket: "preserved" };
-  }
-
-  return { type: suggestedTypeRaw, bucket: "applied" };
+  const outcome = decideSemanticType(existingType, resource, suggestedTypeRaw, { machineOwnedTestGuard: false });
+  if (outcome === "apply") return { type: suggestedTypeRaw, bucket: "applied" };
+  if (outcome === "preserve") return { type: mechanicalType, bucket: "preserved" };
+  return { type: mechanicalType, bucket: "skipped" };
 }
 
 interface CodeLocation {

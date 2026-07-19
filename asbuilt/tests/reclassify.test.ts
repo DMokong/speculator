@@ -338,7 +338,7 @@ describe("AC9: open vocabulary accepted as-is; malformed values rejected", () =>
     const alphaPath = join(dir, "docs/asbuilt/src/alpha.md");
     const before = readFileSync(alphaPath, "utf8");
     const artifactPath = writeArtifact(dir, 'reclassifications:\n  - concept: src/alpha.md\n    suggested_type: ""\n');
-    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow();
+    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow(/suggested_type is empty/);
     expect(readFileSync(alphaPath, "utf8")).toBe(before);
   });
 
@@ -350,7 +350,7 @@ describe("AC9: open vocabulary accepted as-is; malformed values rejected", () =>
       dir,
       "reclassifications:\n  - concept: src/alpha.md\n    suggested_type: |\n      Service\n      Extra\n",
     );
-    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow();
+    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow(/suggested_type is multi-line/);
     expect(readFileSync(alphaPath, "utf8")).toBe(before);
   });
 
@@ -359,7 +359,7 @@ describe("AC9: open vocabulary accepted as-is; malformed values rejected", () =>
     const alphaPath = join(dir, "docs/asbuilt/src/alpha.md");
     const before = readFileSync(alphaPath, "utf8");
     const artifactPath = writeArtifact(dir, "reclassifications:\n  - concept: src/alpha.md\n    suggested_type: 42\n");
-    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow();
+    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow(/suggested_type is not a string/);
     expect(readFileSync(alphaPath, "utf8")).toBe(before);
   });
 
@@ -558,8 +558,12 @@ describe("AC10: byte-determinism + idempotence", () => {
 
     const resultA = reclassify({ targetRepo: dirA, artifactPath: artifactA });
     const resultB = reclassify({ targetRepo: dirB, artifactPath: artifactB });
-    expect([...resultA.applied].sort()).toEqual(["src/alpha.md", "src/beta.md"]);
-    expect([...resultB.applied].sort()).toEqual(["src/alpha.md", "src/beta.md"]);
+    // No .sort() here (PR #3 review / mutation R8): the applied list must
+    // come back ALREADY codepoint-sorted regardless of artifact entry order
+    // (artifactB lists beta before alpha) — sorting before comparing was
+    // unpinning the very ordering this test exists to pin.
+    expect(resultA.applied).toEqual(["src/alpha.md", "src/beta.md"]);
+    expect(resultB.applied).toEqual(["src/alpha.md", "src/beta.md"]);
 
     expect(hashBundle(dirA)).toBe(hashBundle(dirB));
   });
@@ -660,7 +664,145 @@ describe("SPEC-005 AC9 (reclassify): whitespace-only suggested_type is a validat
       dir,
       'reclassifications:\n  - concept: src/alpha.md\n    suggested_type: "   "\n',
     );
-    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow();
+    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow(/suggested_type is empty/);
     expect(readFileSync(alphaPath, "utf8")).toBe(before); // zero writes
+  });
+});
+
+// PR #3 review wave (claw-vibp): regression pins for the four verified
+// Criticals plus the permissive fallthroughs. Each test reproduces a failure
+// the pre-wave suite provably let through.
+describe("PR #3 review wave: all-or-nothing, containment, shape, and fallthrough guards", () => {
+  /** Line-level frontmatter surgery on a bundle concept — keeps the body untouched. */
+  function mutateFrontmatterLines(dir: string, rel: string, fn: (lines: string[]) => string[]): string {
+    const p = join(dir, "docs/asbuilt", rel);
+    const raw = readFileSync(p, "utf8");
+    const m = raw.match(/^---\n([\s\S]*?)\n---\n/);
+    expect(m).not.toBeNull();
+    const inner = (m?.[1] ?? "").split("\n");
+    const rebuilt = `---\n${fn(inner).join("\n")}\n---\n`;
+    writeFileSync(p, rebuilt + raw.slice((m?.[0] ?? "").length));
+    return p;
+  }
+
+  test("C1: a malformed concept anywhere in the batch aborts with ZERO writes — no partial apply", () => {
+    const dir = enrichedBundle();
+    const alphaPath = join(dir, "docs/asbuilt/src/alpha.md");
+    const betaPath = join(dir, "docs/asbuilt/src/beta.md");
+    writeFileSync(betaPath, "no frontmatter block at all\n"); // ordinary drift, not exotic
+    const alphaBefore = readFileSync(alphaPath, "utf8");
+    const artifactPath = writeArtifact(
+      dir,
+      "reclassifications:\n  - concept: src/alpha.md\n    suggested_type: Service\n  - concept: src/beta.md\n    suggested_type: Handler\n",
+    );
+    // alpha sorts BEFORE beta — under the old interleaved phase 2 it was
+    // already written when beta's readConcept threw.
+    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow(/violation/);
+    expect(readFileSync(alphaPath, "utf8")).toBe(alphaBefore); // the sharp edge: "refusing" must mean NOTHING happened
+  });
+
+  test("C2: a concept path that escapes the bundle is a violation, not a write target", () => {
+    const dir = enrichedBundle();
+    const outsidePath = join(dir, "outside.md");
+    writeFileSync(
+      outsidePath,
+      "---\ntitle: Outside\ntype: Module\nresource: src/out.ts\nenrichment: fully-audited\n---\n\nNOT A BUNDLE FILE\n",
+    );
+    const before = readFileSync(outsidePath, "utf8");
+    const artifactPath = writeArtifact(
+      dir,
+      "reclassifications:\n  - concept: ../../outside.md\n    suggested_type: Service\n",
+    );
+    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow(/escapes the bundle/);
+    expect(readFileSync(outsidePath, "utf8")).toBe(before);
+  });
+
+  test("C3: a typo'd wrapper key is a loud error naming what was found, never a green zero-work run", () => {
+    const dir = enrichedBundle();
+    const artifactPath = writeArtifact(dir, "reclassification:\n  - concept: src/alpha.md\n    suggested_type: Service\n");
+    expect(() => reclassify({ targetRepo: dir, artifactPath })).toThrow(/no "reclassifications" key.*"reclassification"/s);
+  });
+
+  test("C3: empty file, top-level scalar, and non-list wrapper are all loud; an explicit empty list is legal zero-work", () => {
+    const dir = enrichedBundle();
+    expect(() => reclassify({ targetRepo: dir, artifactPath: writeArtifact(dir, "") })).toThrow(/not a YAML mapping/);
+    expect(() => reclassify({ targetRepo: dir, artifactPath: writeArtifact(dir, "just a scalar\n") })).toThrow(
+      /not a YAML mapping/,
+    );
+    expect(() => reclassify({ targetRepo: dir, artifactPath: writeArtifact(dir, "reclassifications: 42\n") })).toThrow(
+      /"reclassifications" is not a list/,
+    );
+    const result = reclassify({ targetRepo: dir, artifactPath: writeArtifact(dir, "reclassifications: []\n") });
+    expect(result).toEqual({ applied: [], preserved: [], skipped: [] });
+  });
+
+  test("C4: an enriched concept with a null type value is applied (fold parity), not preserved as 'undefined'", () => {
+    const dir = enrichedBundle();
+    const alphaPath = mutateFrontmatterLines(dir, "src/alpha.md", (lines) =>
+      lines.map((l) => (l.startsWith("type:") ? "type:" : l)),
+    );
+    const bodyBefore = bodyOf(readFileSync(alphaPath, "utf8"));
+    const artifactPath = writeArtifact(dir, "reclassifications:\n  - concept: src/alpha.md\n    suggested_type: Service\n");
+    const result = reclassify({ targetRepo: dir, artifactPath });
+    expect(result.applied).toEqual(["src/alpha.md"]);
+    expect(result.preserved).toEqual([]);
+    const after = readFileSync(alphaPath, "utf8");
+    expect(frontmatterOf(after).type).toBe("Service");
+    expect(bodyOf(after)).toBe(bodyBefore);
+  });
+
+  test("C4: an enriched concept with NO type line gets one inserted at the canonical first position", () => {
+    const dir = enrichedBundle();
+    const alphaPath = mutateFrontmatterLines(dir, "src/alpha.md", (lines) => lines.filter((l) => !l.startsWith("type:")));
+    const bodyBefore = bodyOf(readFileSync(alphaPath, "utf8"));
+    const artifactPath = writeArtifact(dir, "reclassifications:\n  - concept: src/alpha.md\n    suggested_type: Service\n");
+    const result = reclassify({ targetRepo: dir, artifactPath });
+    expect(result.applied).toEqual(["src/alpha.md"]);
+    const after = readFileSync(alphaPath, "utf8");
+    expect(after.startsWith("---\ntype: Service\n")).toBe(true); // SPEC-049: type is the first field
+    expect(bodyOf(after)).toBe(bodyBefore);
+  });
+
+  test("R12: a machine-owned type Test on a NON-test resource is skipped and the file untouched (disclosed fold divergence)", () => {
+    const dir = enrichedBundle();
+    const alphaPath = mutateFrontmatterLines(dir, "src/alpha.md", (lines) =>
+      lines.map((l) => (l.startsWith("type:") ? "type: Test" : l)),
+    );
+    const before = readFileSync(alphaPath, "utf8");
+    const artifactPath = writeArtifact(dir, "reclassifications:\n  - concept: src/alpha.md\n    suggested_type: Service\n");
+    const result = reclassify({ targetRepo: dir, artifactPath });
+    expect(result.applied).toEqual([]);
+    expect(result.skipped.map((s: ReclassifySkipLike) => s.reason)).toEqual([
+      "current type is machine-owned Test classification; not reclassified",
+    ]);
+    expect(readFileSync(alphaPath, "utf8")).toBe(before);
+  });
+
+  test("fallthrough: an unrecognized enrichment value fails toward skip, never toward apply", () => {
+    const dir = enrichedBundle();
+    const alphaPath = mutateFrontmatterLines(dir, "src/alpha.md", (lines) =>
+      lines.map((l) => (l.startsWith("enrichment:") ? "enrichment: fully-audted" : l)), // typo'd on purpose
+    );
+    const before = readFileSync(alphaPath, "utf8");
+    const artifactPath = writeArtifact(dir, "reclassifications:\n  - concept: src/alpha.md\n    suggested_type: Service\n");
+    const result = reclassify({ targetRepo: dir, artifactPath });
+    expect(result.applied).toEqual([]);
+    expect(result.skipped.map((s: ReclassifySkipLike) => s.reason)).toEqual([
+      'unrecognized enrichment value "fully-audted" — not treated as enriched (fail toward skip)',
+    ]);
+    expect(readFileSync(alphaPath, "utf8")).toBe(before);
+  });
+
+  test("fallthrough: a missing resource makes the test boundary indeterminate — skip, never apply", () => {
+    const dir = enrichedBundle();
+    const alphaPath = mutateFrontmatterLines(dir, "src/alpha.md", (lines) => lines.filter((l) => !l.startsWith("resource:")));
+    const before = readFileSync(alphaPath, "utf8");
+    const artifactPath = writeArtifact(dir, "reclassifications:\n  - concept: src/alpha.md\n    suggested_type: Service\n");
+    const result = reclassify({ targetRepo: dir, artifactPath });
+    expect(result.applied).toEqual([]);
+    expect(result.skipped.map((s: ReclassifySkipLike) => s.reason)).toEqual([
+      "resource missing or non-string — test boundary indeterminate; suggestion not applied (fail toward skip)",
+    ]);
+    expect(readFileSync(alphaPath, "utf8")).toBe(before);
   });
 });

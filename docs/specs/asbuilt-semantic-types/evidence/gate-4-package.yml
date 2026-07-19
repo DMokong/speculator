@@ -40,7 +40,16 @@ evidence:
     result: pass
     score: 7.6
     threshold: 7.0
-    notes: cold-read found whitespace-only malformed asymmetry (fixed 1a52cd3 + regression tests both paths) and 2 stale doc comments (fixed)
+    notes: >
+      cold-read found whitespace-only malformed asymmetry (fixed 1a52cd3 + regression tests
+      both paths) and 2 stale doc comments (fixed). AMENDED (PR #3 review, claw-vibp): the
+      1a52cd3 doc half was only PARTIALLY applied — the commit added the arrow-chain
+      precedence line but never touched the adjacent ordered list, leaving reclassify.ts's
+      header contradicting itself (two 5-step accounts of a 6-step implementation) while
+      this note said "fixed". Reconciled in the PR #3 review wave: header rewritten against
+      the implementation, precedence core extracted to concept.ts decideSemanticType, and a
+      table-driven parity suite (type-precedence-parity.test.ts) now guards the chain
+      mechanically.
   gate-3-review:
     file: gate-3-review.yml
     result: pass
