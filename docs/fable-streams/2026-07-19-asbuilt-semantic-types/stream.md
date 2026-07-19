@@ -129,3 +129,21 @@ SYSTEM-SPEC.md (4 sections, 25 bullets). Panel-agent debris incident (9 files,
 Conductor tier: fable throughout; conductor-executed takeovers recorded in
 05-final-audit (audit fixes) — all other work via dispatched adversarial
 waves. claw-j65u closes on merge; merge is Dustin's call.
+## Fix-wave closing record (2026-07-20, fable tier)
+
+External PR #3 review (4 Critical + 6 Important) fully addressed in commit
+692bdfb, conductor-executed single-session verify-then-fix. All four
+Criticals reproduced before fixing: C1 partial-apply (phase restructure:
+validate+stage / pure-write), C2 bundle escape (containment violation), C3
+silent zero-work (loud artifact shape, error names found keys), C4
+absent/null-type preserve (now applies per reclassifyType adjudication;
+missing type line inserted at SPEC-049 first position). The claw-jeh5
+extraction happened as load-bearing: shared decideSemanticType core in
+concept.ts + 45-row parity suite with declared divergences (machine-owned
+Test — disclosed, now R12-pinned; malformed handling adjudicated
+intentional caller-side). Both permissive fallthroughs fail toward skip;
+CLI prints per-entry reasons; R14/R8 test gaps closed; precedence docs
+rewritten against the 6-step implementation; gate-4 note amended re the
+half-applied 1a52cd3; CI asbuilt typecheck+lint job added (identical hunk
+to PR #2's). 414/414 tests, tsc+biome clean. Tracking: claw-vibp (closed on
+push). Merge remains with Dustin.
