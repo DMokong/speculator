@@ -65,13 +65,15 @@ A clean config — `risk_levels` only on opt-in gate blocks, values in-enum, non
 
 The SDLC plugin being loaded is self-evident — if `/sdlc doctor` is running, the plugin is installed and all skills are registered.
 
-The pre-commit gate hook ships with the plugin (`hooks/hooks.json`) and is auto-registered when the plugin loads — no per-project registration is needed. Verify the plugin's hook file is present:
+The pre-commit gate hook ships with the plugin (`hooks/hooks.json`) and is auto-registered when the plugin loads — no per-project registration is needed. It is a **command** hook, so it needs its two script files present as well; a cache resync that drops them leaves a registered hook that silently does nothing. Verify all three:
 ```bash
 # Hook ships with the plugin and auto-registers
-ls "${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json" 2>/dev/null
+ls "${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json" \
+   "${CLAUDE_PLUGIN_ROOT}/hooks/sdlc-gate-check.sh" \
+   "${CLAUDE_PLUGIN_ROOT}/hooks/sdlc-gate-check.py" 2>/dev/null
 ```
-- **PASS**: Hook file present (auto-registered with the plugin)
-- **WARN**: Hook file missing from plugin installation (reinstall the plugin)
+- **PASS**: All three files present (auto-registered with the plugin)
+- **WARN**: Any file missing from the plugin installation (reinstall the plugin, or re-run the cache resync in RELEASE.md step 3)
 
 ### 4. Spec Directory & Cross-Worktree Visibility
 

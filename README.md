@@ -592,7 +592,9 @@ speculator/
 │   ├── spec-template.md             # Blank spec with YAML frontmatter (includes impact_rating + amends + AC traceability tip)
 │   └── scorecard-template.yml       # Gate 1 evidence artifact template
 ├── hooks/
-│   └── hooks.json                   # PreToolUse: pre-commit gate warning
+│   ├── hooks.json                   # PreToolUse: pre-commit gate warning (command hook — no model call)
+│   ├── sdlc-gate-check.sh           # Fast-path wrapper: bails before spawning python on non-commits
+│   └── sdlc-gate-check.py           # Deterministic Gate 1 check (pinned by tests/test-gate-hook.sh)
 ├── lib/
 │   ├── gates.md                     # Canonical gate registry (enforced by tests/test-gate-wiring.sh)
 │   └── spec-resolution.md           # Spec identification algorithm + worktree redirect + lock semantics
