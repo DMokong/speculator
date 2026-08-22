@@ -181,7 +181,7 @@ concepts you judge durable enough that a future cold reader will need this
 context), write an enrichment draft aimed at that future reader — not at
 today's reviewer:
 
-1. `concept` — bundle-relative path (e.g. `src/alpha.md` — never prefixed with `docs/asbuilt/`). Omit the bundle directory prefix; fold.ts resolves paths relative to the bundle root.
+1. `concept` — bundle-relative path (e.g. `src/alpha.md` — never prefixed with `docs/asbuilt/`). Omit the bundle directory prefix; fold.ts resolves paths relative to the bundle root. **Naming follows skeleton's rule, which is language-dependent:** only TypeScript drops its extension (`src/alpha.ts` → `src/alpha.md`); every other language keeps it and appends `.md` (`pkg/svc.py` → `pkg/svc.py.md`, `svc.go` → `svc.go.md`, `App.java` → `App.java.md`). When `bundle_dir` exists, copy the concept file's actual path from it rather than deriving one.
 2. `explanation` — what this concept is and why it exists, in terms a reader
    with no memory of this diff would need.
 3. `decisions` — non-obvious choices and gotchas: rejected alternatives, the

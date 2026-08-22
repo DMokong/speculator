@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.21.1 — As-built gate: non-TypeScript diffs slice, non-TypeScript concepts fold (2026-08-22)
+
+**Fix: `slice.ts` sliced only `*.ts` hunks.** `touchedSymbols` passed a hard-coded `'*.ts'` pathspec to `git diff`, so a diff that touched only Python (or Go, or Java) — languages `extract.ts` already indexes through the adapter registry — produced an empty slice: `touched=0`, nothing for the generator to read, and every citation later flagged as a `diff_touched` advisory by `check.ts`. The pathspec now comes from `ADAPTERS.flatMap(a => a.globs)`, the same set `listSourceFiles` discovers with, so the two halves of the pipeline can no longer disagree about which files count. Found live on claudeclaw SPEC-060 (a Python service): the run had to hand the generator the full manifest as its citation universe and ask the judge to verify diff membership from git by hand.
+
+**Fix: `fold.ts` refused TypeScript-style names for other-language concepts.** skeleton's `conceptPath` deliberately keeps the extension for every non-TypeScript language (`pkg/svc.py` → `pkg/svc.py.md`) while the generator, trained on TS bundles, emits `pkg/svc.md`; fold then refused with "concept does not exist in the bundle" and the audited drafts never landed. fold now resolves the TS-style name to the bundle's real concept when exactly one adapter extension yields an existing file; ambiguous or absent names still refuse before any write, and the `docs/asbuilt/` prefix normalisation is unchanged. The asbuilt-generator agent's output contract now states the language-dependent naming rule and tells the agent to copy the concept path from `bundle_dir` when one exists.
+
+Tests: `slice-lang.test.ts` (a Python-only diff registers its changed symbol; a no-op range stays empty) and `fold-lang-concepts.test.ts` (`pkg/svc.md` folds into `pkg/svc.py.md`; the exact name still works; an absent concept still refuses with zero writes). Reported from claudeclaw as trk-8i3.
+
 ## 2.21.0 — Pre-commit gate hook: no model call (2026-07-30)
 
 **Fix: the PreToolUse gate hook no longer makes a model call.** Through v2.20.0 the hook was `type: "prompt"` registered on matcher `Bash` — so *every* Bash invocation fired an LLM round trip whose first instruction was "if this isn't a `git commit`, approve it silently." A model call per bash call, to decide it had nothing to do. It also inherited whatever thinking configuration the host's hook evaluator sends, which returns **400 on Bedrock inference profiles that don't accept `thinking: {type: "adaptive"}`** — making the plugin unusable on those hosts, since the hook fires on all Bash traffic rather than just commits.

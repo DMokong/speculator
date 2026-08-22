@@ -10,6 +10,7 @@
 
 import { execFileSync } from "node:child_process";
 import { argValue } from "./cli";
+import { ADAPTERS } from "./lang";
 import type { GraphManifest, SymbolEntry } from "./manifest";
 import { loadManifest } from "./manifest";
 
@@ -67,7 +68,11 @@ function rangesIntersect(a: LineRange, b: LineRange): boolean {
 
 /**
  * Returns the sorted ids of every symbol in `manifest` whose span intersects
- * a new-side hunk range in `git -C targetRepo diff --unified=0 <diffRange> -- '*.ts'`.
+ * a new-side hunk range in `git -C targetRepo diff --unified=0 <diffRange> -- <globs>`,
+ * where `<globs>` is the union of every language adapter's file globs — the
+ * same set extract.ts discovers files with (`*.ts`, `*.go`, `*.java`, `*.py`, …).
+ * A diff that only touches a non-TypeScript language must slice like any other
+ * (trk-8i3: the old hard-coded `'*.ts'` made Python diffs slice to nothing).
  *
  * The manifest must have been extracted from the new side of `diffRange`
  * (i.e. from the ref/working-tree state the range diffs *to*) — line numbers
@@ -76,7 +81,7 @@ function rangesIntersect(a: LineRange, b: LineRange): boolean {
 export function touchedSymbols(manifest: GraphManifest, targetRepo: string, diffRange: string): string[] {
   const diffOutput = execFileSync(
     "git",
-    ["-C", targetRepo, "diff", "--unified=0", diffRange, "--", "*.ts"],
+    ["-C", targetRepo, "diff", "--unified=0", diffRange, "--", ...ADAPTERS.flatMap((a) => a.globs)],
     { encoding: "utf8" },
   );
   const rangesByFile = parseNewSideRanges(diffOutput);

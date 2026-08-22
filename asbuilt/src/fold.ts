@@ -23,6 +23,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { parse } from "yaml";
 import { argValue, hasFlag } from "./cli";
 import { parseFrontmatter, reclassifyTags, reclassifyType, renderFrontmatter, resolveTags, splitConcept } from "./concept";
+import { ADAPTERS } from "./lang";
 import { type GraphManifest, loadManifest } from "./manifest";
 import { headingLines, isExactHeading } from "./md";
 
@@ -349,6 +350,20 @@ export function appendLogBullets(logPath: string, date: string, bullets: string[
  * 5. Append a `log.md` entry per concept (idempotent on exact-bullet match).
  * 6. Write only when bytes differ; return the folded/skipped concept lists.
  */
+/**
+ * For a TypeScript-style concept name (`pkg/svc.md`) that does not exist,
+ * returns the bundle-relative names that DO exist under skeleton's
+ * keep-the-extension rule for the other adapters (`pkg/svc.py.md`,
+ * `pkg/svc.go.md`, …). Callers accept the result only when it is
+ * unambiguous (exactly one hit); see the resolution site in fold().
+ */
+export function resolveLanguageAlternates(bundleDir: string, concept: string): string[] {
+  if (!concept.endsWith(".md")) return [];
+  const stem = concept.slice(0, -".md".length);
+  const exts = [...new Set(ADAPTERS.flatMap((a) => a.extensions))].filter((e) => e !== "ts");
+  return exts.map((ext) => `${stem}.${ext}.md`).filter((c) => existsSync(join(bundleDir, c)));
+}
+
 export function fold(opts: FoldOptions): FoldResult {
   const date = opts.date ?? new Date().toISOString().slice(0, 10);
 
@@ -423,7 +438,20 @@ export function fold(opts: FoldOptions): FoldResult {
       normalizedConcept = normalizedConcept.slice("docs/asbuilt/".length);
     }
 
-    const conceptAbsPath = join(bundleDir, normalizedConcept);
+    let conceptAbsPath = join(bundleDir, normalizedConcept);
+    if (!existsSync(conceptAbsPath)) {
+      // skeleton's conceptPath keeps the source extension for every
+      // non-TypeScript language (`pkg/svc.py` → `pkg/svc.py.md`), but the
+      // generator tends to emit the TypeScript form (`pkg/svc.md`). Resolve
+      // that form to the bundle's real concept when exactly one adapter
+      // extension yields an existing file (trk-8i3); anything ambiguous or
+      // absent still refuses below, before any write.
+      const alternates = resolveLanguageAlternates(bundleDir, normalizedConcept);
+      if (alternates.length === 1) {
+        normalizedConcept = alternates[0];
+        conceptAbsPath = join(bundleDir, normalizedConcept);
+      }
+    }
     if (!existsSync(conceptAbsPath)) {
       throw new Error(
         `refusing to fold: concept does not exist in the bundle: ${draft.concept}`,
