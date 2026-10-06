@@ -3,7 +3,10 @@
 
 Reads a PreToolUse hook payload on stdin. Prints nothing unless an active spec
 lacks a passing Gate 1 scorecard, in which case it prints a single JSON object
-carrying a `systemMessage`. Always exits 0 — this is a warning, never a block.
+carrying the warning twice: `systemMessage` (shown to the user) and
+`hookSpecificOutput.additionalContext` (shown to the model). Always exits 0 and
+never carries a `permissionDecision` — this is a warning, never a block and
+never an approval.
 
 Invoked by hooks/sdlc-gate-check.sh, which handles the fast-path bail so the
 common case (any Bash call that is not a commit) never reaches this file.
@@ -19,8 +22,15 @@ import sys
 
 def emit_and_exit(message=None):
     if message:
+        # hookEventName is REQUIRED: without it Claude Code fails validation and
+        # discards the whole object, so the warning reaches nobody. No
+        # permissionDecision on purpose — "allow" would auto-approve the commit
+        # past the user's own permission prompt.
         print(json.dumps({
-            "hookSpecificOutput": {"permissionDecision": "allow"},
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "additionalContext": message,
+            },
             "systemMessage": message,
         }))
     raise SystemExit(0)

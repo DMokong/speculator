@@ -17,6 +17,8 @@ jobs:
         run: bash tests/test-secrets-scan.sh
       - name: Gate wiring consistency suite
         run: bash tests/test-gate-wiring.sh
+      - name: Pre-commit gate hook (output shape, never blocks)
+        run: bash tests/test-gate-hook.sh
       - name: verify-evidence.sh syntax check
         run: bash -n scripts/verify-evidence.sh
       - name: verify-evidence.sh self-test (known-good dogfood evidence)

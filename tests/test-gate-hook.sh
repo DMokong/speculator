@@ -157,6 +157,31 @@ expect_warn "--git-dir spaced value"   'git --git-dir /r/.git commit -m y'
 expect_warn "env var prefix"           'GIT_EDITOR=true git commit'
 expect_warn "absolute git path"        '/usr/bin/git commit -m z'
 
+bold "== warning output is a valid PreToolUse hook payload =="
+# Claude Code validates hook JSON and DISCARDS the whole output when
+# hookSpecificOutput lacks hookEventName — the warning then reaches nobody
+# (trk-bar). The hook must also never carry a permissionDecision: it is a
+# warning, and "allow" would auto-approve the commit past the user's own
+# permission prompt.
+run_hook "$PROJ" "$(bash_payload 'git commit -m x')"
+shape_check() { # shape_check <label> <python expr over d>
+  TOTAL=$((TOTAL + 1))
+  if printf '%s' "$HOOK_OUT" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+h = d.get('hookSpecificOutput') or {}
+sys.exit(0 if ($2) else 1)" 2>/dev/null; then
+    green "  ✓ $1"; PASS=$((PASS + 1))
+  else
+    red "  ✗ $1 (out=$HOOK_OUT)"; FAIL=$((FAIL + 1))
+  fi
+}
+shape_check "output is a single JSON object"            "isinstance(d, dict)"
+shape_check "hookEventName is PreToolUse"               "h.get('hookEventName') == 'PreToolUse'"
+shape_check "no permissionDecision (warn, never decide)" "'permissionDecision' not in h"
+shape_check "systemMessage carries the warning (user)"   "'SPEC-001' in d.get('systemMessage', '')"
+shape_check "additionalContext carries it (model)"       "'SPEC-001' in h.get('additionalContext', '')"
+
 bold "== passing / closed specs are not warned about =="
 TOTAL=$((TOTAL + 1))
 run_hook "$PROJ" "$(bash_payload 'git commit -m x')"

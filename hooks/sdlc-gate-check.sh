@@ -14,7 +14,8 @@
 #
 # Contract: PreToolUse command hook. Reads the hook payload on stdin, always
 # exits 0 (this is a warning in v1, never a block), and emits JSON carrying a
-# `systemMessage` only when there is something to warn about.
+# `systemMessage` plus `hookSpecificOutput.additionalContext` only when there is
+# something to warn about. It never emits a permission decision.
 #
 # NON-BLOCKING BY CONSTRUCTION: every failure path exits 0 and stays silent. A
 # broken gate check must never wedge the user's ability to commit.

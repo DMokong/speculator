@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.21.2 — Pre-commit gate warning actually reaches the session (2026-10-07)
+
+**Fix: the Gate 1 pre-commit warning was silently discarded.** `hooks/sdlc-gate-check.py` printed `{"hookSpecificOutput": {"permissionDecision": "allow"}, "systemMessage": ...}`. Claude Code requires `hookSpecificOutput.hookEventName`; without it the host fails validation ("hookSpecificOutput is missing required field hookEventName"), reports a hook error on every `git commit` in a project with a spec that has not passed Gate 1, and throws the whole object away — so the one message this hook exists to deliver reached neither the user nor the model. The hook now emits `hookEventName: "PreToolUse"` and carries the warning twice: `systemMessage` (user-visible notice) and `hookSpecificOutput.additionalContext` (model-visible). Verified against Claude Code 2.1.291 with a scratch project: old shape discarded, new shape delivered on both channels.
+
+**Changed: the hook no longer emits a permission decision.** The discarded output carried `permissionDecision: "allow"`. Had it ever validated, it would have auto-approved every such commit past the user's own permission prompt — a warning has no business deciding permissions. The fixed hook leaves the decision to the normal flow, which is also what users have effectively had since v2.21.0.
+
+`tests/test-gate-hook.sh` gains five output-shape checks (32 total) and now runs in CI.
+
 ## 2.21.1 — As-built gate: non-TypeScript diffs slice, non-TypeScript concepts fold (2026-08-22)
 
 **Fix: `slice.ts` sliced only `*.ts` hunks.** `touchedSymbols` passed a hard-coded `'*.ts'` pathspec to `git diff`, so a diff that touched only Python (or Go, or Java) — languages `extract.ts` already indexes through the adapter registry — produced an empty slice: `touched=0`, nothing for the generator to read, and every citation later flagged as a `diff_touched` advisory by `check.ts`. The pathspec now comes from `ADAPTERS.flatMap(a => a.globs)`, the same set `listSourceFiles` discovers with, so the two halves of the pipeline can no longer disagree about which files count. Found live on claudeclaw SPEC-060 (a Python service): the run had to hand the generator the full manifest as its citation universe and ask the judge to verify diff membership from git by hand.
