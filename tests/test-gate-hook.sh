@@ -197,6 +197,43 @@ else
   green "  ✓ SPEC-003 (status: closed) not warned about"; PASS=$((PASS + 1))
 fi
 
+bold "== finished and comment-stamped specs are not warned about =="
+# Real-world shapes the first version got wrong (found on a project with 50
+# compacted specs): `compacted` is the status a spec moves to AFTER `closed`,
+# and the scorer writes `result: pass   # stamped by invoker: ...`.
+mkdir -p "$PROJ/docs/specs/SPEC-004" \
+         "$PROJ/docs/specs/SPEC-005/evidence" \
+         "$PROJ/docs/specs/SPEC-006" \
+         "$PROJ/docs/specs/SPEC-007/evidence"
+printf -- '---\nstatus: compacted\n---\n' > "$PROJ/docs/specs/SPEC-004/spec.md"
+printf -- '---\nstatus: draft\n---\n' > "$PROJ/docs/specs/SPEC-005/spec.md"
+printf 'result: pass                # stamped by invoker: 8.4 >= 7.0\n' \
+  > "$PROJ/docs/specs/SPEC-005/evidence/gate-1-scorecard.yml"
+printf -- '---\nstatus: closed  # shipped in v2\n---\n' > "$PROJ/docs/specs/SPEC-006/spec.md"
+printf -- '---\nstatus: draft\n---\n' > "$PROJ/docs/specs/SPEC-007/spec.md"
+printf 'result: fail   # pass was not reached\n' \
+  > "$PROJ/docs/specs/SPEC-007/evidence/gate-1-scorecard.yml"
+run_hook "$PROJ" "$(bash_payload 'git commit -m x')"
+not_warned() { # not_warned <spec> <why>
+  TOTAL=$((TOTAL + 1))
+  if printf '%s' "$HOOK_OUT" | grep -q "$1"; then
+    red "  ✗ warned about $1, which $2"; FAIL=$((FAIL + 1))
+  else
+    green "  ✓ $1 ($2) not warned about"; PASS=$((PASS + 1))
+  fi
+}
+not_warned "SPEC-004" "is compacted (finished, no scorecard needed)"
+not_warned "SPEC-005" "has result: pass with a trailing comment"
+not_warned "SPEC-006" "is closed, with a trailing comment on status"
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$HOOK_OUT" | grep -q "SPEC-007"; then
+  green "  ✓ SPEC-007 (result: fail # ...pass...) still warned about"; PASS=$((PASS + 1))
+else
+  red "  ✗ SPEC-007 has result: fail and must still warn (out=$HOOK_OUT)"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$PROJ/docs/specs/SPEC-004" "$PROJ/docs/specs/SPEC-005" \
+       "$PROJ/docs/specs/SPEC-006" "$PROJ/docs/specs/SPEC-007"
+
 bold "== all specs passing → silent =="
 printf 'result: pass\n' > "$PROJ/docs/specs/SPEC-001/evidence/gate-1-scorecard.yml"
 expect_silent "every active spec passes Gate 1" 'git commit -m x'

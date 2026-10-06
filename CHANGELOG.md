@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.21.3 — Pre-commit gate warning stops naming finished specs (2026-10-07)
+
+v2.21.2 made the Gate 1 pre-commit warning visible for the first time, which exposed that it was wrong: on a project with 55 specs it named 12, none of them open.
+
+**Fix: `compacted` specs were treated as active.** `hooks/sdlc-gate-check.py` skipped only `status: closed`, but `/sdlc close` and `/spec compact` move a spec on to `compacted` once it is folded into SYSTEM-SPEC.md. Both are now finished states.
+
+**Fix: a comment-stamped passing scorecard read as not passed.** The scorer writes `result: pass   # stamped by invoker: 8.4 >= 7.0, ...`; the hook compared everything after `result:` with `pass`. Flat scalars now have a trailing YAML comment removed (a `#` after whitespace, never inside quotes) before comparison — applied to both the scorecard `result` and the spec `status`. `result: fail  # ...` still warns.
+
+`tests/test-gate-hook.sh`: four new cases (36 checks).
+
 ## 2.21.2 — Pre-commit gate warning actually reaches the session (2026-10-07)
 
 **Fix: the Gate 1 pre-commit warning was silently discarded.** `hooks/sdlc-gate-check.py` printed `{"hookSpecificOutput": {"permissionDecision": "allow"}, "systemMessage": ...}`. Claude Code requires `hookSpecificOutput.hookEventName`; without it the host fails validation ("hookSpecificOutput is missing required field hookEventName"), reports a hook error on every `git commit` in a project with a spec that has not passed Gate 1, and throws the whole object away — so the one message this hook exists to deliver reached neither the user nor the model. The hook now emits `hookEventName: "PreToolUse"` and carries the warning twice: `systemMessage` (user-visible notice) and `hookSpecificOutput.additionalContext` (model-visible). Verified against Claude Code 2.1.291 with a scratch project: old shape discarded, new shape delivered on both channels.

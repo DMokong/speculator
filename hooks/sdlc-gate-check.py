@@ -16,8 +16,26 @@ Usage: sdlc-gate-check.py <project-dir>   # payload on stdin
 
 import json
 import os
+import re
 import shlex
 import sys
+
+# A spec in one of these states is finished: `closed` by /sdlc close, then
+# `compacted` once it has been folded into SYSTEM-SPEC.md. Neither needs Gate 1.
+FINISHED_STATUSES = {"closed", "compacted"}
+
+
+def scalar(value):
+    """A flat YAML scalar with its trailing `# comment` and quotes removed.
+
+    The scorer stamps scorecards as `result: pass   # 8.4 >= 7.0, ...`; read
+    naively, that whole string is the value and never equals "pass". A `#` only
+    starts a comment after whitespace, and never inside a quoted value.
+    """
+    value = value.strip()
+    if value[:1] in ("\"", "'"):
+        return value.strip("\"'")
+    return re.sub(r"\s+#.*$", "", value).strip()
 
 
 def emit_and_exit(message=None):
@@ -109,7 +127,7 @@ def gate1_passed(scorecard_path):
         with open(scorecard_path, "r", encoding="utf-8", errors="replace") as fh:
             for line in fh:
                 if line.startswith("result:"):
-                    return line.split(":", 1)[1].strip().strip("\"'").lower() == "pass"
+                    return scalar(line.split(":", 1)[1]).lower() == "pass"
     except OSError:
         return False
     return False
@@ -149,9 +167,9 @@ def main():
         spec_md = os.path.join(entry.path, "spec.md")
         if not os.path.isfile(spec_md):
             continue
-        # Active == not yet closed. An absent/unreadable status counts as active
-        # so a malformed spec surfaces rather than silently passing.
-        if (frontmatter(spec_md).get("status") or "").lower() == "closed":
+        # Active == not yet finished. An absent/unreadable status counts as
+        # active so a malformed spec surfaces rather than silently passing.
+        if scalar(frontmatter(spec_md).get("status") or "").lower() in FINISHED_STATUSES:
             continue
         if not gate1_passed(os.path.join(entry.path, evidence_dir, "gate-1-scorecard.yml")):
             pending.append(entry.name)
